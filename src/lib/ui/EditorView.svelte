@@ -260,14 +260,16 @@
 	let pointer = $state.raw<LngLat | null>(null);
 
 	/**
-	 * A clicked position, moved onto the nearest OSM node within 8 px of it among the features
-	 * drawn on the shown level: control points then sit exactly on the mapped walls and corners.
+	 * A clicked position, moved onto what is within 8 px of it on the shown level. A click on
+	 * the plan in Edit (a control point's spot on the plan, a measured spot, the spot to turn
+	 * around) snaps to the plan's own corners and line ends; a click on the map (where a control
+	 * point really is) to the nearest OSM node, else to the corners of the other plans shown:
+	 * control points then sit exactly on drawn walls and corners.
 	 */
 	function snap(point: { x: number; y: number }, lngLat: LngLatLike): LngLat {
 		const { lng, lat } = LngLatClass.convert(lngLat);
-		let best: LngLat = [lng, lat];
-		let bestDistance = SNAP_DISTANCE;
-		if (!map) return best;
+		const clicked: LngLat = [lng, lat];
+		if (!map) return clicked;
 		// The square around the click, on the ground (all four corners: the map may be rotated).
 		const d = SNAP_DISTANCE;
 		const corners = [
@@ -286,12 +288,43 @@
 			east: Math.max(...corners.map((c) => c.lng)),
 			north: Math.max(...corners.map((c) => c.lat)),
 		};
-		for (const node of editor.features.nodesNear(area, level)) {
-			const screen = map.project(node.loc as [number, number]);
+		const editing = floorplans.editing?.id;
+		const tool = floorplans.tool;
+		if (!(tool?.kind === "points" && tool.pending)) {
+			return (
+				nearest(
+					point,
+					floorplans.verticesNear(area, level, (p) => p.id === editing),
+				) ?? clicked
+			);
+		}
+		const nodes = editor.features
+			.nodesNear(area, level)
+			.map((node): LngLat => [node.loc[0], node.loc[1]]);
+		return (
+			nearest(point, nodes) ??
+			nearest(
+				point,
+				floorplans.verticesNear(area, level, (p) => p.id !== editing),
+			) ??
+			clicked
+		);
+	}
+
+	/** The position nearest a screen point, within 8 px of it; undefined when none is. */
+	function nearest(
+		point: { x: number; y: number },
+		positions: readonly LngLat[],
+	): LngLat | undefined {
+		let best: LngLat | undefined;
+		let bestDistance = SNAP_DISTANCE;
+		for (const position of positions) {
+			const screen = map?.project(position);
+			if (!screen) continue;
 			const distance = Math.hypot(screen.x - point.x, screen.y - point.y);
 			if (distance < bestDistance) {
 				bestDistance = distance;
-				best = [node.loc[0], node.loc[1]];
+				best = position;
 			}
 		}
 		return best;

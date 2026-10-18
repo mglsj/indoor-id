@@ -29,7 +29,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | R0    | Fixes and fast feedback (review)           | Done        |
 | R1    | Foundations for editing (review)           | Done        |
 | R2    | Floor plan content model (review)          | Done        |
-| P4.2  | Vector and light raster floor plans        | In progress |
+| P4.2  | Vector and light raster floor plans        | Done        |
 | P5.3  | Geometry editing                           | Not started |
 | P5.4  | Autosave and conflicts                     | Not started |
 | P6    | Parity and polish                          | Not started |
@@ -926,6 +926,14 @@ and closed, never those on screen (`pin`); a plan's are closed with its content.
 a raster plan's tiles at its pyramid level within the view (and a quarter view around it),
 synced once a frame while the map moves; while some are decoding, the nearest coarser level
 decoded there goes under them. The map shows how many tiles it draws as `data-plan-tiles` (e2e).
+P4.2.5: `floorplans/plan-vertices.ts` (`PlanVertices`, pure): a vector plan's segment ends and
+filled triangles' corners in a uniform grid of typed arrays over the plan (an rbush of objects
+took 740 ms to load on the user's heaviest page; the grid 94 ms), queried through the inverse
+transform, shared vertices given once, hidden CAD layers left out. `FloorPlans.verticesNear`
+(the visible vector plans on a level, an index built when first snapped to and dropped with
+the content). Alignment clicks on the plan in Edit (a control point's spot, measured spots,
+the pivot) snap to its own corners within 8 px; a control point's map click to an OSM node,
+else to another plan's corners. P4.2 done.
 
 ### P5.3: Geometry editing — L
 

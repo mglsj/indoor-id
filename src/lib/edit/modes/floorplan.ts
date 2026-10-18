@@ -55,7 +55,7 @@ export function floorPlanMode({
 
 export interface FloorPlanToolModeOptions {
 	readonly floorplans: FloorPlans;
-	/** A clicked position, moved onto a node near it. */
+	/** A clicked position, moved onto a node or a plan corner near it. */
 	readonly snap: (point: { x: number; y: number }, lngLat: LngLat) => LngLat;
 	/** The tool's message about the last click. */
 	readonly onmessage: (message: Message | null) => void;
@@ -63,7 +63,7 @@ export interface FloorPlanToolModeOptions {
 	readonly onpointer: (at: LngLat | null) => void;
 }
 
-/** An alignment tool on: clicks go to it, snapped to nodes; Escape turns it off. */
+/** An alignment tool on: clicks go to it, snapped (`snap`); Escape turns it off. */
 export function floorPlanToolMode({
 	floorplans,
 	snap,

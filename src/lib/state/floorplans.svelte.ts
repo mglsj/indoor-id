@@ -33,7 +33,10 @@ import {
 	unproject,
 } from "#lib/floorplans/georef.ts";
 import type { ImportedPlans } from "#lib/floorplans/plan-io.ts";
+import { PlanVertices } from "#lib/floorplans/plan-vertices.ts";
 import { TileCache } from "#lib/floorplans/tile-cache.ts";
+import type { Bounds } from "#lib/floorplans/tiling.ts";
+import type { VectorContent } from "#lib/floorplans/vector.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import { isOnLevel, parseLevels } from "#lib/levels/levels.ts";
 import {
@@ -174,6 +177,8 @@ export class FloorPlans {
 	readonly #savedFiles = new Set<string>();
 	/** Files not written to the store yet (or kept here without a store), by id. */
 	readonly #unwritten = new Map<string, Blob>();
+	/** Each vector content's vertices, built when first snapped to, dropped with it. */
+	readonly #vertices = new WeakMap<VectorContent, PlanVertices>();
 
 	constructor({ store, codec }: FloorPlansOptions = {}) {
 		this.#store = store;
@@ -200,6 +205,28 @@ export class FloorPlans {
 	}): Promise<Blob | undefined> {
 		const { file } = plan.source;
 		return this.#unwritten.get(file) ?? (await this.#store?.loadFile(file));
+	}
+
+	/**
+	 * The corners and line ends that the visible vector plans on `level` (those `which` takes)
+	 * put within `area`: what clicks snap to.
+	 */
+	verticesNear(
+		area: Bounds,
+		level: number,
+		which: (plan: FloorPlan) => boolean = () => true,
+	): LngLat[] {
+		return this.plans.flatMap((plan) => {
+			const vector = this.contents.get(plan.id)?.vector;
+			if (!vector || !plan.visible || !isPlanOnLevel(plan, level)) return [];
+			if (!which(plan)) return [];
+			let vertices = this.#vertices.get(vector);
+			if (!vertices) {
+				vertices = new PlanVertices(vector);
+				this.#vertices.set(vector, vertices);
+			}
+			return vertices.near(plan.transform, area, new Set(plan.hiddenLayers));
+		});
 	}
 
 	/** Brings back the plans saved in earlier visits. */

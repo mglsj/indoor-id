@@ -504,6 +504,40 @@ test("aligns a plan with control points snapped to OSM nodes", async ({
 	});
 });
 
+test("snaps a control point to a vector plan's own corner", async ({
+	page,
+}) => {
+	const A: [number, number] = [-180, -130];
+	await serveOsm(page, nodesAt(A, [180, 130]));
+	await importPlan(page, "layers.pdf");
+	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+	await dialog.getByRole("radio", { name: "Vector" }).click();
+	await dialog.getByRole("button", { name: "Import" }).click();
+	await expect(dialog).toBeHidden({ timeout: 20_000 });
+	await expect(page.getByTestId("load-status")).toBeHidden();
+	// 288 × 216 pt; the frame (Walls) a 4 pt line whose top-left corner is at (20, 20).
+	const { cx, cy, mx, scale } = await initialLayout(page, 216);
+
+	await page.getByRole("radio", { name: "Control points" }).click();
+	// Both clicks 5 px right of and above what they mean: the frame's corner, then node A.
+	await page.mouse.click(
+		cx + (20 - 144) * scale + 5,
+		cy + (20 - 108) * scale - 5,
+	);
+	await page.mouse.click(mx + A[0] + 5, cy + A[1] - 5);
+	await expect(
+		page.getByRole("list", { name: "Control points" }).getByRole("listitem"),
+	).toHaveCount(1);
+	// The corner moved onto A exactly: the frame's left edge runs down through it (unsnapped,
+	// it would run 5 px to the left, off a line some 7 px wide).
+	await expectPixel(
+		page,
+		mx + A[0],
+		cy + A[1] + 40,
+		blend([0, 0, 0], 0.5, BACKGROUND),
+	);
+});
+
 test("control points don't snap to nodes on another level", async ({
 	page,
 }) => {

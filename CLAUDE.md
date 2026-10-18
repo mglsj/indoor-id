@@ -80,7 +80,8 @@ runs the same commands.
   JSON and 1.x read), `tiling.ts`, `import.ts` raster/SVG/PDF; vector plans (P4.2):
   `vector.ts` (`VectorContent`: segments, triangles, texts, CAD layers; `VectorBuilder`),
   `vector-pdf.ts` (pdf.js operator lists, text from `showText`, pure: pass pdf.js's `OPS`; `pdfPageKind` for Auto; a plan's `source.mode` says how it is
-  drawn), `svg-path.ts` (pure), `vector-svg.ts` (`DOMParser`)),
+  drawn), `svg-path.ts` (pure), `vector-svg.ts` (`DOMParser`), `plan-vertices.ts` (corners to
+  snap to, `FloorPlans.verticesNear`)),
   `map/floorplan-layers.ts` (vector plans through `map/vector-plan-layer.ts`, a custom
   WebGL layer, and `map/plan-matrix.ts`; their text through `map/plan-labels.ts`),
   `state/floorplans.svelte.ts` (`FloorPlans`: plans, edit sessions, alignment tools; a

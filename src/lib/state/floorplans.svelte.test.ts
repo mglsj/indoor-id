@@ -899,3 +899,62 @@ describe("FloorPlans: a vector plan's CAD layers", () => {
 		expect(floorplans.plans.map((p) => p.hiddenLayers)).toEqual([[], ["9R"]]);
 	});
 });
+
+describe("FloorPlans.verticesNear: corners of the vector plans shown", () => {
+	/** A 400 × 300 unit drawing with one wall from (100, 100) to (200, 100). */
+	const wall = vectorContent({
+		size: { width: 400, height: 300 },
+		segments: new Float32Array([100, 100, 200, 100]),
+		segmentStyles: new Uint32Array([0]),
+		triangles: new Float32Array([]),
+		triangleStyles: new Uint32Array([]),
+		styles: [{ color: [0, 0, 0, 255], width: 0, layer: 0 }],
+		texts: [],
+		layers: [{ id: "7R", name: "Walls", visible: true }],
+	});
+	/** The whole view of the plans: 25 m tall around RENNES. */
+	const everywhere = {
+		west: offset(RENNES, -30, 0)[0],
+		east: offset(RENNES, 30, 0)[0],
+		south: offset(RENNES, 0, -30)[1],
+		north: offset(RENNES, 0, 30)[1],
+	};
+
+	function plans() {
+		const floorplans = new FloorPlans();
+		floorplans.add(wall, "shown", view, "0", photo());
+		floorplans.add(wall, "upstairs", view, "1", photo());
+		floorplans.add(wall, "hidden", view, "0", photo());
+		floorplans.add(image, "photo", view, "0", photo());
+		floorplans.done();
+		floorplans.setVisible(idOf(floorplans, "hidden"), false);
+		floorplans.showLevel(0);
+		return floorplans;
+	}
+
+	it("gives the vertices of the visible vector plans on the level, where they are", () => {
+		const floorplans = plans();
+		const found = floorplans.verticesNear(everywhere, 0);
+		// The wall's two ends, of the plan "shown" only.
+		expect(found).toHaveLength(2);
+		const shown = floorplans.plans.find((p) => p.name === "shown");
+		if (!shown) throw new Error("no plan");
+		const ends = [
+			project(shown.transform, [100, 100]),
+			project(shown.transform, [200, 100]),
+		];
+		for (const end of ends) {
+			expect(found.some((p) => distance(p, end) < 0.001)).toBe(true);
+		}
+	});
+
+	it("gives only the plans asked for, and none of their hidden layers", () => {
+		const floorplans = plans();
+		const id = idOf(floorplans, "shown");
+		expect(floorplans.verticesNear(everywhere, 0, (p) => p.id !== id)).toEqual(
+			[],
+		);
+		floorplans.setHiddenLayers(id, ["7R"]);
+		expect(floorplans.verticesNear(everywhere, 0)).toEqual([]);
+	});
+});
