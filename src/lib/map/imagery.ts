@@ -6,7 +6,7 @@
  * box, then polygon test), done when the map stops moving rather than on a timer.
  */
 import type { MultiPolygon, Polygon, Position } from "geojson";
-import { pointInPolygon } from "./geometry.ts";
+import { extentOf, pointInPolygon } from "#lib/osm/geometry.ts";
 import type { RasterSourceSpecification } from "./maplibre.ts";
 
 export const DEFAULT_IMAGERY_INDEX_URL =
@@ -182,21 +182,9 @@ function escapeHtml(value: string): string {
 function boundingBox(
 	polygons: readonly Position[][][],
 ): [number, number, number, number] {
-	let [w, s, e, n] = [
-		Number.POSITIVE_INFINITY,
-		Number.POSITIVE_INFINITY,
-		Number.NEGATIVE_INFINITY,
-		Number.NEGATIVE_INFINITY,
-	];
-	for (const polygon of polygons) {
-		for (const [x = 0, y = 0] of polygon[0] ?? []) {
-			w = Math.min(w, x);
-			s = Math.min(s, y);
-			e = Math.max(e, x);
-			n = Math.max(n, y);
-		}
-	}
-	return [w, s, e, n];
+	const extent = extentOf(polygons.flatMap((polygon) => polygon[0] ?? []));
+	if (!extent) return [Infinity, Infinity, -Infinity, -Infinity];
+	return [extent.west, extent.south, extent.east, extent.north];
 }
 
 /** Downloads and parses the imagery index. */

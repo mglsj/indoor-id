@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
+import { strFromU8, unzipSync } from "fflate";
 import { PLAN_COLORS } from "../../src/lib/floorplans/colors.ts";
 import {
 	BACKGROUND,
@@ -7,13 +9,17 @@ import {
 	camera,
 	expect,
 	expectPixel,
+	inspector,
 	LAT,
 	LON,
+	lngLatAt,
+	mapDrawn,
 	mapLocator,
 	pixelAt,
 	room,
 	serveOsm,
 	test,
+	WORLD,
 } from "./fixtures.ts";
 
 const FILES = path.join(import.meta.dirname, "files");
@@ -96,10 +102,27 @@ for (const file of ["plan.png", "plan.jpg", "plan.webp"]) {
 	});
 }
 
-test("imports an SVG plan without running its scripts", async ({ page }) => {
+test("imports an SVG plan as paths, without running its scripts, kept after a reload", async ({
+	page,
+}) => {
 	await importPlan(page, "plan.svg");
 	await expectPlanDrawn(page, [0, 255, 0], 4 / 3);
 	expect(await page.evaluate(() => "svgRan" in window)).toBe(false);
+	// Measured in its own units, not pixels: drawn from its paths.
+	await expect(planRows(page).first()).toContainText("400 × 300");
+	await expect(planRows(page).first()).not.toContainText("px");
+
+	await page.getByRole("button", { name: "Done" }).click();
+	// Saved once its paths are: a reload could cut the write short.
+	await expect
+		.poll(async () => {
+			const { plans, complete } = await storedPlans(page);
+			return complete && JSON.parse(plans).length === 1;
+		})
+		.toBe(true);
+	await page.reload();
+	await page.getByRole("button", { name: "Floor plans" }).click();
+	await expectPlanDrawn(page, [0, 255, 0], 4 / 3);
 });
 
 test("imports the chosen page of a PDF at the chosen resolution", async ({
@@ -113,16 +136,125 @@ test("imports the chosen page of a PDF at the chosen resolution", async ({
 	// The first page is chosen to start with.
 	await expect(dialog.getByRole("checkbox", { name: "Page 1" })).toBeChecked();
 	await expect(dialog.getByLabel("Resolution (DPI)")).toHaveValue("150");
+	await dialog.getByRole("radio", { name: "Image" }).click();
 	await dialog.getByRole("checkbox", { name: "Page 1" }).click();
 	await dialog.getByRole("checkbox", { name: "Page 2" }).click();
 	await dialog.getByRole("button", { name: "Import" }).click();
 
-	// 4 × 3 inches at 150 DPI.
-	await expect(planRows(page)).toContainText(["600 × 450 px"]);
+	// 4 × 3 inches at 150 DPI. Rendering in software takes a while when the machine is busy.
+	await expect(planRows(page)).toContainText(["600 × 450 px"], {
+		timeout: 20_000,
+	});
 	await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(
 		"plan, page 2",
 	);
 	await expectPlanDrawn(page, [0, 0, 255], 4 / 3);
+});
+
+test("imports a PDF page from its paths, measured in points", async ({
+	page,
+}) => {
+	await importPlan(page, "plan.pdf");
+	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+	await dialog.getByRole("radio", { name: "Vector" }).click();
+	await dialog.getByRole("button", { name: "Import" }).click();
+	await expect(dialog).toBeHidden({ timeout: 20_000 });
+	// 4 × 3 inches: 288 × 216 points, no pixels.
+	await expect(planRows(page).first()).toContainText("288 × 216");
+	await expect(planRows(page).first()).not.toContainText("px");
+	await expectPlanDrawn(page, [255, 0, 0], 4 / 3);
+});
+
+/** The darkest channel value in a box of the screen: low where text is drawn. */
+async function darkest(
+	page: Page,
+	box: { x: number; y: number; width: number; height: number },
+): Promise<number> {
+	const clip = {
+		x: Math.round(box.x),
+		y: Math.round(box.y),
+		width: Math.round(box.width),
+		height: Math.round(box.height),
+	};
+	const png = await page.screenshot({ clip });
+	return page.evaluate(
+		async ({ base64, width, height }) => {
+			const blob = await (
+				await fetch(`data:image/png;base64,${base64}`)
+			).blob();
+			const canvas = new OffscreenCanvas(width, height);
+			const context = canvas.getContext("2d");
+			if (!context) throw new Error("No 2D context");
+			context.drawImage(await createImageBitmap(blob), 0, 0);
+			const data = context.getImageData(0, 0, width, height).data;
+			let min = 255;
+			for (let i = 0; i < data.length; i += 4) {
+				min = Math.min(
+					min,
+					data[i] ?? 255,
+					data[i + 1] ?? 255,
+					data[i + 2] ?? 255,
+				);
+			}
+			return min;
+		},
+		{ base64: png.toString("base64"), width: clip.width, height: clip.height },
+	);
+}
+
+test("draws a PDF's text as labels where the PDF has it", async ({ page }) => {
+	await importPlan(page, "layers.pdf");
+	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+	await dialog.getByRole("radio", { name: "Vector" }).click();
+	await dialog.getByRole("button", { name: "Import" }).click();
+	await expect(dialog).toBeHidden({ timeout: 20_000 });
+
+	// 288 × 216 pt; "Hall" in 24 pt Helvetica, 41 pt long from (100, 100) up from the bottom
+	// left: its middle 23 pt left of the page's and level with it.
+	const { cx, cy, scale } = await initialLayout(page, 216);
+	const label = {
+		x: cx - (23 + 25) * scale,
+		y: cy - 15 * scale,
+		width: 50 * scale,
+		height: 30 * scale,
+	};
+	// Dark text (#333 at the plan's opacity, 0.5) where the label is; the page bare beside it.
+	await expect.poll(() => darkest(page, label)).toBeLessThan(170);
+	expect(await darkest(page, { ...label, x: cx + 20 * scale })).toBeGreaterThan(
+		200,
+	);
+});
+
+test("hides a PDF's CAD layers, its text with them", async ({ page }) => {
+	await importPlan(page, "layers.pdf");
+	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+	await dialog.getByRole("radio", { name: "Vector" }).click();
+	await dialog.getByRole("button", { name: "Import" }).click();
+	await expect(dialog).toBeHidden({ timeout: 20_000 });
+
+	// The frame (Walls): a 4 pt black line 20 pt in from the page's left edge, at half opacity.
+	const { cx, cy, scale } = await initialLayout(page, 216);
+	const frame = { x: cx - (144 - 20) * scale, y: cy };
+	const label = {
+		x: cx - 48 * scale,
+		y: cy - 15 * scale,
+		width: 50 * scale,
+		height: 30 * scale,
+	};
+	await expectPixel(page, frame.x, frame.y, blend([0, 0, 0], 0.5, BACKGROUND));
+	await expect.poll(() => darkest(page, label)).toBeLessThan(170);
+
+	const layers = page.getByRole("group", { name: "Layers" });
+	await expect(layers.getByRole("checkbox")).toHaveCount(2);
+	await layers.getByRole("checkbox", { name: "Labels" }).click();
+	await expect.poll(() => darkest(page, label)).toBeGreaterThan(200);
+	await expectPixel(page, frame.x, frame.y, blend([0, 0, 0], 0.5, BACKGROUND));
+
+	await layers.getByRole("checkbox", { name: "Walls" }).click();
+	await expectPixel(page, frame.x, frame.y, BACKGROUND);
+	await layers.getByRole("button", { name: "Show all" }).click();
+	await expectPixel(page, frame.x, frame.y, blend([0, 0, 0], 0.5, BACKGROUND));
+	await expect.poll(() => darkest(page, label)).toBeLessThan(170);
 });
 
 test("imports several PDF pages as plans, all on the level shown", async ({
@@ -154,6 +286,71 @@ test("imports several PDF pages as plans, all on the level shown", async ({
 	);
 });
 
+/** How many files plans were imported from are stored in IndexedDB. */
+function storedFiles(page: Page): Promise<number> {
+	return page.evaluate(
+		() =>
+			new Promise<number>((resolve, reject) => {
+				const open = indexedDB.open("indoorid-floorplans");
+				open.onerror = () => reject(open.error);
+				open.onsuccess = () => {
+					const count = open.result
+						.transaction("originals")
+						.objectStore("originals")
+						.count();
+					count.onsuccess = () => {
+						open.result.close();
+						resolve(count.result);
+					};
+				};
+			}),
+	);
+}
+
+test("exports plans in an archive with their PDF once, read back drawn again", async ({
+	page,
+}) => {
+	await importPlan(page, "plan.pdf");
+	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+	await dialog.getByRole("checkbox", { name: "Page 2" }).click();
+	await dialog.getByRole("button", { name: "Import 2 pages" }).click();
+	await expect(dialog).toBeHidden({ timeout: 20_000 });
+	await expect.poll(() => storedFiles(page)).toBe(1);
+
+	const [download] = await Promise.all([
+		page.waitForEvent("download"),
+		page.getByRole("button", { name: "Export floor plans" }).click(),
+	]);
+	expect(download.suggestedFilename()).toBe("indoorid-floorplans.zip");
+	const bytes = readFileSync(await download.path());
+	const archive = unzipSync(bytes);
+	expect(Object.keys(archive).sort()).toEqual(["files/1.pdf", "plans.json"]);
+	const { version, plans } = JSON.parse(
+		strFromU8(archive["plans.json"] ?? new Uint8Array()),
+	);
+	expect(version).toBe(2);
+	expect(plans.map((p: { source: unknown }) => p.source)).toEqual([
+		// Auto: the test PDF's pages are paths.
+		{ kind: "pdf", file: "files/1.pdf", page: 1, dpi: 150, mode: "vector" },
+		{ kind: "pdf", file: "files/1.pdf", page: 2, dpi: 150, mode: "vector" },
+	]);
+
+	// Imported back: both pages drawn again from the PDF, stored once more (a copy of its own).
+	await page.getByLabel("Import a floor plan").setInputFiles({
+		name: download.suggestedFilename(),
+		mimeType: "application/zip",
+		buffer: bytes,
+	});
+	await expect(planRows(page)).toHaveCount(4, { timeout: 20_000 });
+	// Drawn again from their paths, as they were.
+	await expect(planRows(page).first()).toContainText("288 × 216");
+	await expect(planRows(page).first()).not.toContainText("px");
+	await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(
+		"plan, page 2",
+	);
+	await expect.poll(() => storedFiles(page)).toBe(2);
+});
+
 /** A mall 0.0008° (~600 px at zoom 19) wide around (LON, LAT), tagged as the one in Rennes. */
 function mall() {
 	return room(200, LON, LAT, "0", 0.0004).map((e) =>
@@ -172,11 +369,10 @@ test("floor plan mode shows only building outlines, without selection", async ({
 	const box = await mapLocator(page).boundingBox();
 	if (!box) throw new Error("No map");
 	const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-	const editor = page.getByRole("complementary", { name: "Feature editor" });
-	await expect(async () => {
-		await page.mouse.click(centre.x, centre.y);
-		await expect(editor).toBeVisible({ timeout: 500 });
-	}).toPass({ timeout: 10_000 });
+	const editor = inspector(page).root;
+	await mapDrawn(page);
+	await page.mouse.click(centre.x, centre.y);
+	await expect(editor).toBeVisible();
 	const editing = await pixelAt(page, centre.x, centre.y);
 
 	// The feature editor and the floor plan editor take turns in the side panel, on the left.
@@ -227,20 +423,6 @@ test("keeps the fine lines of a large plan when it is shown small", async ({
 	}
 });
 
-/** Size of the world at zoom 19, in screen pixels (MapLibre tiles are 512 px). */
-const WORLD = 512 * 2 ** 19;
-
-/** The [lon, lat] shown `dx`, `dy` screen pixels from the map centre (LON, LAT) at zoom 19. */
-function lngLatAt(dx: number, dy: number): [number, number] {
-	const phi = (LAT * Math.PI) / 180;
-	const x = ((LON + 180) / 360) * WORLD + dx;
-	const y =
-		((1 - Math.log(Math.tan(Math.PI / 4 + phi / 2)) / Math.PI) / 2) * WORLD +
-		dy;
-	const lat = Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / WORLD)));
-	return [(x / WORLD) * 360 - 180, (lat * 180) / Math.PI];
-}
-
 /**
  * Checks a rectangle of plan colour, 5 px inside and outside each edge (screen pixels): clear of
  * the 2 px frame drawn around plans in floor plan mode.
@@ -267,12 +449,27 @@ async function expectPlanAt(
 	await expectPixel(page, midX, bottom + 5, BACKGROUND);
 }
 
-/** Two untagged OSM nodes (not drawn), to snap control points to. */
+/**
+ * OSM nodes to snap control points to: the ends of a wall on level 0 (snapping only goes to
+ * nodes drawn on the shown level; floor plan mode hides the wall itself).
+ */
 function nodesAt(...offsets: [number, number][]) {
-	return offsets.map(([dx, dy], i) => {
+	return nodesOnLevel("0", ...offsets);
+}
+
+function nodesOnLevel(level: string, ...offsets: [number, number][]) {
+	const nodes = offsets.map(([dx, dy], i) => {
 		const [lon, lat] = lngLatAt(dx, dy);
 		return { type: "node", id: 900 + i, lon, lat, version: 1 };
 	});
+	const wall = {
+		type: "way",
+		id: 950,
+		version: 1,
+		nodes: nodes.map((n) => n.id),
+		tags: { indoor: "wall", level },
+	};
+	return [...nodes, wall];
 }
 
 test("aligns a plan with control points snapped to OSM nodes", async ({
@@ -304,6 +501,66 @@ test("aligns a plan with control points snapped to OSM nodes", async ({
 		top: cy + A[1] - 20,
 		right: mx + A[0] + 380,
 		bottom: cy + A[1] + 280,
+	});
+});
+
+test("snaps a control point to a vector plan's own corner", async ({
+	page,
+}) => {
+	const A: [number, number] = [-180, -130];
+	await serveOsm(page, nodesAt(A, [180, 130]));
+	await importPlan(page, "layers.pdf");
+	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+	await dialog.getByRole("radio", { name: "Vector" }).click();
+	await dialog.getByRole("button", { name: "Import" }).click();
+	await expect(dialog).toBeHidden({ timeout: 20_000 });
+	await expect(page.getByTestId("load-status")).toBeHidden();
+	// 288 × 216 pt; the frame (Walls) a 4 pt line whose top-left corner is at (20, 20).
+	const { cx, cy, mx, scale } = await initialLayout(page, 216);
+
+	await page.getByRole("radio", { name: "Control points" }).click();
+	// Both clicks 5 px right of and above what they mean: the frame's corner, then node A.
+	await page.mouse.click(
+		cx + (20 - 144) * scale + 5,
+		cy + (20 - 108) * scale - 5,
+	);
+	await page.mouse.click(mx + A[0] + 5, cy + A[1] - 5);
+	await expect(
+		page.getByRole("list", { name: "Control points" }).getByRole("listitem"),
+	).toHaveCount(1);
+	// The corner moved onto A exactly: the frame's left edge runs down through it (unsnapped,
+	// it would run 5 px to the left, off a line some 7 px wide).
+	await expectPixel(
+		page,
+		mx + A[0],
+		cy + A[1] + 40,
+		blend([0, 0, 0], 0.5, BACKGROUND),
+	);
+});
+
+test("control points don't snap to nodes on another level", async ({
+	page,
+}) => {
+	const A: [number, number] = [-180, -130];
+	const B: [number, number] = [180, 130];
+	// The wall is on level 1; level 0 is shown.
+	await serveOsm(page, nodesOnLevel("1", A, B));
+	await importPlan(page, "plan.png");
+	await expect(page.getByTestId("load-status")).toBeHidden();
+	const { cx, cy, mx, scale } = await initialLayout(page, 300);
+
+	await page.getByRole("radio", { name: "Control points" }).click();
+	await page.mouse.click(cx + (20 - 200) * scale, cy + (20 - 150) * scale);
+	await page.mouse.click(mx + A[0] + 5, cy + A[1] - 5);
+	await page.mouse.click(mx + A[0] + 360 * scale, cy + A[1] + 260 * scale);
+	await page.mouse.click(mx + B[0] + 5, cy + B[1] - 5);
+
+	// Placed where clicked: 5 px right of and 5 px above the nodes.
+	await expectPlanAt(page, {
+		left: mx + A[0] - 20 + 5,
+		top: cy + A[1] - 20 - 5,
+		right: mx + A[0] + 380 + 5,
+		bottom: cy + A[1] + 280 - 5,
 	});
 });
 
@@ -394,6 +651,85 @@ test("keeps plans, where they were placed, after a reload", async ({
 	await expect(planRows(page)).toContainText(["plan 400 × 300 px"]);
 });
 
+test("draws a large stored plan's tiles on screen only, more as the map is panned", async ({
+	page,
+}) => {
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	// 6000 × 1500 px: three columns of 2048 px tiles, red, green and blue.
+	const png = await page.evaluate(async () => {
+		const canvas = new OffscreenCanvas(6000, 1500);
+		const context = canvas.getContext("2d");
+		if (!context) throw new Error("No 2D context");
+		for (const [x, color] of [
+			[0, "#ff0000"],
+			[2048, "#00ff00"],
+			[4096, "#0000ff"],
+		] as const) {
+			context.fillStyle = color;
+			context.fillRect(x, 0, 2048, 1500);
+		}
+		const blob = await canvas.convertToBlob({ type: "image/png" });
+		const bytes = new Uint8Array(await blob.arrayBuffer());
+		let binary = "";
+		for (const byte of bytes) binary += String.fromCharCode(byte);
+		return btoa(binary);
+	});
+	await page.getByRole("button", { name: "Floor plans" }).click();
+	await page.getByLabel("Import a floor plan").setInputFiles({
+		name: "large.png",
+		mimeType: "image/png",
+		buffer: Buffer.from(png, "base64"),
+	});
+	const latitude = page.getByRole("spinbutton", { name: "Latitude" });
+	const longitude = page.getByRole("spinbutton", { name: "Longitude" });
+	await expect(latitude).not.toHaveValue("");
+	const centre = [await latitude.inputValue(), await longitude.inputValue()];
+	await page.getByRole("button", { name: "Done" }).click();
+	// Saved once its tiles are encoded: then they load from storage, not decoded yet.
+	await expect
+		.poll(
+			async () => {
+				const { plans, complete } = await storedPlans(page);
+				return complete && JSON.parse(plans).length === 1;
+			},
+			{ timeout: 60_000 },
+		)
+		.toBe(true);
+
+	// Zoomed in on the plan's middle: about a plan pixel a screen pixel, its full size drawn,
+	// only the green tile on screen.
+	await page.goto(`/#21/${centre[0]}/${centre[1]}/0`);
+	await page.reload();
+	const map = mapLocator(page);
+	await expect(map).toHaveAttribute("data-plan-tiles", "1", {
+		timeout: 20_000,
+	});
+	const box = await map.boundingBox();
+	if (!box) throw new Error("No map");
+	const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+	await expectPixel(
+		page,
+		middle.x,
+		middle.y,
+		blend([0, 255, 0], 0.5, BACKGROUND),
+	);
+
+	// Panned 1200 px east: the blue tile comes on screen, right of the middle.
+	await page.mouse.move(middle.x + 600, middle.y);
+	await page.mouse.down();
+	await page.mouse.move(middle.x - 600, middle.y, { steps: 20 });
+	await page.mouse.up();
+	await expect(map).toHaveAttribute("data-plan-tiles", "2", {
+		timeout: 20_000,
+	});
+	await expectPixel(
+		page,
+		middle.x + 450,
+		middle.y,
+		blend([0, 0, 255], 0.5, BACKGROUND),
+	);
+});
+
 test("shows a plan only on its level", async ({ page }) => {
 	await importPlan(page, "plan.png");
 	const { cx, cy } = await initialLayout(page, 300);
@@ -429,22 +765,39 @@ async function drag(
 }
 
 /**
- * The plans' settings as saved in the browser's IndexedDB, as JSON. Saving takes a moment:
- * a test reloads once what it saved is there, or the reload may cut the write short.
+ * The plans' settings as saved in the browser's IndexedDB, as JSON, and whether each plan's
+ * content is saved too. Saving takes a moment: a test reloads once what it saved is there, or
+ * the reload may cut the write short.
  */
-function storedPlans(page: Page): Promise<string> {
+function storedPlans(
+	page: Page,
+): Promise<{ plans: string; complete: boolean }> {
 	return page.evaluate(
 		() =>
-			new Promise<string>((resolve, reject) => {
+			new Promise<{ plans: string; complete: boolean }>((resolve, reject) => {
 				const open = indexedDB.open("indoorid-floorplans");
 				open.onerror = () => reject(open.error);
 				open.onsuccess = () => {
 					const db = open.result;
-					const all = db.transaction("plans").objectStore("plans").getAll();
-					all.onerror = () => reject(all.error);
-					all.onsuccess = () => {
+					if (!db.objectStoreNames.contains("vectors")) {
 						db.close();
-						resolve(JSON.stringify(all.result));
+						resolve({ plans: "[]", complete: true });
+						return;
+					}
+					const tx = db.transaction(["plans", "rasters", "vectors"]);
+					const plans = tx.objectStore("plans").getAll();
+					const rasters = tx.objectStore("rasters").getAllKeys();
+					const vectors = tx.objectStore("vectors").getAllKeys();
+					tx.onerror = () => reject(tx.error);
+					tx.oncomplete = () => {
+						db.close();
+						const saved = new Set([...rasters.result, ...vectors.result]);
+						resolve({
+							plans: JSON.stringify(plans.result),
+							complete: plans.result.every((p: { id: string }) =>
+								saved.has(p.id),
+							),
+						});
 					};
 				};
 			}),
@@ -453,13 +806,22 @@ function storedPlans(page: Page): Promise<string> {
 
 /** Runs `change`, then waits until the saved plans differ from before it. */
 async function untilSaved(page: Page, change: () => Promise<void>) {
-	const before = await storedPlans(page);
+	const before = (await storedPlans(page)).plans;
 	await change();
-	await expect.poll(() => storedPlans(page)).not.toBe(before);
+	await expect
+		.poll(async () => {
+			const { plans, complete } = await storedPlans(page);
+			return plans !== before && complete;
+		})
+		.toBe(true);
 }
 
 /** Where the 400 × 300 px plan is once imported: centred, 60% of the map tall. */
 async function importedPlanBox(page: Page) {
+	// Imported in the plan worker: the plan is in Edit once it is there.
+	await expect(
+		page.getByRole("region", { name: "Editing plan" }),
+	).toBeVisible();
 	const { cx, cy, scale } = await initialLayout(page, 300);
 	const w = 400 * scale;
 	const h = 300 * scale;
@@ -492,6 +854,36 @@ test("moves a plan by dragging it", async ({ page }) => {
 		right: plan.right + 100,
 		bottom: plan.bottom + 60,
 	});
+});
+
+test("places a plan from a longitude typed, the fields following a drag", async ({
+	page,
+}) => {
+	await importPlan(page, "plan.png");
+	const plan = await importedPlanBox(page);
+	await expectPlanAt(page, plan);
+
+	// 100 screen pixels east at zoom 19: MapLibre's world is 512 × 2^19 pixels around.
+	const longitude = page.getByRole("spinbutton", { name: "Longitude" });
+	const before = Number(await longitude.inputValue());
+	await longitude.fill(String(before + (100 * 360) / (512 * 2 ** 19)));
+	await longitude.press("Enter");
+	await expectPlanAt(page, {
+		left: plan.left + 100,
+		top: plan.top,
+		right: plan.right + 100,
+		bottom: plan.bottom,
+	});
+
+	// Dragged back: the field follows.
+	await drag(
+		page,
+		{ x: plan.cx + 100, y: plan.cy },
+		{ x: plan.cx, y: plan.cy },
+	);
+	await expect
+		.poll(async () => Number(await longitude.inputValue()))
+		.toBeCloseTo(before, 6);
 });
 
 test("turns and resizes a plan from a corner, around the opposite one", async ({

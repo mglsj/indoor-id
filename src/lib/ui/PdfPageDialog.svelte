@@ -6,12 +6,21 @@
 	import { Input } from "#lib/components/shadcn/input/index.ts";
 	import { ScrollArea } from "#lib/components/shadcn/scroll-area/index.ts";
 	import { Spinner } from "#lib/components/shadcn/spinner/index.ts";
+	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
+	import type { PlanMode } from "#lib/floorplans/content.ts";
 	import type { PdfDocument } from "#lib/floorplans/import.ts";
 
 	interface Props {
 		pdf: PdfDocument;
-		/** Called with the chosen pages (from 1, in order) and resolution; resolves once imported. */
-		onimport: (pages: number[], dpi: number) => Promise<void>;
+		/**
+		 * Called with the chosen pages (from 1, in order), the resolution and how to draw them;
+		 * resolves once imported.
+		 */
+		onimport: (
+			pages: number[],
+			dpi: number,
+			mode: PlanMode | "auto",
+		) => Promise<void>;
 		onclose: () => void;
 	}
 
@@ -24,6 +33,7 @@
 	/** The chosen pages, in page order. */
 	let chosen = $state<number[]>([1]);
 	let dpi = $state(150);
+	let mode = $state<PlanMode | "auto">("auto");
 	let busy = $state(false);
 	let thumbnails = $state<Record<number, string>>({});
 	let size = $state<{ width: number; height: number } | null>(null);
@@ -65,7 +75,7 @@
 		if (chosen.length === 0) return;
 		busy = true;
 		try {
-			await onimport(chosen, dpi);
+			await onimport(chosen, dpi, mode);
 			open = false;
 		} finally {
 			busy = false;
@@ -125,6 +135,32 @@
 				</ScrollArea>
 			</Field.Set>
 			<Field.Field>
+				<Field.Label id="pdf-mode-label">Draw as</Field.Label>
+				<ToggleGroup.Root
+					type="single"
+					variant="outline"
+					size="sm"
+					aria-labelledby="pdf-mode-label"
+					class="w-full"
+					value={mode}
+					onValueChange={(value) => {
+						if (value) mode = value as PlanMode | "auto";
+					}}
+				>
+					<ToggleGroup.Item value="auto" class="flex-1">Auto</ToggleGroup.Item>
+					<ToggleGroup.Item value="vector" class="flex-1"
+						>Vector</ToggleGroup.Item
+					>
+					<ToggleGroup.Item value="image" class="flex-1"
+						>Image</ToggleGroup.Item
+					>
+				</ToggleGroup.Root>
+				<Field.Description>
+					Vector draws the page's lines sharp at any zoom, best for plans from
+					CAD; Image renders it, best for scans. Auto picks for each page.
+				</Field.Description>
+			</Field.Field>
+			<Field.Field data-disabled={mode === "vector" || undefined}>
 				<Field.Label for="pdf-dpi">Resolution (DPI)</Field.Label>
 				<Input
 					id="pdf-dpi"
@@ -133,6 +169,7 @@
 					max={600}
 					step={1}
 					required
+					disabled={mode === "vector"}
 					bind:value={dpi}
 				/>
 				{#if size && dpi > 0}

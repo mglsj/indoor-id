@@ -2,8 +2,13 @@
  * Client for the OSM API 0.6. It only uses `fetch`, which callers can replace (tests, retries,
  * instrumentation). Uploads go in one request, so the server applies all edits or none.
  */
-import type { Entity, EntityType, Member } from "#lib/osm/entity.ts";
-import { makeId } from "#lib/osm/entity.ts";
+import type {
+	Entity,
+	EntityType,
+	Member,
+	RelationId,
+} from "#lib/osm/entity.ts";
+import { makeId, osmId } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import {
 	applyDiffResult,
@@ -70,6 +75,12 @@ export class OsmApi {
 	async loadMap(bbox: Bbox): Promise<Entity[]> {
 		const query = [bbox.west, bbox.south, bbox.east, bbox.north].join(",");
 		const body = await this.#request("GET", `/map.json?bbox=${query}`);
+		return parseElements(JSON.parse(body));
+	}
+
+	/** Downloads a relation with its members (and their nodes), for incomplete relations. */
+	async loadRelation(id: RelationId): Promise<Entity[]> {
+		const body = await this.#request("GET", `/relation/${osmId(id)}/full.json`);
 		return parseElements(JSON.parse(body));
 	}
 
@@ -182,6 +193,8 @@ interface JsonElement {
 	type: EntityType;
 	id: number;
 	version?: number;
+	user?: string;
+	timestamp?: string;
 	tags?: Record<string, string>;
 	lat?: number;
 	lon?: number;
@@ -192,7 +205,12 @@ interface JsonElement {
 /** Converts the elements of an OSM JSON document into entities. */
 function parseElements(json: { elements?: JsonElement[] }): Entity[] {
 	return (json.elements ?? []).flatMap((e): Entity[] => {
-		const common = { version: e.version, tags: e.tags ?? {} };
+		const common = {
+			version: e.version,
+			...(e.user === undefined ? {} : { user: e.user }),
+			...(e.timestamp === undefined ? {} : { timestamp: e.timestamp }),
+			tags: e.tags ?? {},
+		};
 		switch (e.type) {
 			case "node":
 				return [

@@ -125,6 +125,64 @@ export async function mapCenter(page: Page): Promise<{ x: number; y: number }> {
 	};
 }
 
+/**
+ * Waits until the map has drawn at least `atLeast` indoor features (its `data-drawn`, set once
+ * the map is idle after the features it was last sent).
+ */
+export async function mapDrawn(page: Page, atLeast = 1) {
+	await expect
+		.poll(
+			async () =>
+				Number((await mapLocator(page).getAttribute("data-drawn")) ?? -1),
+			{ timeout: 10_000 },
+		)
+		.toBeGreaterThanOrEqual(atLeast);
+}
+
+/** Clicks the map `dx`, `dy` screen pixels from its centre. */
+export async function clickMap(page: Page, dx = 0, dy = 0) {
+	const { x, y } = await mapCenter(page);
+	await page.mouse.click(x + dx, y + dy);
+}
+
+/** Size of the world at zoom 19, in screen pixels (MapLibre tiles are 512 px). */
+export const WORLD = 512 * 2 ** 19;
+
+/** The [lon, lat] shown `dx`, `dy` screen pixels from the map centre (LON, LAT) at zoom 19. */
+export function lngLatAt(dx: number, dy: number): [number, number] {
+	const phi = (LAT * Math.PI) / 180;
+	const x = ((LON + 180) / 360) * WORLD + dx;
+	const y =
+		((1 - Math.log(Math.tan(Math.PI / 4 + phi / 2)) / Math.PI) / 2) * WORLD +
+		dy;
+	const lat = Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / WORLD)));
+	return [(x / WORLD) * 360 - 180, (lat * 180) / Math.PI];
+}
+
+/** The feature editor (the Inspector) and its sections. */
+export function inspector(page: Page) {
+	const root = page.getByRole("complementary", { name: "Feature editor" });
+	/** A section's heading, which opens and closes it: "Tags (3)", "Relations (1)". */
+	const section = (name: string | RegExp) => root.getByRole("button", { name });
+	/** Opens a section if it is closed. */
+	const open = async (name: string | RegExp) => {
+		const heading = section(name);
+		if ((await heading.getAttribute("aria-expanded")) === "false") {
+			await heading.click();
+		}
+	};
+	return {
+		root,
+		section,
+		open,
+		/** The tag table (list view), its section opened. */
+		async tags() {
+			await open(/^Tags \(\d+\)$/);
+			return root.getByRole("list", { name: "Tags" });
+		},
+	};
+}
+
 /** Default place of the OSM extracts below. */
 export const LAT = 48.13;
 export const LON = -1.69;
@@ -173,28 +231,111 @@ export async function serveOsm(page: Page, elements: Element[]) {
 	return requests;
 }
 
+/**
+ * Serves taginfo: the values of each key in `values` (used 1000 times each, so none is rare),
+ * the keys under a prefix from `keys`, and no popular keys. Returns the URLs asked for.
+ */
+export async function serveTaginfo(
+	page: Page,
+	values: Record<string, string[]>,
+	keys: string[] = [],
+	/** Milliseconds before each answer. */
+	delay = 0,
+) {
+	const requests: URL[] = [];
+	await page.route(
+		"https://taginfo.openstreetmap.org/api/4/**",
+		async (route) => {
+			if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+			const url = new URL(route.request().url());
+			requests.push(url);
+			const query = url.searchParams.get("query") ?? "";
+			if (url.pathname.endsWith("/key/values")) {
+				const key = url.searchParams.get("key") ?? "";
+				const data = (values[key] ?? [])
+					.filter((value) => value.includes(query))
+					.map((value) => ({ value, count: 1000 }));
+				return route.fulfill({ json: { data } });
+			}
+			if (url.searchParams.get("sortname") === "values_all") {
+				return route.fulfill({ json: { data: [] } });
+			}
+			// Used often enough to be suggested.
+			const data = keys
+				.filter((key) => key.startsWith(query))
+				.map((key) => ({ key, count_all: 10_000 }));
+			return route.fulfill({ json: { data } });
+		},
+	);
+	return requests;
+}
+
+/**
+ * Serves the OSM wiki's data items: a description by title (`Key:room`, `Tag:indoor=room`), each
+ * with an English wiki page of the same title. Other titles are missing.
+ */
+export async function serveWiki(
+	page: Page,
+	descriptions: Record<string, string>,
+) {
+	await page.route("https://wiki.openstreetmap.org/w/api.php?*", (route) => {
+		const titles = (
+			new URL(route.request().url()).searchParams.get("titles") ?? ""
+		).split("|");
+		const entities = Object.fromEntries(
+			titles.map((title, i) => [
+				descriptions[title] ? `Q${i}` : `-${i + 1}`,
+				descriptions[title]
+					? {
+							title,
+							sitelinks: { wiki: { title } },
+							descriptions: {
+								en: { language: "en", value: descriptions[title] },
+							},
+							claims: {
+								P31: [
+									{
+										mainsnak: {
+											datavalue: { value: { language: "en", text: title } },
+										},
+									},
+								],
+							},
+						}
+					: { missing: "" },
+			]),
+		);
+		return route.fulfill({ json: { success: 1, entities } });
+	});
+}
+
 /** Opens the map on a room and selects it. */
 export async function selectRoom(
 	page: Page,
 	tags: Record<string, string> = {},
+	elements: Element[] = room(100, LON, LAT, "0"),
 ) {
-	const elements = room(100, LON, LAT, "0");
 	const way = elements.at(-1) as { tags: Record<string, string> };
 	way.tags = { ...way.tags, ...tags };
 	await serveOsm(page, elements);
 	await page.goto(`/#19/${LAT}/${LON}/0`);
 	await camera(page);
-	const { x, y } = await mapCenter(page);
-	const editor = page.getByRole("complementary", { name: "Feature editor" });
 	// The room is drawn once its data has loaded.
-	await expect(async () => {
-		await page.mouse.click(x, y);
-		await expect(editor).toBeVisible({ timeout: 500 });
-	}).toPass({ timeout: 10_000 });
+	await mapDrawn(page);
+	await clickMap(page);
+	const editor = inspector(page).root;
+	await expect(editor).toBeVisible();
 	return editor;
 }
 
-/** The raw tag editor of the feature editor. */
-export function tagsBox(page: Page): Locator {
-	return page.getByRole("textbox", { name: "Tags" });
+/**
+ * The tag editor's text view (iD's "text"), its section opened if it was closed and the view
+ * switched from the list if needed.
+ */
+export async function tagsBox(page: Page): Promise<Locator> {
+	const { root, open } = inspector(page);
+	await open(/^Tags \(\d+\)$/);
+	const text = root.getByRole("radio", { name: "Text view" });
+	if ((await text.getAttribute("aria-checked")) !== "true") await text.click();
+	return root.getByRole("textbox", { name: "Tags", exact: true });
 }

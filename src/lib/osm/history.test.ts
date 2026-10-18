@@ -41,6 +41,42 @@ describe("History", () => {
 		expect(history.graph.entity("n1")?.tags).toEqual({ amenity: "chair" });
 	});
 
+	it("makes a step of a follow-up change with nothing to fold into", () => {
+		const history = new History(Graph.fromEntities([bench]));
+		history.replace(retag({ amenity: "bench" }), "Retag");
+		expect(history.undo()).toBe("Retag");
+		expect(history.canUndo).toBe(false);
+	});
+
+	it("folds a follow-up change into the last step (iD's replace)", () => {
+		const history = new History(Graph.fromEntities([bench]));
+		history.perform(retag({ amenity: "bench" }), "Tag as bench");
+		history.replace(retag({ amenity: "bench", backrest: "yes" }), "Retag");
+
+		expect(history.graph.entity("n1")?.tags).toEqual({
+			amenity: "bench",
+			backrest: "yes",
+		});
+		// One undo takes both away.
+		expect(history.undo()).toBe("Tag as bench");
+		expect(history.graph.entity("n1")?.tags).toEqual({});
+		expect(history.redo()).toBe("Tag as bench");
+		expect(history.graph.entity("n1")?.tags).toEqual({
+			amenity: "bench",
+			backrest: "yes",
+		});
+	});
+
+	it("adds no undo step for an action that changes nothing", () => {
+		const history = new History(Graph.fromEntities([bench]));
+		const before = history.graph;
+		expect(history.perform((graph) => graph, "Nothing")).toBe(before);
+		expect(history.canUndo).toBe(false);
+		history.perform(retag({ amenity: "bench" }), "Tag as bench");
+		history.perform(retag({ amenity: "bench" }), "Tag as bench again");
+		expect(history.undo()).toBe("Tag as bench");
+	});
+
 	it("keeps the base graph to compare edits against", () => {
 		const history = new History(Graph.fromEntities([bench]));
 		history.perform(retag({ amenity: "bench" }), "Tag as bench");

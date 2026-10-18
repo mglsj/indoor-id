@@ -69,6 +69,23 @@ const isSelected: ExpressionSpecification = [
 	["feature-state", "selected"],
 	false,
 ];
+const isHovered: ExpressionSpecification = [
+	"boolean",
+	["feature-state", "hover"],
+	false,
+];
+/** The selection outline: full when selected, faint under the pointer (as iD). */
+const outlineOpacity: ExpressionSpecification = [
+	"case",
+	isSelected,
+	1,
+	isHovered,
+	0.45,
+	0,
+];
+
+/** The labels' font, when the basemap names none. */
+export const LABEL_FONT = ["Noto Sans Regular"];
 
 export interface IndoorStyleOptions {
 	/** Fonts available from the basemap's glyph server. */
@@ -77,7 +94,7 @@ export interface IndoorStyleOptions {
 
 export function indoorLayers(
 	level: number,
-	{ textFont = ["Noto Sans Regular"] }: IndoorStyleOptions = {},
+	{ textFont = LABEL_FONT }: IndoorStyleOptions = {},
 ): LayerSpecification[] {
 	const onLevel = (filter: ExpressionSpecification): FilterSpecification => [
 		"all",
@@ -247,7 +264,7 @@ export function indoorLayers(
 			paint: {
 				"line-color": C.selection,
 				"line-width": 3,
-				"line-opacity": ["case", isSelected, 1, 0],
+				"line-opacity": outlineOpacity,
 			},
 		},
 		{
@@ -260,7 +277,7 @@ export function indoorLayers(
 				"circle-color": "rgba(0, 0, 0, 0)",
 				"circle-stroke-color": C.selection,
 				"circle-stroke-width": 3,
-				"circle-stroke-opacity": ["case", isSelected, 1, 0],
+				"circle-stroke-opacity": outlineOpacity,
 			},
 		},
 	];

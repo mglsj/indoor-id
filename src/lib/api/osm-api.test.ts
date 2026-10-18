@@ -43,7 +43,68 @@ function api(fetch: typeof globalThis.fetch, token: string | null = "secret") {
 	});
 }
 
+describe("loadRelation", () => {
+	it("downloads a relation with its members, as iD's download button", async () => {
+		const { fetch, requests } = fakeFetch({
+			"GET /api/0.6/relation/7/full.json": () =>
+				Response.json({
+					version: "0.6",
+					elements: [
+						{ type: "node", id: 1, lat: 48.85, lon: 2.35, version: 1 },
+						{
+							type: "relation",
+							id: 7,
+							version: 4,
+							members: [{ type: "node", ref: 1, role: "label" }],
+							tags: { type: "site" },
+						},
+					],
+				}),
+		});
+		const entities = await api(fetch).loadRelation("r7");
+		expect(requests.map((r) => r.url)).toEqual([
+			"https://api.example.org/api/0.6/relation/7/full.json",
+		]);
+		expect(entities.map((e) => e.id)).toEqual(["n1", "r7"]);
+		expect(entities[1]).toMatchObject({
+			members: [{ ref: "n1", role: "label" }],
+		});
+	});
+});
+
 describe("loadMap", () => {
+	it("keeps who last edited each element, and when", async () => {
+		const { fetch } = fakeFetch({
+			"GET /api/0.6/map.json": () =>
+				Response.json({
+					version: "0.6",
+					elements: [
+						{
+							type: "node",
+							id: 1,
+							lat: 48.85,
+							lon: 2.35,
+							version: 3,
+							user: "Alice",
+							timestamp: "2024-05-01T10:00:00Z",
+						},
+					],
+				}),
+		});
+
+		const [node] = await api(fetch).loadMap({
+			west: 2.3,
+			south: 48.8,
+			east: 2.4,
+			north: 48.9,
+		});
+
+		expect(node).toMatchObject({
+			user: "Alice",
+			timestamp: "2024-05-01T10:00:00Z",
+		});
+	});
+
 	it("downloads an area and returns its entities", async () => {
 		const { fetch, requests } = fakeFetch({
 			"GET /api/0.6/map.json": () =>

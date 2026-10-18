@@ -10,6 +10,7 @@
 		NavigationControl,
 		ScaleControl,
 	} from "#lib/map/maplibre.ts";
+	import { styleReady } from "#lib/map/ready.ts";
 
 	type Camera = Omit<MapView, "level">;
 
@@ -21,9 +22,20 @@
 		map?: MapLibreMap;
 		/** Called once the style is loaded and after every camera movement. */
 		onmove?: (camera: Camera) => void;
+		/** Indoor features drawn so far, shown as `data-drawn` for the e2e tests. */
+		drawn?: number;
+		/** Floor plan tiles drawn, shown as `data-plan-tiles` for the e2e tests. */
+		planTiles?: number;
 	}
 
-	let { styleUrl, initialCamera, map = $bindable(), onmove }: Props = $props();
+	let {
+		styleUrl,
+		initialCamera,
+		map = $bindable(),
+		onmove,
+		drawn,
+		planTiles,
+	}: Props = $props();
 
 	let error = $state<string>();
 	let camera = $state<Camera>();
@@ -49,6 +61,8 @@
 				return;
 			}
 
+			// Remember the first load now, for layers added later (see `styleReady`).
+			void styleReady(instance);
 			instance.addControl(
 				new NavigationControl({ visualizePitch: true }),
 				"bottom-right",
@@ -85,6 +99,8 @@
 	data-testid="map"
 	data-zoom={camera?.zoom}
 	data-center={camera ? `${camera.lat},${camera.lon}` : undefined}
+	data-drawn={drawn}
+	data-plan-tiles={planTiles}
 ></div>
 
 {#if error}

@@ -7,7 +7,9 @@ import {
 	fitPlan,
 	GeorefError,
 	type LngLat,
+	moveTo,
 	place,
+	positionOf,
 	project,
 	rotateAbout,
 	scaleToDistance,
@@ -385,5 +387,103 @@ describe("dragRotation", () => {
 			offset(RENNES, (10 - 7.5) * r, (-7.5 - 10) * r),
 			offset(RENNES, (-10 - 7.5) * r, (-7.5 + 10) * r),
 		]);
+	});
+});
+
+describe("positionOf and moveTo: a plan placed by numbers", () => {
+	const rad = (deg: number) => (deg * Math.PI) / 180;
+	/** The point `metres` away from `from` towards `bearing` (degrees clockwise from north). */
+	const toward = (from: LngLat, bearing: number, metres: number) =>
+		offset(
+			from,
+			metres * Math.sin(rad(bearing)),
+			metres * Math.cos(rad(bearing)),
+		);
+	/** 400 × 300 px, 5 cm a pixel: 20 m wide, 15 m tall, its top facing 30°. */
+	const plan = place(
+		{ center: RENNES, metresPerPixel: 0.05, bearing: 30 },
+		400,
+		300,
+	);
+
+	it("reads a plan's centre, the bearing its top faces, and its ground width", () => {
+		const { center, bearing, width } = positionOf(plan, 400, 300);
+		expect(distance(center, RENNES)).toBeLessThan(0.001);
+		expect(bearing).toBeCloseTo(30, 6);
+		expect(width).toBeCloseTo(20, 3);
+	});
+
+	it("gives bearings from 0 to 360", () => {
+		const west = place(
+			{ center: RENNES, metresPerPixel: 0.05, bearing: -90 },
+			400,
+			300,
+		);
+		expect(positionOf(west, 400, 300).bearing).toBeCloseTo(270, 6);
+	});
+
+	it("moves the plan, unturned and unscaled, to a new centre", () => {
+		const target = offset(RENNES, 120, -45);
+		const moved = moveTo(plan, 400, 300, { center: target });
+		const position = positionOf(moved, 400, 300);
+		expect(distance(position.center, target)).toBeLessThan(0.001);
+		expect(position.bearing).toBeCloseTo(30, 6);
+		expect(position.width).toBeCloseTo(20, 3);
+	});
+
+	it("turns the plan around its centre to face a bearing", () => {
+		const turned = moveTo(plan, 400, 300, { bearing: 120 });
+		expect(distance(project(turned, [200, 150]), RENNES)).toBeLessThan(0.001);
+		// The middle of its top edge, 7.5 m from the centre, towards 120°.
+		expect(
+			distance(project(turned, [200, 0]), toward(RENNES, 120, 7.5)),
+		).toBeLessThan(0.001);
+	});
+
+	it("scales the plan around its centre to a ground width, keeping its proportions", () => {
+		const scaled = moveTo(plan, 400, 300, { width: 40 });
+		// The middle of its right edge, 20 m from the centre at right angles to its top.
+		expect(
+			distance(project(scaled, [400, 150]), toward(RENNES, 120, 20)),
+		).toBeLessThan(0.001);
+		expect(
+			distance(project(scaled, [200, 0]), toward(RENNES, 30, 15)),
+		).toBeLessThan(0.001);
+	});
+
+	it("moves and turns a perspective plan as a whole, keeping its shape", () => {
+		const truth = northUpPlan(RENNES);
+		// A plan photographed at an angle: its top edge drawn narrower.
+		const warped = fitPlan(
+			[
+				{ image: [0, 0], map: truth(40, 0) },
+				{ image: [400, 0], map: truth(360, 0) },
+				{ image: [400, 300], map: truth(400, 300) },
+				{ image: [0, 300], map: truth(0, 300) },
+			],
+			"projective",
+		).transform;
+		const pixels = [
+			[0, 0],
+			[400, 0],
+			[400, 300],
+			[0, 300],
+		] as const;
+		const sides = (t: Transform) =>
+			pixels.map((p, i) =>
+				distance(
+					project(t, [...p]),
+					project(t, [...(pixels[(i + 1) % 4] ?? p)]),
+				),
+			);
+		const target = offset(RENNES, 30, 30);
+		const moved = moveTo(warped, 400, 300, { center: target, bearing: 90 });
+		expect(distance(positionOf(moved, 400, 300).center, target)).toBeLessThan(
+			0.001,
+		);
+		expect(positionOf(moved, 400, 300).bearing).toBeCloseTo(90, 6);
+		sides(moved).forEach((side, i) => {
+			expect(side).toBeCloseTo(sides(warped)[i] ?? 0, 3);
+		});
 	});
 });

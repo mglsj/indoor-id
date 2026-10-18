@@ -9,8 +9,13 @@ import type { Bbox } from "./osm-api.ts";
 export interface MapLoaderOptions {
 	/** Downloads one area, e.g. `(bbox) => api.loadMap(bbox)`. */
 	readonly download: (bbox: Bbox) => Promise<Entity[]>;
-	/** Receives the entities of each downloaded tile. */
+	/**
+	 * Receives downloaded entities: the tiles that arrived since the last call, at most once a
+	 * frame, so loading a large area doesn't redraw the map after every tile.
+	 */
 	readonly onData: (entities: Entity[]) => void;
+	/** Runs a function at the next frame (`requestAnimationFrame` by default). */
+	readonly schedule?: (run: () => void) => void;
 	readonly zoom?: number;
 	readonly concurrency?: number;
 	/** Areas needing more tiles are skipped: the view is zoomed out too far. */
@@ -30,9 +35,19 @@ export class MapLoader {
 	readonly #pending = new Map<string, Promise<boolean>>();
 	readonly #waiting: (() => void)[] = [];
 	#active = 0;
+	/** Entities downloaded but not handed over yet, and whether a frame is asked for. */
+	#arrived: Entity[] = [];
+	#scheduled = false;
 
 	constructor(options: MapLoaderOptions) {
-		this.#options = { zoom: 16, concurrency: 4, maxTiles: 64, ...options };
+		this.#options = {
+			...options,
+			// Options given as undefined keep their default.
+			zoom: options.zoom ?? 16,
+			concurrency: options.concurrency ?? 4,
+			maxTiles: options.maxTiles ?? 64,
+			schedule: options.schedule ?? nextFrame,
+		};
 	}
 
 	async load(bounds: Bbox): Promise<LoadResult> {
@@ -42,6 +57,8 @@ export class MapLoader {
 		const results = await Promise.all(
 			tiles.map((tile) => this.#loadTile(tile)),
 		);
+		// Everything is handed over once the load resolves.
+		this.#flush();
 		return { failed: results.filter((ok) => !ok).length, skipped: false };
 	}
 
@@ -57,7 +74,7 @@ export class MapLoader {
 			.then(
 				(entities) => {
 					this.#loaded.add(key);
-					this.#options.onData(entities);
+					this.#arrive(entities);
 					return true;
 				},
 				() => false,
@@ -65,6 +82,21 @@ export class MapLoader {
 			.finally(() => this.#pending.delete(key));
 		this.#pending.set(key, loading);
 		return loading;
+	}
+
+	#arrive(entities: Entity[]): void {
+		for (const entity of entities) this.#arrived.push(entity);
+		if (this.#scheduled) return;
+		this.#scheduled = true;
+		this.#options.schedule(() => this.#flush());
+	}
+
+	#flush(): void {
+		this.#scheduled = false;
+		if (this.#arrived.length === 0) return;
+		const entities = this.#arrived;
+		this.#arrived = [];
+		this.#options.onData(entities);
 	}
 
 	/** Runs `task` once fewer than `concurrency` tasks are running. */
@@ -80,4 +112,9 @@ export class MapLoader {
 			this.#waiting.shift()?.();
 		}
 	}
+}
+
+function nextFrame(run: () => void): void {
+	if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+	else setTimeout(run, 0);
 }

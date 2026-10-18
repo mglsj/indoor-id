@@ -11,11 +11,11 @@
 	import { Input } from "#lib/components/shadcn/input/index.ts";
 	import { Spinner } from "#lib/components/shadcn/spinner/index.ts";
 	import { Textarea } from "#lib/components/shadcn/textarea/index.ts";
-	import type { Editor } from "#lib/state/editor.svelte.ts";
+	import { t } from "#lib/i18n/messages.ts";
+	import { getEditor } from "#lib/state/editor.svelte.ts";
 	import type { Session } from "#lib/state/session.svelte.ts";
 
 	interface Props {
-		editor: Editor;
 		session: Session;
 		/** Names of the imagery used while editing. */
 		imagery: readonly string[];
@@ -24,7 +24,8 @@
 		onclose: () => void;
 	}
 
-	let { editor, session, imagery, websiteUrl, onclose }: Props = $props();
+	let { session, imagery, websiteUrl, onclose }: Props = $props();
+	const editor = getEditor();
 
 	let open = $state(true);
 	let comment = $state("");
@@ -45,7 +46,7 @@
 		phase = { kind: "uploading" };
 		try {
 			if (!session.loggedIn) await session.login();
-			const changesetId = await editor.upload(
+			const changesetId = await editor.sync.upload(
 				changesetTags({ comment, source, imagery, reviewRequested }),
 			);
 			phase = { kind: "done", changesetId };
@@ -90,8 +91,8 @@
 			<Dialog.Title>Upload your edits</Dialog.Title>
 			{#if phase.kind !== "done"}
 				<Dialog.Description>
-					{editor.editCount}
-					feature{editor.editCount === 1 ? "" : "s"}
+					{editor.history.editCount}
+					feature{editor.history.editCount === 1 ? "" : "s"}
 					changed.
 				</Dialog.Description>
 			{/if}
@@ -119,7 +120,7 @@
 					<Alert.Description>
 						<ul class="list-disc pl-4">
 							{#each issues as issue (issue.id)}
-								<li>{issue.message} ({issue.entityId})</li>
+								<li>{t(issue.message)} ({issue.entityId})</li>
 							{/each}
 						</ul>
 					</Alert.Description>

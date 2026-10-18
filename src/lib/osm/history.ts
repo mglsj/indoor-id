@@ -1,17 +1,17 @@
-import type { Entity, EntityId } from "./entity.ts";
+import { type Entity, type EntityId, sameContent } from "./entity.ts";
 import type { Graph } from "./graph.ts";
 
 /** A change to the graph. Actions are pure: they return a new graph. */
 export type Action = (graph: Graph) => Graph;
 
-interface Step {
+interface Step<A> {
 	readonly graph: Graph;
-	readonly annotation: string | null;
+	readonly annotation: A | null;
 }
 
-/** Undo/redo as a list of graph snapshots. */
-export class History {
-	#steps: Step[];
+/** Undo/redo as a list of graph snapshots, each labelled with an annotation (`A`). */
+export class History<A = string> {
+	#steps: Step<A>[];
 	#index = 0;
 
 	constructor(base: Graph) {
@@ -40,11 +40,31 @@ export class History {
 	}
 
 	/** Applies an action, labelled for the undo button, and drops anything that could be redone. */
-	perform(action: Action, annotation: string): Graph {
-		const graph = action(this.graph);
+	perform(action: Action, annotation: A): Graph {
+		const graph = this.graph.update(action);
+		// An action that changed nothing makes no step to undo.
+		if (sameGraph(graph, this.graph)) return this.graph;
 		this.#steps = this.#steps.slice(0, this.#index + 1);
 		this.#steps.push({ graph, annotation });
 		this.#index++;
+		return graph;
+	}
+
+	/**
+	 * Applies an action to the current step instead of adding one, so one undo takes back both
+	 * (iD's `replace`: a Wikipedia tag following a Wikidata choice). Performs it, labelled
+	 * `annotation`, when there is no step to fold it into.
+	 */
+	replace(action: Action, annotation: A): Graph {
+		const step = this.#current;
+		if (this.#index === 0 || step.annotation === null) {
+			return this.perform(action, annotation);
+		}
+		const graph = step.graph.update(action);
+		this.#steps = [
+			...this.#steps.slice(0, this.#index),
+			{ graph, annotation: step.annotation },
+		];
 		return graph;
 	}
 
@@ -77,7 +97,7 @@ export class History {
 	}
 
 	/** Returns the annotation of the undone action, or null if there was nothing to undo. */
-	undo(): string | null {
+	undo(): A | null {
 		if (!this.canUndo) return null;
 		const { annotation } = this.#current;
 		this.#index--;
@@ -85,17 +105,26 @@ export class History {
 	}
 
 	/** Returns the annotation of the redone action, or null if there was nothing to redo. */
-	redo(): string | null {
+	redo(): A | null {
 		if (!this.canRedo) return null;
 		this.#index++;
 		return this.#current.annotation;
 	}
 
-	get #current(): Step {
-		return this.#steps[this.#index] as Step;
+	get #current(): Step<A> {
+		return this.#steps[this.#index] as Step<A>;
 	}
 
-	get #first(): Step {
-		return this.#steps[0] as Step;
+	get #first(): Step<A> {
+		return this.#steps[0] as Step<A>;
 	}
+}
+
+/** Whether two graphs hold the same entities, as copies or as the same objects. */
+function sameGraph(a: Graph, b: Graph): boolean {
+	for (const id of a.changedSince(b)) {
+		const [x, y] = [a.entity(id), b.entity(id)];
+		if (!x || !y || x.version !== y.version || !sameContent(x, y)) return false;
+	}
+	return true;
 }

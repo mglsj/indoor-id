@@ -6,6 +6,7 @@
  *
  * Image pixels are `[u, v]` with `v` pointing down, as in the image file.
  */
+import { fromMercator, toMercator } from "#lib/osm/geometry.ts";
 
 /** `[longitude, latitude]` in degrees, as MapLibre takes them. */
 export type LngLat = [number, number];
@@ -47,23 +48,6 @@ export interface Fit {
 
 export class GeorefError extends Error {
 	override name = "GeorefError";
-}
-
-const EARTH_RADIUS = 6378137;
-
-function toMercator([lon, lat]: LngLat): [number, number] {
-	const phi = (lat * Math.PI) / 180;
-	return [
-		(EARTH_RADIUS * lon * Math.PI) / 180,
-		EARTH_RADIUS * Math.log(Math.tan(Math.PI / 4 + phi / 2)),
-	];
-}
-
-function fromMercator([x, y]: [number, number]): LngLat {
-	return [
-		(x / EARTH_RADIUS) * (180 / Math.PI),
-		(2 * Math.atan(Math.exp(y / EARTH_RADIUS)) - Math.PI / 2) * (180 / Math.PI),
-	];
 }
 
 /** The map position of an image pixel. */
@@ -287,6 +271,65 @@ export function dragRotation(
 	let wanted = degrees(tx - cx, ty - cy);
 	if (snap) wanted = Math.round(wanted / 15) * 15;
 	return rotateAbout(transform, centre, wanted - current);
+}
+
+/** Where a plan is, as typed in numbers. */
+export interface PlanPosition {
+	/** Where its centre is. */
+	readonly center: LngLat;
+	/** The direction its top faces, in degrees clockwise from north, 0 to 360. */
+	readonly bearing: number;
+	/** Its ground width in metres, across its middle. */
+	readonly width: number;
+}
+
+/** A `width` × `height` plan's position (for a warped plan, as measured at its centre). */
+export function positionOf(
+	transform: Transform,
+	width: number,
+	height: number,
+): PlanPosition {
+	const center = project(transform, [width / 2, height / 2]);
+	const [cx, cy] = toMercator(center);
+	const [tx, ty] = toMercator(project(transform, [width / 2, 0]));
+	const bearing = (Math.atan2(tx - cx, ty - cy) * 180) / Math.PI;
+	return {
+		center,
+		bearing: (bearing + 360) % 360,
+		width: groundDistance(
+			project(transform, [0, height / 2]),
+			project(transform, [width, height / 2]),
+		),
+	};
+}
+
+/**
+ * The plan moved, turned or scaled, as a whole and around its centre, to the position given
+ * (what isn't given stays as it is). A warped plan keeps its shape.
+ */
+export function moveTo(
+	transform: Transform,
+	width: number,
+	height: number,
+	changes: Partial<PlanPosition>,
+): Transform {
+	const centre: Pixel = [width / 2, height / 2];
+	// Moved first: a plan moved north or south takes more Mercator metres for the same width.
+	let moved = changes.center
+		? translateTo(transform, centre, changes.center)
+		: transform;
+	if (changes.bearing !== undefined) {
+		const { bearing } = positionOf(moved, width, height);
+		moved = rotateAbout(moved, centre, changes.bearing - bearing);
+	}
+	if (changes.width !== undefined && changes.width > 0) {
+		const current = positionOf(moved, width, height).width;
+		if (current > 0) {
+			const k = changes.width / current;
+			moved = aboutPoint(moved, centre, [k, 0, 0, k]);
+		}
+	}
+	return moved;
 }
 
 /** Applies a 2×2 linear map on the map side, centred on where `pixel` currently is. */

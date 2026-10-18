@@ -4,9 +4,11 @@ import {
 	expect,
 	expectPixel,
 	hash,
+	inspector,
 	LAT,
 	LON,
 	mapCenter,
+	mapDrawn,
 	pixelAt,
 	room,
 	serveOsm,
@@ -129,4 +131,33 @@ test("draws the preset's Maki icon for a point of interest", async ({
 			timeout: 10_000,
 		})
 		.not.toBe(BACKGROUND.join(","));
+});
+
+test("edits are drawn at once: a room moved to another level leaves this one, and Undo brings it back", async ({
+	page,
+}) => {
+	// Other rooms on levels 0 and 1: moving one keeps the levels of the data, so only it is
+	// sent to the map again.
+	await serveOsm(page, [
+		...room(200, LON + 0.001, LAT, "1"),
+		...room(300, LON - 0.001, LAT, "0"),
+		...room(100, LON, LAT, "0"),
+	]);
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	const { x, y } = await mapCenter(page);
+	await expectPixel(page, x, y, ROOM);
+	const editor = inspector(page).root;
+	await mapDrawn(page);
+	await page.mouse.click(x, y);
+	await expect(editor).toBeVisible();
+	const selected = (await pixelAt(page, x, y)).join(",");
+
+	const level = editor.getByRole("combobox", { name: "Level", exact: true });
+	await level.fill("1");
+	await level.press("Enter");
+	await expectPixel(page, x, y, BACKGROUND);
+	await page.getByRole("button", { name: "Undo" }).click();
+	await expect
+		.poll(async () => (await pixelAt(page, x, y)).join(","))
+		.toBe(selected);
 });

@@ -4,12 +4,16 @@ const PORT = 4173;
 
 export default defineConfig({
 	testDir: "tests/e2e",
+	// Tests share nothing: each file's tests run in parallel too.
+	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 1 : 0,
 	reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
 	use: {
 		baseURL: `http://localhost:${PORT}`,
 		trace: "retain-on-failure",
+		// Tests find controls by their English names; dates and numbers are formatted in it.
+		locale: "en-US",
 	},
 	projects: [
 		{

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { msg } from "#lib/i18n/messages.ts";
 import type { Entity, EntityId } from "#lib/osm/entity.ts";
 import { node, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
@@ -117,7 +118,9 @@ describe("validate: levels", () => {
 
 	it("explains a comma, which could be a list or a decimal", () => {
 		const [issue] = issuesOf(roomWith({ indoor: "room", level: "1,5" }), "w1");
-		expect(issue?.message).toContain(";");
+		expect(issue?.message).toEqual(
+			msg("issue_unreadable_level_comma", { key: "level", value: "1,5" }),
+		);
 	});
 
 	it("moves the levels of stairs and elevators from repeat_on to level", () => {
@@ -149,6 +152,18 @@ describe("validate: levels", () => {
 				"w1",
 			),
 		).toEqual([]);
+	});
+});
+
+describe("validate: issue ids", () => {
+	it("gives each issue its own id, also for two unreadable level keys", () => {
+		const issues = issuesOf(
+			roomWith({ indoor: "room", level: "G", repeat_on: "G" }),
+			"w1",
+		);
+		const ids = issues.map((i) => i.id);
+		expect(ids).toHaveLength(2);
+		expect(new Set(ids).size).toBe(2);
 	});
 });
 

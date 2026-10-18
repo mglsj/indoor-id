@@ -1,12 +1,18 @@
+import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { corners, type LngLat, place } from "./georef.ts";
 import {
+	type ArchivedPlan,
 	exportPlans,
+	isPlanArchive,
+	type PlanArchive,
 	type PlanFileEntry,
 	PlanFileError,
 	parsePlanFile,
 	parsePlansFile,
+	readPlanArchive,
 	transformOf,
+	writePlanArchive,
 } from "./plan-file.ts";
 
 const IMAGE = "data:image/png;base64,iVBORw0KGgo=";
@@ -206,10 +212,148 @@ describe("1.x plan files", () => {
 
 describe("other files", () => {
 	it.each([
-		["not JSON", "<svg/>"],
-		["JSON of something else", '{"type": "FeatureCollection"}'],
-		["a plan without an image", JSON.stringify([{ id: "a", label: "x" }])],
-	])("are refused with a message: %s", (_, text) => {
+		["not JSON", "<svg/>", "plan_file_not_json"],
+		[
+			"JSON of something else",
+			'{"type": "FeatureCollection"}',
+			"plan_file_unknown",
+		],
+		[
+			"a plan without corners or image",
+			JSON.stringify([{ id: "a", label: "x" }]),
+			"plan_file_damaged",
+		],
+	])("are refused with a message: %s", (_, text, key) => {
 		expect(() => parsePlansFile(text)).toThrow(PlanFileError);
+		try {
+			parsePlansFile(text);
+		} catch (e) {
+			expect((e as PlanFileError).msg.key).toBe(key);
+		}
+	});
+});
+
+describe("plan files, version 2: an archive of plans and the files they come from", () => {
+	const transform = place(
+		{ center: [-1.6953, 48.1368], metresPerPixel: 0.05, bearing: 12 },
+		595,
+		842,
+	);
+	const pdf = new TextEncoder().encode("%PDF-1.7 two pages");
+	const photo = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+	const page = (n: number): ArchivedPlan => ({
+		name: `Mall, page ${n}`,
+		size: { width: 595.28, height: 841.89 },
+		source: {
+			kind: "pdf",
+			file: "files/1.pdf",
+			page: n,
+			dpi: 150,
+			mode: "vector",
+		},
+		transform,
+		fitKind: "projective",
+		controlPoints: [{ image: [10, 20], map: [-1.6954, 48.1369] }],
+		level: String(n - 1),
+		opacity: 0.4,
+		visible: n === 1,
+		color: "#2563eb",
+		hiddenLayers: ["232R"],
+	});
+	const archive: PlanArchive = {
+		plans: [
+			page(1),
+			page(2),
+			{
+				...page(1),
+				name: "Photo",
+				size: { width: 4000, height: 3000 },
+				source: { kind: "raster", file: "files/2.png" },
+				fitKind: "similarity",
+			},
+		],
+		files: new Map([
+			["files/1.pdf", pdf],
+			["files/2.png", photo],
+		]),
+		buildings: { below: 1, visible: false },
+	};
+
+	it("reads back what was written: the plans, their files once, the outlines' place", () => {
+		const bytes = writePlanArchive(archive);
+		// A ZIP archive.
+		expect([...bytes.subarray(0, 4)]).toEqual([0x50, 0x4b, 0x03, 0x04]);
+		expect(isPlanArchive(bytes)).toBe(true);
+		expect(readPlanArchive(bytes)).toEqual(archive);
+	});
+
+	const manifest = (changes: Record<string, unknown>, plan = {}) =>
+		zipSync({
+			"plans.json": strToU8(
+				JSON.stringify({
+					format: "indoorid-floorplans",
+					version: 2,
+					plans: [{ ...page(1), ...plan }],
+					...changes,
+				}),
+			),
+			"files/1.pdf": pdf,
+		});
+
+	const failure = (bytes: Uint8Array) => {
+		try {
+			readPlanArchive(bytes);
+		} catch (e) {
+			return (e as PlanFileError).msg.key;
+		}
+		return null;
+	};
+
+	it("refuses a file from a newer IndoorID", () => {
+		expect(failure(manifest({ version: 3 }))).toBe("plan_file_newer");
+		expect(() =>
+			parsePlanFile(
+				JSON.stringify({
+					format: "indoorid-floorplans",
+					version: 3,
+					plans: [],
+				}),
+			),
+		).toThrow("newer version of IndoorID");
+	});
+
+	it("refuses a plan without its size, or whose file is missing", () => {
+		expect(failure(manifest({}, { size: undefined }))).toBe(
+			"plan_file_damaged",
+		);
+		expect(
+			failure(manifest({}, { source: { kind: "svg", file: "files/9.svg" } })),
+		).toBe("plan_file_damaged");
+		expect(
+			failure(
+				manifest(
+					{},
+					{ source: { kind: "pdf", file: "files/1.pdf", page: 0, dpi: 150 } },
+				),
+			),
+		).toBe("plan_file_damaged");
+	});
+
+	it("keeps the CAD layers hidden as ids, left out when the file has none or damaged ones", () => {
+		const hidden = (value: unknown) =>
+			readPlanArchive(manifest({}, { hiddenLayers: value })).plans[0]
+				?.hiddenLayers;
+		expect(hidden(["7R", "9R"])).toEqual(["7R", "9R"]);
+		expect(hidden(undefined)).toBeUndefined();
+		expect(hidden("7R")).toBeUndefined();
+		expect(hidden(["7R", 9])).toBeUndefined();
+	});
+
+	it("refuses an archive that isn't a plan file", () => {
+		expect(failure(zipSync({ "readme.txt": strToU8("hi") }))).toBe(
+			"plan_file_unknown",
+		);
+		expect(failure(strToU8("not a zip"))).toBe("plan_file_unknown");
+		expect(isPlanArchive(strToU8("{}"))).toBe(false);
 	});
 });

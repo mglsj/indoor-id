@@ -18,7 +18,7 @@ import {
  */
 export function featureLevels(
 	tags: Tags,
-	parentRelationTags: readonly Tags[] = [],
+	parentRelationTags: readonly Tags[] | (() => readonly Tags[]) = [],
 ): Levels | null {
 	if (tags.level !== undefined || tags.repeat_on !== undefined) {
 		return union([tags.level, tags.repeat_on]);
@@ -29,7 +29,12 @@ export function featureLevels(
 	if (tags["building:levels"] !== undefined) {
 		return buildingLevels(tags);
 	}
-	const relationLevels = parentRelationTags
+	// Parent relations are only looked up when needed: a function is called last.
+	const parents =
+		typeof parentRelationTags === "function"
+			? parentRelationTags()
+			: parentRelationTags;
+	const relationLevels = parents
 		.filter((rel) => rel.type === "level" || rel.type === "multipolygon")
 		.map((rel) => rel.level);
 	return union(relationLevels);

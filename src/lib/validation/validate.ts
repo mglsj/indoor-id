@@ -3,6 +3,7 @@
  * through the history like any edit (so it can be undone).
  */
 import { changeTags } from "#lib/actions/change-tags.ts";
+import { type Message, msg } from "#lib/i18n/messages.ts";
 import {
 	formatLevels,
 	normalizeLevels,
@@ -26,8 +27,8 @@ export interface Issue {
 	readonly rule: IssueRule;
 	readonly severity: "warning" | "error";
 	readonly entityId: EntityId;
-	readonly message: string;
-	readonly fix?: { readonly label: string; readonly action: Action };
+	readonly message: Message;
+	readonly fix?: { readonly label: Message; readonly action: Action };
 }
 
 export function validate(
@@ -48,14 +49,16 @@ export function validate(
 	return issues;
 }
 
+/** An issue; `key` tells apart issues of one rule on one entity (`level` and `repeat_on`). */
 function issue(
 	rule: IssueRule,
 	entity: Entity,
-	message: string,
+	message: Message,
 	fix?: Issue["fix"],
+	key?: string,
 ): Issue {
 	return {
-		id: `${rule}:${entity.id}`,
+		id: `${rule}:${entity.id}${key ? `:${key}` : ""}`,
 		rule,
 		severity: "warning",
 		entityId: entity.id,
@@ -73,12 +76,17 @@ function outdatedTags(
 	const removed = only(entity.tags, (k) => upgraded[k] !== entity.tags[k]);
 	const added = only(upgraded, (k) => upgraded[k] !== entity.tags[k]);
 	return [
-		issue("outdated-tags", entity, `Outdated tags: ${describeTags(removed)}`, {
-			label: Object.keys(added).length
-				? `Upgrade to ${describeTags(added)}`
-				: `Remove ${describeTags(removed)}`,
-			action: changeTags(entity.id, upgraded),
-		}),
+		issue(
+			"outdated-tags",
+			entity,
+			msg("issue_outdated_tags", { tags: describeTags(removed) }),
+			{
+				label: Object.keys(added).length
+					? msg("fix_upgrade_tags", { tags: describeTags(added) })
+					: msg("fix_remove_tags", { tags: describeTags(removed) }),
+				action: changeTags(entity.id, upgraded),
+			},
+		),
 	];
 }
 
@@ -99,14 +107,18 @@ function levelIssues(entity: Entity): Issue[] {
 	for (const key of ["level", "repeat_on"] as const) {
 		const value = entity.tags[key];
 		if (value === undefined || parseLevels(value)) continue;
-		const hint = value.includes(",")
-			? " Separate levels with ; (e.g. 0;1) and write decimals with . (e.g. 0.5)."
-			: " Use numbers like 0, -1, 0.5, lists like 0;1 or ranges like 0-2.";
 		issues.push(
 			issue(
 				"unreadable-level",
 				entity,
-				`${key}=${value} can't be read.${hint}`,
+				msg(
+					value.includes(",")
+						? "issue_unreadable_level_comma"
+						: "issue_unreadable_level",
+					{ key, value },
+				),
+				undefined,
+				key,
 			),
 		);
 	}
@@ -123,15 +135,10 @@ function levelIssues(entity: Entity): Issue[] {
 			level: formatLevels(normalizeLevels([...level, ...repeatOn])),
 		};
 		issues.push(
-			issue(
-				"vertical-repeat-on",
-				entity,
-				"Stairs and elevators connect levels: list them all in level, not in repeat_on.",
-				{
-					label: `Set level=${tags.level}`,
-					action: changeTags(entity.id, tags),
-				},
-			),
+			issue("vertical-repeat-on", entity, msg("issue_vertical_repeat_on"), {
+				label: msg("fix_set_level", { level: tags.level }),
+				action: changeTags(entity.id, tags),
+			}),
 		);
 	}
 	return issues;
@@ -140,13 +147,7 @@ function levelIssues(entity: Entity): Issue[] {
 function doorIssues(graph: Graph, entity: Entity): Issue[] {
 	if (entity.type !== "node" || entity.tags.door === undefined) return [];
 	if (graph.parentWays(entity.id).length > 0) return [];
-	return [
-		issue(
-			"door-not-on-wall",
-			entity,
-			"This door is not on a wall or room outline, so routing can't go through it.",
-		),
-	];
+	return [issue("door-not-on-wall", entity, msg("issue_door_not_on_wall"))];
 }
 
 function only(tags: Tags, keep: (key: string) => boolean): Tags {

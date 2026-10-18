@@ -78,6 +78,38 @@ describe("deleteEntities", () => {
 		});
 	});
 
+	describe("a relation", () => {
+		it("takes the members left untagged and unused with it (iD's actionDeleteRelation)", () => {
+			const graph = Graph.fromEntities([
+				node("n1"),
+				node("n2"),
+				node("n3"),
+				node("n4", { door: "yes" }),
+				way("w1", ["n1", "n2", "n3", "n1"]),
+				way("w2", ["n1", "n4"], { indoor: "wall" }),
+				way("w3", ["n2", "n3"]),
+				relation(
+					"r1",
+					[
+						{ ref: "w1", role: "outer" },
+						{ ref: "w2", role: "" },
+						{ ref: "w3", role: "inner" },
+						{ ref: "n4", role: "" },
+					],
+					{ type: "multipolygon", indoor: "room" },
+				),
+				relation("r2", [{ ref: "w3", role: "" }], { type: "site" }),
+			]);
+			const after = deleteEntities(["r1"])(graph);
+			// w1 goes with its untagged nodes not used elsewhere (n3 stays: w3 uses it); the
+			// tagged wall and door stay, and so does w3, still in r2.
+			expect(ids(after.changes().deleted)).toEqual(["r1", "w1"]);
+			expect(after.entity("w2")).toBeDefined();
+			expect(after.entity("w3")).toBeDefined();
+			expect(after.entity("n1")).toBeDefined();
+		});
+	});
+
 	describe("a node", () => {
 		it("is removed from its ways", () => {
 			const graph = Graph.fromEntities([

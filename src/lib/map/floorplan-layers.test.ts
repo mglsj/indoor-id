@@ -1,7 +1,6 @@
 import type { LineString } from "geojson";
 import { describe, expect, it } from "vitest";
 import { place } from "#lib/floorplans/georef.ts";
-import type { PlanImage } from "#lib/floorplans/import.ts";
 import {
 	distance,
 	northUpPlan,
@@ -13,16 +12,11 @@ import { planFrames, stackLayerIds, toolFeatures } from "./floorplan-layers.ts";
 
 /** A 400 × 300 px plan, north up at 5 cm per pixel, its top-left pixel at RENNES. */
 const truth = northUpPlan(RENNES);
-const image: PlanImage = {
-	width: 400,
-	height: 300,
-	blob: new Blob(),
-	levels: [],
-};
 const plan: FloorPlan = {
 	id: "p",
 	name: "plan",
-	image,
+	size: { width: 400, height: 300 },
+	source: { kind: "raster", file: "p" },
 	transform: place(
 		{ center: truth(200, 150), metresPerPixel: 0.05, bearing: 0 },
 		400,
@@ -34,6 +28,7 @@ const plan: FloorPlan = {
 	level: "0",
 	visible: true,
 	color: "#2563eb",
+	hiddenLayers: [],
 };
 
 function linesOf(tool: Tool, pointer?: [number, number]) {

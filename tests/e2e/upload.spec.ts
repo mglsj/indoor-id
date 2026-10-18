@@ -97,7 +97,9 @@ test("uploads the edits in one changeset", async ({ page }) => {
 	await dialog.getByRole("button", { name: "Close" }).click();
 	await expect(page.getByTestId("edit-count")).toHaveText("0");
 	await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
-	await expect(tagsBox(page)).toHaveValue("indoor=room\nlevel=0\nref=B12");
+	await expect(await tagsBox(page)).toHaveValue(
+		"indoor=room\nlevel=0\nref=B12",
+	);
 });
 
 test("keeps the edits when the upload is refused", async ({ page }) => {

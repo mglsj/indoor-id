@@ -1,7 +1,12 @@
 /**
- * Floor plan files: IndoorID's own JSON export, and the `osminedit_floor_imagery.json` files
- * written by OsmInEdit 1.x. Images travel inside the file as data URLs.
+ * Floor plan files. Version 2, written now: a ZIP archive of `plans.json` and the files the
+ * plans were imported from (a PDF once for all its pages), stored as they are. Read too:
+ * version 1, IndoorID's JSON with images as data URLs, and the `osminedit_floor_imagery.json`
+ * files of OsmInEdit 1.x. Pure: bytes in, bytes out.
  */
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
+import { MessageError, msg } from "#lib/i18n/messages.ts";
+import type { PlanMode, PlanSize, PlanSource } from "./content.ts";
 import {
 	type ControlPoint,
 	fitPlan,
@@ -45,13 +50,159 @@ export interface PlanFile {
 	readonly buildings?: PlanFileBuildings;
 }
 
-export class PlanFileError extends Error {
+export class PlanFileError extends MessageError {
 	override name = "PlanFileError";
 }
 
 const FORMAT = "indoorid-floorplans";
+/** The newest version this IndoorID reads (and the one it writes). */
+const VERSION = 2;
+const MANIFEST = "plans.json";
 
-/** An IndoorID plan file: `plans` bottom first, and where the building outlines sit. */
+/** A plan in a version 2 file: its `source.file` is the path of its file in the archive. */
+export interface ArchivedPlan {
+	readonly name: string;
+	readonly size: PlanSize;
+	readonly source: PlanSource;
+	readonly transform: Transform;
+	readonly fitKind: TransformKind;
+	readonly controlPoints: readonly ControlPoint[];
+	readonly level: string | null;
+	readonly opacity: number;
+	readonly visible: boolean;
+	readonly color?: string;
+	/** Ids of the CAD layers not shown; files from before have none. */
+	readonly hiddenLayers?: readonly string[];
+}
+
+export interface PlanArchive {
+	/** Bottom first. */
+	readonly plans: readonly ArchivedPlan[];
+	/** The files the plans come from, by path. */
+	readonly files: ReadonlyMap<string, Uint8Array>;
+	readonly buildings?: PlanFileBuildings;
+}
+
+/** Writes a version 2 plan file. Files are stored as they are: they are compressed already. */
+export function writePlanArchive({
+	plans,
+	files,
+	buildings,
+}: PlanArchive): Uint8Array {
+	const manifest = JSON.stringify(
+		{
+			format: FORMAT,
+			version: VERSION,
+			plans,
+			...(buildings ? { buildings } : {}),
+		},
+		null,
+		2,
+	);
+	return zipSync({
+		[MANIFEST]: [strToU8(manifest), { level: 6 }],
+		...Object.fromEntries(
+			[...files].map(([path, bytes]) => [path, [bytes, { level: 0 }]]),
+		),
+	});
+}
+
+/** Whether bytes are a ZIP archive (a version 2 plan file), not JSON. */
+export function isPlanArchive(bytes: Uint8Array): boolean {
+	return (
+		bytes[0] === 0x50 &&
+		bytes[1] === 0x4b &&
+		bytes[2] === 0x03 &&
+		bytes[3] === 0x04
+	);
+}
+
+/** Reads a version 2 plan file. */
+export function readPlanArchive(bytes: Uint8Array): PlanArchive {
+	let entries: Record<string, Uint8Array>;
+	try {
+		entries = unzipSync(bytes);
+	} catch {
+		throw new PlanFileError(msg("plan_file_unknown"));
+	}
+	const manifest = entries[MANIFEST];
+	if (!manifest) throw new PlanFileError(msg("plan_file_unknown"));
+	let data: unknown;
+	try {
+		data = JSON.parse(strFromU8(manifest));
+	} catch {
+		throw invalid();
+	}
+	if (!isRecord(data) || data.format !== FORMAT) {
+		throw new PlanFileError(msg("plan_file_unknown"));
+	}
+	checkVersion(data.version);
+	if (!Array.isArray(data.plans)) throw invalid();
+	const plans = data.plans.map(readArchivedPlan);
+	const files = new Map<string, Uint8Array>();
+	for (const { source } of plans) {
+		const file = entries[source.file];
+		if (!file) throw invalid();
+		files.set(source.file, file);
+	}
+	const buildings = buildingsOf(data.buildings);
+	return { plans, files, ...(buildings ? { buildings } : {}) };
+}
+
+function checkVersion(version: unknown): void {
+	if (typeof version === "number" && version > VERSION) {
+		throw new PlanFileError(msg("plan_file_newer"));
+	}
+}
+
+function readArchivedPlan(value: unknown): ArchivedPlan {
+	if (!isRecord(value)) throw invalid();
+	const transform = transformIn(value.transform);
+	const size = isRecord(value.size) ? value.size : {};
+	if (!isPositive(size.width) || !isPositive(size.height)) throw invalid();
+	return {
+		name: typeof value.name === "string" ? value.name : "Floor plan",
+		size: { width: size.width, height: size.height },
+		source: sourceOf(value.source),
+		transform,
+		fitKind: KINDS.includes(value.fitKind as TransformKind)
+			? (value.fitKind as TransformKind)
+			: transform.kind,
+		controlPoints: Array.isArray(value.controlPoints)
+			? (value.controlPoints as ControlPoint[])
+			: [],
+		level: typeof value.level === "string" ? value.level : null,
+		opacity: opacityOf(value.opacity, 0.5),
+		visible: value.visible !== false,
+		...colorOf(value.color),
+		...(Array.isArray(value.hiddenLayers) &&
+		value.hiddenLayers.every((id) => typeof id === "string")
+			? { hiddenLayers: value.hiddenLayers as string[] }
+			: {}),
+	};
+}
+
+function sourceOf(value: unknown): PlanSource {
+	if (!isRecord(value) || typeof value.file !== "string") throw invalid();
+	const { kind, file, page, dpi, mode } = value;
+	// Plans saved before modes were rendered as images: no mode.
+	const drawn: { mode?: PlanMode } =
+		mode === "vector" || mode === "image" ? { mode } : {};
+	if (kind === "raster") return { kind, file };
+	if (kind === "svg") return { kind, file, ...drawn };
+	if (
+		kind === "pdf" &&
+		typeof page === "number" &&
+		Number.isInteger(page) &&
+		page >= 1 &&
+		isPositive(dpi)
+	) {
+		return { kind, file, page, dpi, ...drawn };
+	}
+	throw invalid();
+}
+
+/** A version 1 plan file: `plans` bottom first, and where the building outlines sit. */
 export function exportPlans(
 	plans: readonly PlanFileEntry[],
 	buildings?: PlanFileBuildings,
@@ -74,8 +225,9 @@ export function parsePlanFile(text: string): PlanFile {
 	try {
 		data = JSON.parse(text);
 	} catch {
-		throw new PlanFileError("This file is not a floor plan file (not JSON).");
+		throw new PlanFileError(msg("plan_file_not_json"));
 	}
+	if (isRecord(data) && data.format === FORMAT) checkVersion(data.version);
 	if (isRecord(data) && data.format === FORMAT && Array.isArray(data.plans)) {
 		const buildings = buildingsOf(data.buildings);
 		return {
@@ -84,9 +236,7 @@ export function parsePlanFile(text: string): PlanFile {
 		};
 	}
 	if (Array.isArray(data)) return { plans: data.map(readLegacyPlan) };
-	throw new PlanFileError(
-		"This file is not an IndoorID or OsmInEdit floor plan file.",
-	);
+	throw new PlanFileError(msg("plan_file_unknown"));
 }
 
 /** The transform of a plan whose image is `width` × `height` pixels. */
@@ -114,16 +264,9 @@ const KINDS: readonly TransformKind[] = ["similarity", "affine", "projective"];
 
 function readPlan(value: unknown): PlanFileEntry {
 	if (!isRecord(value)) throw invalid();
-	const { transform } = isRecord(value.placement) ? value.placement : {};
-	if (
-		!isRecord(transform) ||
-		!KINDS.includes(transform.kind as TransformKind) ||
-		!Array.isArray(transform.matrix) ||
-		transform.matrix.length !== 9 ||
-		!transform.matrix.every(Number.isFinite)
-	) {
-		throw invalid();
-	}
+	const transform = transformIn(
+		isRecord(value.placement) ? value.placement.transform : undefined,
+	);
 	const width = value.width;
 	const height = value.height;
 	if (!isPositive(width) || !isPositive(height)) throw invalid();
@@ -136,7 +279,7 @@ function readPlan(value: unknown): PlanFileEntry {
 		opacity: opacityOf(value.opacity, 0.5),
 		visible: value.visible !== false,
 		...colorOf(value.color),
-		placement: { transform: transform as unknown as Transform },
+		placement: { transform },
 		controlPoints: Array.isArray(value.controlPoints)
 			? (value.controlPoints as ControlPoint[])
 			: [],
@@ -166,6 +309,19 @@ function readLegacyPlan(value: unknown): PlanFileEntry {
 	};
 }
 
+function transformIn(value: unknown): Transform {
+	if (
+		!isRecord(value) ||
+		!KINDS.includes(value.kind as TransformKind) ||
+		!Array.isArray(value.matrix) ||
+		value.matrix.length !== 9 ||
+		!value.matrix.every(Number.isFinite)
+	) {
+		throw invalid();
+	}
+	return value as unknown as Transform;
+}
+
 function latLng(value: unknown): LngLat {
 	if (Array.isArray(value) && value.length >= 2) {
 		const [lat, lng] = value;
@@ -184,7 +340,7 @@ function latLng(value: unknown): LngLat {
 function imageOf(value: unknown): string {
 	if (typeof value === "string" && value.startsWith("data:image/"))
 		return value;
-	throw new PlanFileError("A floor plan in this file has no image.");
+	throw new PlanFileError(msg("plan_file_no_image"));
 }
 
 function buildingsOf(value: unknown): PlanFileBuildings | undefined {
@@ -218,7 +374,5 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function invalid(): PlanFileError {
-	return new PlanFileError(
-		"A floor plan in this file is damaged or incomplete.",
-	);
+	return new PlanFileError(msg("plan_file_damaged"));
 }

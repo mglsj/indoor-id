@@ -6,14 +6,29 @@ import type { Tags } from "#lib/osm/tags.ts";
 /**
  * Sets the tags of an entity. Keys and values are trimmed, and empty ones dropped: OSM
  * rejects them. Tags are taken as given, never reinterpreted, so values the editor doesn't
- * understand (e.g. `level=G`) survive untouched.
+ * understand (e.g. `level=G`) survive untouched. With `clean: false` (text being typed, as
+ * iD's `onInput` changes) values are kept as typed and only empty ones dropped; leaving the
+ * field cleans them.
  */
-export function changeTags(id: EntityId, tags: Tags): Action {
+export function changeTags(
+	id: EntityId,
+	tags: Tags,
+	{ clean = true }: { clean?: boolean } = {},
+): Action {
 	return (graph: Graph) => {
 		const entity = graph.entity(id);
 		if (!entity) throw new Error(`Unknown entity ${id}`);
-		return graph.replace({ ...entity, tags: cleanTags(tags) });
+		return graph.replace({
+			...entity,
+			tags: clean ? cleanTags(tags) : withoutEmpty(tags),
+		});
 	};
+}
+
+function withoutEmpty(tags: Tags): Tags {
+	return Object.fromEntries(
+		Object.entries(tags).filter(([key, value]) => key.trim() && value.trim()),
+	);
 }
 
 function cleanTags(tags: Tags): Tags {

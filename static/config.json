@@ -1,10 +1,12 @@
 {
-	"editor_name": "IndoorID",
 	"osm_api_url": "https://api.openstreetmap.org",
 	"oauth_url": "https://www.openstreetmap.org",
 	"oauth_client_id": "",
 	"basemap_style": "https://tiles.openfreemap.org/styles/positron",
 	"data_min_zoom": 18,
 	"map_initial_zoom": 18,
-	"map_initial_latlng": [48.13678, -1.69533]
+	"map_initial_latlng": [
+		48.13678,
+		-1.69533
+	]
 }

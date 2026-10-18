@@ -18,6 +18,9 @@ interface EntityBase {
 	readonly tags: Tags;
 	/** Server version; undefined for entities created locally. */
 	readonly version?: number;
+	/** Who saved this version on the server, and when (ISO 8601); unknown for new entities. */
+	readonly user?: string;
+	readonly timestamp?: string;
 }
 
 export interface Node extends EntityBase {
@@ -96,7 +99,8 @@ export function sameContent(a: Entity, b: Entity): boolean {
 	}
 }
 
-function sameTags(a: Tags, b: Tags): boolean {
+/** Whether two tag sets hold the same keys and values. */
+export function sameTags(a: Tags, b: Tags): boolean {
 	const keys = Object.keys(a);
 	return (
 		keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k])

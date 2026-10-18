@@ -140,4 +140,10 @@ body {
 	html {
 		@apply font-sans;
 	}
+	/* bits-ui copies its content's z-index to this wrapper a frame after opening, and
+	   misses it when a popover reopens while closing: without it, the list opens under
+	   the side panel. */
+	[data-bits-floating-content-wrapper] {
+		@apply z-50;
+	}
 }

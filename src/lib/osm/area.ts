@@ -1,4 +1,5 @@
-import type { Entity, Way } from "./entity.ts";
+import type { Entity } from "./entity.ts";
+import { isClosedRing } from "./geometry.ts";
 import type { Graph } from "./graph.ts";
 import type { Tags } from "./tags.ts";
 
@@ -30,10 +31,6 @@ export function isArea(tags: Tags): boolean {
 	return Object.keys(tags).some((key) => AREA_KEYS.has(key));
 }
 
-export function isClosed(way: Way): boolean {
-	return way.nodes.length > 3 && way.nodes[0] === way.nodes.at(-1);
-}
-
 /** Geometry of an entity as presets see it: a node on a way is a vertex. */
 export function entityGeometry(
 	graph: Graph,
@@ -43,7 +40,7 @@ export function entityGeometry(
 		case "node":
 			return graph.parentWays(entity.id).length > 0 ? "vertex" : "point";
 		case "way":
-			return isClosed(entity) && isArea(entity.tags) ? "area" : "line";
+			return isClosedRing(entity) && isArea(entity.tags) ? "area" : "line";
 		case "relation":
 			return entity.tags.type === "multipolygon" ? "area" : "relation";
 	}
