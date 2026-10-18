@@ -14,6 +14,8 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
    one-click upgrades of deprecated tags.
 4. **Safe uploads.** What gets uploaded is exactly what the user edited, sent in one atomic
    changeset.
+5. **A viewer too.** Browse indoor data level by level, in 2D or as 3D floors, without an
+   account (after geometry editing; see "Research and audit" below).
 
 ## Status
 
@@ -30,7 +32,12 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | R1    | Foundations for editing (review)           | Done        |
 | R2    | Floor plan content model (review)          | Done        |
 | P4.2  | Vector and light raster floor plans        | Done        |
+| R3    | Fixes from the October audit               | Not started |
+| W     | Wiki conformance                           | Not started |
+| L     | Level names in the switcher                | Not started |
 | P5.3  | Geometry editing                           | Not started |
+| V     | Viewer mode                                | Not started |
+| 3D    | 3D floors                                  | Not started |
 | P5.4  | Autosave and conflicts                     | Not started |
 | P6    | Parity and polish                          | Not started |
 
@@ -630,6 +637,82 @@ release, the pattern node dragging needs); field inputs taking `tags` and emitti
 ARIA combobox and listbox patterns; the network-blocking e2e fixture and pixel checks; lazy
 pdf.js and presets (the bundle is fine: 421 KB gzipped plus MapLibre's worker).
 
+## Research and audit (October 2026, after P4.2)
+
+A look at the OSM wiki's indoor pages and at the other indoor editors and viewers, then a
+second audit of the code (lint, check, 838 unit and 123 e2e tests run; one e2e test flaky, see
+R3.8). The full write-up, with sources, is the "Indoor editors research and the IndoorID path"
+doc. Conclusion: **no rewrite or broad refactor**. The core (immutable graph, history,
+incremental feature store, range-aware `@lv` filters, atomic upload) matches or beats every
+tool studied; what the goals still need is added on top (W, L, V, 3D below) plus the fixes in
+R3. The one refactor is small: the level switcher and the map style must serve more than one
+presentation (edit, view, 3D).
+
+**Other tools, and what to take from each**
+
+| Tool | How it works | Take |
+| ---- | ------------ | ---- |
+| [iD](https://github.com/openstreetmap/iD) (ISC) | Same core as ours; SVG renderer | `operations/*` (`available`, `disabled` reason, `tooltip`, `keys`, annotation) for P5.3.5; composable `behavior/*` (hover, select, drag, draw, lasso, paste); `core/tree.ts` (entity and segment rbush updated from each difference) for snapping and "which building"; validator with base and head caches (only issues the user caused), run in `requestIdleCallback` chunks; `crossing_ways`, `unsquare_way`, `close_nodes`, `almost_junction`, `disconnected_way`, `missing_tag`; `history.toJSON` + `utilSessionMutex` and `actions/merge_remote_changes` for P5.4; `renderer/features` filters and auto-hide for P6. Its `crossing_ways` compares `level` as strings: use `isOnLevel` when porting. Keep the ISC notice. |
+| [OpenIndoorMaps](https://github.com/openindoormaps/openindoormaps) (Apache-2.0, pre-alpha viewer) | IMDF-like GeoJSON; rooms `fill-extrusion` 2.5 m (`#f3f3f3` / dark `#1f2937`), corridors 0.2 m (`#d6d5d1` / `#030712`), outlines `#a6a5a2` 2 px, one level, pitch 40°, OpenFreeMap basemap; search panel (MiniSearch), Dijkstra routing over corridor lines | The 3D look (3D.1), light and dark colour sets, the discovery panel for V. Not its `setData` per level switch or its O(n²) Dijkstra. |
+| [OpenIndoor](https://github.com/open-indoor/openindoor6) (AGPL, dormant since 2022) | Building → stacked floors (base 5 m × level, 4.5 m tall, coloured by `level mod 4`) → one level with walls: room outlines and `indoor=wall` buffered 0.1 m each side, extruded 2 m, door gaps cut by `width` / 2 (default 0.9 m); Overpass per building; depended on its own tile server | The three-step view and walls with door gaps (3D.2), ideas only (licence, dead backend). |
+| [indoor=](https://github.com/indoorequal) (AGPL tiles, BSD plugin, active) | Planet import → PostGIS → MVT; `expand_levels(level, repeat_on)` in SQL; 2D, heatmap at low zoom | Heatmap or count bubbles to find indoor data when zoomed out (V). Not the server stack. |
+| [MapGL Indoor](https://github.com/mapbox-gl-indoor/mapbox-gl-indoor) (MIT) | GeoJSON per building, level filter | Show the level switcher only when a building with indoor data is in view (L). |
+| OpenLevelUp, JOSM indoorhelper, MapComplete indoors | Overpass + Leaflet; JOSM AutoFilter level bar; POI questions | Room list by level (V); "missing level" validator and wall kinds (W). |
+
+**Wiki rules not followed yet** (the rest, ranges, lists, decimals, `repeat_on`, never
+rewriting `level`, already is): `level:ref` and `name` of `indoor=level` outlines are not shown
+in the switcher; `non_existent_levels` is ignored; one-based numbering (KR, KZ, MN) gets no
+hint; the elevator upgrade writes `elevator=yes`, SIT says `highway=elevator` + `indoor=room`;
+`indoor=highway` and `indoor=stairs` (mistakes for `indoor=yes`) have no upgrade; doors on an
+`indoor=wall` area (SIT: ways only) are not flagged; indoor features without `level` are not
+flagged; walls and rooms not sharing nodes are not checked (P5.3.9).
+
+**Bugs found** (fixes in R3; verified by a script or a probe test unless marked plausible)
+
+- Upload (`state/data-sync.svelte.ts:81-86`): tiles that arrive during an upload are merged,
+  then dropped by `history.reset(result.graph)`, and `MapLoader` never downloads them again;
+  edits made meanwhile (Mod+Z works with focus on a dialog button) are dropped too. A tile
+  requested before the upload and arriving after it brings deleted features back
+  (`History.merge` treats them as new), and editing one makes the next upload send a modify
+  for a deleted way (409/410, plausible).
+- The 10,000-change changeset limit is not checked: no warning, raw HTTP text on failure.
+- Save dialog (`ui/SaveDialog.svelte`, `state/session.svelte.ts:231-245`): closing the OSM login
+  popup leaves `session.login()` pending forever (osm-auth has no closed-popup check); the
+  dialog stays in `uploading` with Cancel disabled, so a reload, losing all edits, is the only
+  way out. Abandoned login listeners later reject with "Invalid state".
+- Keys (`ui/EditorView.svelte:462-471`): `onKeydown` ignores `defaultPrevented`, so the Escape
+  that closes a popover or dialog also clears the selection or leaves plan mode (P5.3: cancels
+  a drawing); Mod+Z undoes behind the open Save dialog.
+- Floor plan import, untrusted files: `plan-file.ts:124` `unzipSync` inflates every entry with
+  no limit (a 409 KB zip took 400 MB); `vector-svg.ts` limits `<use>` depth but not fan-out
+  (1.7 KB SVG → 1,000,000 segments, 7 s on the main thread; depth 8 allowed); `pyramid.ts:31`
+  decodes a raster at full size before the 8,192 px cap (plausible: 40,000² PNG ≈ 6.4 GB);
+  `codec.ts` keeps a dead worker after `onerror` (plausible).
+- IndexedDB (`persist/plan-store.ts:157-180`): no `blocked`/`blocking`/`terminated` handlers;
+  an old tab holding v3 makes v4's `load()` hang (plans never restore, no error), and P5.4's v5
+  would hang the same way; `#db ??=` caches a rejected open.
+- Pointer input (`edit/mode-manager.ts:40-46`): mouse events only; on touch and pen, presses
+  never reach the mode (a finger drag on a plan pans the map). Blocks P5.3's drags.
+- Map display: a bare `type=multipolygon` relation (tags on the outer way) is drawn again as a
+  grey `area` on every level (`map/features.ts:166-179`, `type` counts as interesting); doors
+  without `level` show on every level even when their wall has one (nodes don't inherit their
+  ways' levels); `building:levels=25` on any nearby building fills the switcher with 0…24
+  (`feature-levels.ts:29-31`, `knownLevels`); POIs without an icon or a name are not drawn and
+  can't be selected (`style/layers.ts:206-236`); the hash rounds the level to 2 decimals
+  (`hash.ts:69`); if the basemap style fails, `load` never fires and indoor layers never
+  install (`map/ready.ts:14-16`, plausible).
+- Validation: `vertical-repeat-on` fires on door nodes (`door=sliding elevator=yes
+  repeat_on=1;2`) and its fix folds `repeat_on` into `level`, which SIT allows for stair and
+  elevator doors.
+- Smaller: the drag release drops the last frame's move (`floorplan.ts:219` ignores `at`);
+  logout doesn't revoke the token (`/oauth2/revoke`); `if-unused` deletions the server kept
+  (`notDeleted`) are never shown; a zoom-16 tile over 50,000 nodes fails on every move with no
+  backoff; `amend` is a no-op after a tile merge (the Wikipedia tag after a Wikidata pick is
+  lost); `changePreset` drops `min_level`/`max_level`; `package.json` engines say Node 24 while
+  cloud sessions run 22 (works).
+- Still open from the review above: conflicts can't be resolved, history can't be saved, a
+  lost upload response makes a retry duplicate data (all P5.4); no `beforeunload` guard (R3.1).
+
 ## Roadmap from here (agreed with the user ✔)
 
 Order: fix what's broken and make tests fast (R0), lay the foundations that editing and plans
@@ -637,6 +720,11 @@ share (R1), move floor plans to a content model (R2), then the features: vector 
 raster plans (P4.2), geometry editing (P5.3), autosave and conflicts (P5.4), parity (P6).
 Vector plans come before editing so that drawing can snap to plan walls from the start. Each
 slice still agrees its test seams first.
+
+After the October research and audit: the audit's fixes (R3) first, then wiki conformance (W)
+and level names (L), which are small and can run beside geometry editing (P5.3); then the
+viewer (V) and 3D floors (3D), after P5.3 (decided ✔); then autosave and conflicts (P5.4) and
+parity (P6).
 
 ### R0: Fixes and fast feedback — S — done
 
@@ -935,26 +1023,111 @@ the content). Alignment clicks on the plan in Edit (a control point's spot, meas
 the pivot) snap to its own corners within 8 px; a control point's map click to an OSM node,
 else to another plan's corners. P4.2 done.
 
+### R3: Fixes from the October audit — S–M
+
+Before P5.3: these lose edits, hang, or block drags. One slice each, red test first.
+
+1. **Upload safety**: edits, undo and downloads paused while uploading (the history and
+   `MapLoader` take a lock); a `DataSync` generation, bumped by `reset`, so tile answers from
+   before the upload are dropped and their tiles downloaded again; the Save dialog counts
+   changes and refuses above 10,000 (split later); a `beforeunload` guard while there are
+   unsaved edits (moved up from P5.4: one line, and it saves real work today).
+2. **Login that can't hang**: `session.login()` rejects when the popup is closed (poll
+   `popupWindow.closed`) or after a timeout; Cancel stays enabled during sign-in; one live
+   listener at a time.
+3. **Keys**: `onKeydown` returns on `event.defaultPrevented` and while a modal is open.
+4. **Untrusted imports**: `unzipSync` with a filter (the manifest and the files it names,
+   each under a size cap, a total cap); an SVG expansion budget (2,000,000 segments or
+   elements) raising `plan_import_svg_unreadable`; raster dimensions read from the file
+   header and checked before decoding; `codec.ts` drops a dead worker.
+5. **IndexedDB**: `blocked` → `storageError` shown, `blocking` → close and reopen later,
+   `terminated` → drop the handle; a rejected open is not cached.
+6. **Pointer events**: the mode manager listens to pointer events (mouse, touch, pen), one
+   active pointer, `setPointerCapture`, `preventDefault` when a mode takes the press; modes'
+   `end(at)` applies the last move.
+7. **Map display**: relations need tags other than `type` to be drawn; a vertex without
+   `level` takes its parent ways' levels; `building:levels` gives its range to the outline only,
+   not to the switcher; a circle layer for POIs without icon or label, selectable; the hash
+   keeps the level exact; indoor layers install even when the basemap style fails.
+8. **Flaky e2e** (`wiki-fields.spec.ts:77`, failed once in a full run, passed 4 of 4 alone):
+   pressing Enter in a combobox before its search answers keeps the old value. Enter should
+   pick the exact match of the typed text once the pending search settles.
+9. **Small ones**: `vertical-repeat-on` skips doors and entrances; logout revokes the token;
+   kept deletions (`notDeleted`) listed after an upload; tiles that fail with 400 (too many
+   nodes) back off and split; `amend` survives a merge; `changePreset` keeps
+   `min_level`/`max_level`; engines `>=22.17` or Node 24 in the session hook.
+
+### W: Wiki conformance — S
+
+Pure modules, can run beside P5.3: `highway=elevator` in the elevator upgrades;
+`indoor=highway` and `indoor=stairs` → `indoor=yes`; a `missing-level` rule (indoor features
+and features inside an indoor outline) with a fix taking the shown level; `door-not-on-wall`
+also for doors on an `indoor=wall` area; a hint, never a rewrite, for one-based numbering (no
+level 0 and features above `building:levels`); a hint for `level` on `tunnel=building_passage`.
+
+### L: Level names — S–M
+
+The switcher takes `{level, ref, name}` (from `indoor=level` outlines, else
+`building:levels:ref` with `building:levels:ref:equivalent`) and shows `level:ref` with the
+number as a tooltip; `non_existent_levels` skipped, features on them flagged; shown only when a
+building with indoor data is in view (MapGL Indoor). The one refactor of the research:
+`LevelControl` and the level state change shape; the hash keeps the number.
+
 ### P5.3: Geometry editing — L
 
-On R1's modes, drag, selection and geometry. Slices:
+On R1's modes, drag, selection and geometry, and R3's pointer events. Follow iD's layering
+(see "Research and audit"): behaviours (hover, select, drag, draw, lasso, paste) that modes
+compose, operations over actions, actions that say why they can't run. Slices:
 
 1. Edit overlay: vertices and midpoints of the selected and hovered ways (and shared
    vertices from zoom 18), untagged member ways as thin lines; the drag preview lives here.
-2. Snapping (`map/snap.ts`): node, then segment, then plan vertex, on the shown level, 8 px.
+2. Snapping (`map/snap.ts`): node, then segment, then plan vertex, on the shown level, 8 px;
+   on an entity and segment index updated from each difference (iD's `core/tree.ts`).
 3. Drag a node (moves every way using it), committed on release in one step.
 4. Draw point, line and area, tagged with the shown level; add a vertex at a midpoint
    (in every way sharing the segment).
 5. Operations: delete with cleanup, door on a wall, orthogonalize (iD's current action),
-   copy and paste (ids remapped, pasted features selected), copy level, disconnect.
+   copy and paste (ids remapped, pasted features selected), copy level, disconnect; each an
+   operation as in iD (`available`, `disabled` with a reason, tooltip, keys, annotation), one
+   list for the menu, shortcuts and tooltips.
 6. Multi-selection (Shift+click, lasso) with the Inspector's shared fields and "Multiple
    values"; hover preview, read-only.
 7. Simple multipolygons (outer and inner) and member editing on the map.
 8. Map details from P3: door widths, incline and conveying arrows.
 9. Spatial validation: level outside the building's levels, missing `indoor=level` outline,
-   door not on a wall, empty keys or values; an area index for "which building".
+   door not on a wall, walls and rooms not sharing nodes, empty keys or values; an area index
+   for "which building"; ports of iD's `crossing_ways` (levels compared with `isOnLevel`),
+   `unsquare_way` (rooms), `close_nodes`, `almost_junction`, `disconnected_way` (indoor
+   footways); a base and a head cache so only issues the user caused are flagged, checked in
+   idle time.
 10. Floor plans: snap control points to building outlines, numeric offset, assign plans to a
     building.
+
+### V: Viewer mode — M
+
+After P5.3 (decided ✔). A read-only route on the same map code: data from Overpass through
+`MapLoader`'s `download` option (only that function differs), so no account and no OSM API
+quota; count bubbles or a heatmap of indoor features below zoom 16 (indoor=, OpenLevelUp); a
+side panel with search over names and refs, a room list by level and place details
+(OpenIndoorMaps, OpenLevelUp); the style module gains a presentation switch (edit, view, 3D)
+instead of one fixed layer list; light and dark colour sets. Routing (a graph from
+`highway=footway`/`corridor`, doors, stairs and elevators with their levels; Dijkstra on a
+heap) only after that.
+
+### 3D: 3D floors — M (3D.1), M–L (3D.2)
+
+After P5.3 (decided ✔).
+
+1. **Extruded rooms** (OpenIndoorMaps): rooms 2.5 m, corridors and areas 0.2 m, the shown level
+   only, camera pitched about 40°, hover by feature state; a 3D toggle in the editor (drawing
+   stays top-down) and the default in the viewer.
+2. **Walls and stacked floors** (OpenIndoor): a derived solids source built in a worker and
+   updated per changed entity from the `FeatureStore`: walls from room outlines and
+   `indoor=wall` buffered to about 0.2 m, door gaps cut by `width` (default 0.9 m), level slabs
+   stacked by real heights (`height` of `indoor=level`, else building `height` /
+   `building:levels`, else 3 m); building → floors → level steps in the viewer.
+   `fill-extrusion-opacity` is per layer, so the current level, the ghosted levels and the
+   building shell each get a layer.
 
 ### P5.4: Autosave and conflicts — M–L
 
@@ -962,7 +1135,9 @@ On R1's modes, drag, selection and geometry. Slices:
    labels, the base versions of edited entities and `nextId`; a restore prompt on start; a
    `beforeunload` guard; the open changeset id remembered so a retry after a lost response
    checks it first.
-2. Conflicts: the server's newer versions kept next to the base; `OsmApi.loadEntities(ids)`;
+   Use iD's format (`history.toJSON`) and a session lock (`utilSessionMutex`) so two tabs
+   don't restore the same edits.
+2. Conflicts (iD's `actions/merge_remote_changes` as the model): the server's newer versions kept next to the base; `OsmApi.loadEntities(ids)`;
    `MapLoader.invalidate(area)`; 409, 410 and 412 bodies parsed into entity ids; versions
    taken from the base when uploading; a conflict dialog (keep mine, take theirs, per entity).
 3. After upload, uploaded entities take the uploader and the time.
@@ -984,6 +1159,8 @@ On R1's modes, drag, selection and geometry. Slices:
 - Vector plan text as map labels from pdf.js's text content.
 - Component tests in Vitest browser mode.
 - CI stays on `master` and pull requests (no runs on branch pushes).
+- No rewrite after the October research; the viewer (V) and 3D floors come after geometry
+  editing (P5.3).
 
 ## Testing strategy
 
