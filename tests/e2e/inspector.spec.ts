@@ -347,3 +347,30 @@ test("the name of a feature linked to Wikidata is locked, as in iD", async ({
 		editor.getByRole("button", { name: "Remove Level" }),
 	).toBeVisible();
 });
+
+test("the Escape that closes a popover keeps the selection", async ({
+	page,
+}) => {
+	const editor = await selectRoom(page);
+	await page.getByRole("button", { name: "Background" }).click();
+	const picker = page.getByRole("group", { name: "Background imagery" });
+	await expect(picker).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(picker).toBeHidden();
+	await expect(editor).toBeVisible();
+});
+
+test("undo doesn't work behind the Save dialog", async ({ page }) => {
+	const editor = await selectRoom(page);
+	const roomNumber = editor.getByRole("textbox", { name: "Room Number" });
+	await roomNumber.fill("B12");
+	await roomNumber.press("Enter");
+	await expect(page.getByTestId("edit-count")).toHaveText("1");
+	await page.getByRole("button", { name: /Save/ }).click();
+	const dialog = page.getByRole("dialog", { name: "Upload your edits" });
+	await dialog.getByRole("button", { name: "Cancel" }).focus();
+	await page.keyboard.press("ControlOrMeta+z");
+	await dialog.getByRole("button", { name: "Cancel" }).click();
+	await expect(dialog).toBeHidden();
+	await expect(page.getByTestId("edit-count")).toHaveText("1");
+});

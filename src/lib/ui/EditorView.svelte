@@ -16,7 +16,13 @@
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
-	import { formatCombo, isMac, isTyping, matches } from "#lib/edit/keys.ts";
+	import {
+		formatCombo,
+		isForMap,
+		isMac,
+		isTyping,
+		matches,
+	} from "#lib/edit/keys.ts";
 	import { ModeManager } from "#lib/edit/mode-manager.ts";
 	import { browseMode } from "#lib/edit/modes/browse.ts";
 	import {
@@ -460,14 +466,26 @@
 
 	/** The map's keys: the mode's first (Escape…), then undo and redo; none while typing. */
 	function onKeydown(event: KeyboardEvent) {
-		// The unsaved changes dialog handles its own keys; fields have their own undo.
-		if (floorplans.confirming || isTyping(event.target)) return;
-		if (modes?.key(event)) return;
-		if (planMode) return;
+		// Popovers and dialogs handle their own keys (Escape closes them); fields have their own
+		// undo.
+		if (floorplans.confirming) return;
 		const shortcut = SHORTCUTS.find((s) => matches(event, s.combo, mac));
-		if (!shortcut) return;
+		if (!isForMap(event)) {
+			// Behind a dialog, the browser's own undo would still undo typing in a field.
+			if (shortcut && !event.defaultPrevented && !isTyping(event.target))
+				event.preventDefault();
+			return;
+		}
+		if (modes?.key(event)) return;
+		if (planMode || !shortcut) return;
 		event.preventDefault();
 		shortcut.run();
+	}
+
+	/** Leaving the page loses the edits not uploaded yet: the browser asks first. */
+	function onBeforeUnload(event: BeforeUnloadEvent) {
+		if (editor.history.editCount > 0 || editor.sync.uploading)
+			event.preventDefault();
 	}
 
 	const statusMessage = $derived.by(() => {
@@ -484,7 +502,11 @@
 	});
 </script>
 
-<svelte:window onhashchange={onHashChange} onkeydown={onKeydown} />
+<svelte:window
+	onhashchange={onHashChange}
+	onkeydown={onKeydown}
+	onbeforeunload={onBeforeUnload}
+/>
 
 {#snippet iconButton(
 	label: string,

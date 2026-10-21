@@ -186,4 +186,70 @@ describe("MapLoader", () => {
 
 		expect(maxInFlight()).toBe(4);
 	});
+
+	describe("paused (while uploading)", () => {
+		it("starts no download and hands nothing over until resumed", async () => {
+			const { download, calls } = controlledDownload();
+			const received: string[] = [];
+			const loader = new MapLoader({
+				download,
+				onData: (e) => received.push(...e.map((x) => x.id)),
+				schedule: (run) => run(),
+			});
+
+			const before = loader.load(area(100, 200));
+			await flush();
+			loader.pause();
+			const during = loader.load(area(101, 200));
+			await flush();
+			expect(calls).toHaveLength(1);
+			calls[0]?.resolve([node("n1")]);
+			await before;
+			expect(received).toEqual([]);
+
+			loader.resume();
+			expect(received).toEqual(["n1"]);
+			await flush();
+			expect(calls).toHaveLength(2);
+			calls[1]?.resolve([node("n2")]);
+			await during;
+			expect(received).toEqual(["n1", "n2"]);
+		});
+
+		it("drops answers from before a reset and downloads their tiles again", async () => {
+			const { download, calls } = controlledDownload();
+			const received: string[] = [];
+			const loader = new MapLoader({
+				download,
+				onData: (e) => received.push(...e.map((x) => x.id)),
+				schedule: (run) => run(),
+			});
+
+			// One tile answered while paused, one still on its way when the reset comes.
+			const loading = loader.load(area(100, 200, 101, 200));
+			await flush();
+			loader.pause();
+			calls[0]?.resolve([node("n1", { deleted: "on the server" })]);
+			await flush();
+			loader.reset();
+			loader.resume();
+			calls[1]?.resolve([node("n2", { deleted: "on the server" })]);
+			await flush();
+			expect(received).toEqual([]);
+
+			// The tile in flight is downloaded again at once, the other one on the next load.
+			expect(calls).toHaveLength(3);
+			expect(calls[2]?.bbox).toEqual(area(101, 200));
+			calls[2]?.resolve([node("n2")]);
+			await expect(loading).resolves.toEqual({ failed: 0, skipped: false });
+			expect(received).toEqual(["n2"]);
+
+			const again = loader.load(area(100, 200, 101, 200));
+			await flush();
+			expect(calls.map((c) => c.bbox).slice(3)).toEqual([area(100, 200)]);
+			calls[3]?.resolve([node("n1")]);
+			await again;
+			expect(received).toEqual(["n2", "n1"]);
+		});
+	});
 });

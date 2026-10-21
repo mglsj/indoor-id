@@ -31,5 +31,9 @@
 	"plan_file_unknown": "This file is not an IndoorID or OsmInEdit floor plan file.",
 	"plan_file_no_image": "A floor plan in this file has no image.",
 	"plan_file_damaged": "A floor plan in this file is damaged or incomplete.",
-	"plan_file_newer": "This floor plan file was made by a newer version of IndoorID: update IndoorID to open it."
+	"plan_file_newer": "This floor plan file was made by a newer version of IndoorID: update IndoorID to open it.",
+	"login_cancelled": "Login cancelled.",
+	"login_popup_closed": "The login window was closed before you logged in.",
+	"login_timed_out": "Logging in took too long. Try again.",
+	"upload_too_many_changes": "{count} features changed: a changeset takes at most {max}. Upload part of your edits first."
 }

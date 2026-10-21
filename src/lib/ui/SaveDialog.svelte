@@ -1,7 +1,7 @@
 <script lang="ts">
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-	import { changesetTags } from "#lib/api/changeset.ts";
+	import { changesetTags, MAX_CHANGESET_CHANGES } from "#lib/api/changeset.ts";
 	import { OsmApiError } from "#lib/api/osm-api.ts";
 	import * as Alert from "#lib/components/shadcn/alert/index.ts";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
@@ -11,7 +11,7 @@
 	import { Input } from "#lib/components/shadcn/input/index.ts";
 	import { Spinner } from "#lib/components/shadcn/spinner/index.ts";
 	import { Textarea } from "#lib/components/shadcn/textarea/index.ts";
-	import { t } from "#lib/i18n/messages.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
 	import type { Session } from "#lib/state/session.svelte.ts";
 
@@ -33,27 +33,55 @@
 	let reviewRequested = $state(false);
 	let phase = $state<
 		| { kind: "form" }
+		| { kind: "signing-in"; cancel: AbortController }
 		| { kind: "uploading" }
 		| { kind: "done"; changesetId: number }
 		| { kind: "error"; message: string }
 	>({ kind: "form" });
 
 	const issues = $derived(editor.editIssues);
-	const busy = $derived(phase.kind === "uploading");
+	const busy = $derived(
+		phase.kind === "uploading" || phase.kind === "signing-in",
+	);
+	/** A changeset takes at most 10,000 changes: more are refused before sending anything. */
+	const tooMany = $derived(
+		editor.history.editCount > MAX_CHANGESET_CHANGES
+			? msg("upload_too_many_changes", {
+					count: editor.history.editCount,
+					max: MAX_CHANGESET_CHANGES,
+				})
+			: null,
+	);
 
 	async function upload(event: SubmitEvent) {
 		event.preventDefault();
-		phase = { kind: "uploading" };
 		try {
-			if (!session.loggedIn) await session.login();
+			if (!session.loggedIn) {
+				const cancel = new AbortController();
+				phase = { kind: "signing-in", cancel };
+				await session.login({ signal: cancel.signal });
+			}
+			phase = { kind: "uploading" };
 			const changesetId = await editor.sync.upload(
 				changesetTags({ comment, source, imagery, reviewRequested }),
 			);
 			phase = { kind: "done", changesetId };
 		} catch (error) {
+			// Cancelled: the form is back already.
+			if (phase.kind === "form") return;
 			if (error instanceof OsmApiError && error.kind === "auth")
 				session.logout();
 			phase = { kind: "error", message: explain(error) };
+		}
+	}
+
+	/** Cancel: stops a login under way (an upload, once sent, can't be taken back). */
+	function cancel() {
+		if (phase.kind === "signing-in") {
+			phase.cancel.abort();
+			phase = { kind: "form" };
+		} else {
+			open = false;
 		}
 	}
 
@@ -84,8 +112,11 @@
 >
 	<Dialog.Content
 		showCloseButton={false}
-		escapeKeydownBehavior={busy ? "ignore" : "close"}
+		escapeKeydownBehavior={phase.kind === "uploading" ? "ignore" : "close"}
 		interactOutsideBehavior={busy ? "ignore" : "close"}
+		onEscapeKeydown={() => {
+			if (phase.kind === "signing-in") phase.cancel.abort();
+		}}
 	>
 		<Dialog.Header>
 			<Dialog.Title>Upload your edits</Dialog.Title>
@@ -175,6 +206,13 @@
 					</Field.Description>
 				</Field.Group>
 
+				{#if tooMany}
+					<Alert.Root variant="destructive">
+						<CircleAlert />
+						<Alert.Description>{t(tooMany)}</Alert.Description>
+					</Alert.Root>
+				{/if}
+
 				{#if phase.kind === "error"}
 					<Alert.Root variant="destructive">
 						<CircleAlert />
@@ -185,13 +223,19 @@
 				<Dialog.Footer>
 					<Button
 						variant="outline"
-						disabled={busy}
-						onclick={() => (open = false)}
+						disabled={phase.kind === "uploading"}
+						onclick={cancel}
 					>
 						Cancel
 					</Button>
-					<Button type="submit" disabled={busy || !session.configured}>
-						{#if busy}
+					<Button
+						type="submit"
+						disabled={busy || !session.configured || tooMany !== null}
+					>
+						{#if phase.kind === "signing-in"}
+							<Spinner data-icon="inline-start" />
+							Logging in…
+						{:else if busy}
 							<Spinner data-icon="inline-start" />
 							Uploading…
 						{:else}

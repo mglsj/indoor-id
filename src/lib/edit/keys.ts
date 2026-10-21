@@ -76,6 +76,19 @@ export function isTyping(target: EventTarget | null): boolean {
 	);
 }
 
+/**
+ * Whether a key press is left for the map's shortcuts: not handled already (the Escape that
+ * closes a popover), not typed in a field, and no modal dialog open (Mod+Z would undo behind
+ * it).
+ */
+export function isForMap(
+	event: Pick<KeyboardEvent, "defaultPrevented" | "target">,
+	document: Pick<Document, "querySelector"> | undefined = globalThis.document,
+): boolean {
+	if (event.defaultPrevented || isTyping(event.target)) return false;
+	return !document?.querySelector('[aria-modal="true"]');
+}
+
 /** Whether this browser runs on a Mac (⌘ instead of Ctrl). */
 export function isMac(): boolean {
 	return /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "");

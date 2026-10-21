@@ -18,7 +18,16 @@ export class EditHistory {
 	/** Number of entities created, modified or deleted since the download or last upload. */
 	readonly editCount = $derived.by(() => this.graph.changeCount());
 
+	/** True while uploading: edits, undo and redo are refused (see `lock`). */
+	locked = $state(false);
+
 	#history: History<Message>;
+	/**
+	 * Counts the changes made by the user (not merges); `#made` gives the count each graph
+	 * was made at, so `amend` knows whether anything was done since.
+	 */
+	#edits = 0;
+	readonly #made = new WeakMap<Graph, number>();
 	/**
 	 * The features whose field is being typed in (their ids, joined): their next tag change
 	 * replaces the last step instead of adding one.
@@ -28,6 +37,19 @@ export class EditHistory {
 	constructor(base: Graph) {
 		this.#history = new History<Message>(base);
 		this.graph = $state.raw(base);
+		this.#made.set(base, 0);
+	}
+
+	/**
+	 * Refuses edits, undo and redo until `unlock`: an upload sends the graph as it was, and
+	 * starts again from the server's answer.
+	 */
+	lock(): void {
+		this.locked = true;
+	}
+
+	unlock(): void {
+		this.locked = false;
 	}
 
 	get canUndo(): boolean {
@@ -42,20 +64,23 @@ export class EditHistory {
 
 	/** Applies an action as an undo step, labelled for the user. */
 	perform(action: Action, annotation: Message): void {
+		if (this.locked) return;
 		this.#typing = null;
-		this.graph = this.#history.perform(action, annotation);
+		this.#edited(this.#history.perform(action, annotation));
 	}
 
 	undo(): void {
+		if (this.locked) return;
 		this.#typing = null;
 		this.#history.undo();
-		this.graph = this.#history.graph;
+		this.#edited(this.#history.graph);
 	}
 
 	redo(): void {
+		if (this.locked) return;
 		this.#typing = null;
 		this.#history.redo();
-		this.graph = this.#history.graph;
+		this.#edited(this.#history.graph);
 	}
 
 	/** Typing is over (another feature selected): the next tag change is a step of its own. */
@@ -69,6 +94,7 @@ export class EditHistory {
 	 * field) cleans and closes. Tags left as they were make no step.
 	 */
 	setTags(id: EntityId, tags: Tags, { live = false } = {}): void {
+		if (this.locked) return;
 		const entity = this.graph.entity(id);
 		if (!entity) return;
 		const action = changeTags(id, tags, { clean: !live });
@@ -90,6 +116,7 @@ export class EditHistory {
 		patch: TagPatch | ((tags: Tags, id: EntityId) => TagPatch),
 		{ live = false } = {},
 	): void {
+		if (this.locked) return;
 		const actions: Action[] = [];
 		for (const id of ids) {
 			const entity = this.graph.entity(id);
@@ -117,24 +144,26 @@ export class EditHistory {
 
 	/** Applies a tag change, folded into the last step while the same features are typed in. */
 	#apply(action: Action, features: string, live: boolean): void {
-		this.graph =
+		this.#edited(
 			this.#typing === features
 				? this.#history.replace(action, CHANGE_TAGS)
-				: this.#history.perform(action, CHANGE_TAGS);
+				: this.#history.perform(action, CHANGE_TAGS),
+		);
 		this.#typing = live ? features : null;
 	}
 
 	/**
 	 * Changes tags in the last undo step, as iD does with tags looked up after an edit (the
-	 * Wikipedia article of a Wikidata item). Only while the graph is still `after`, the graph
-	 * that edit made: anything done since wins.
+	 * Wikipedia article of a Wikidata item). Only while nothing was done since `after`, the
+	 * graph that edit made (downloaded data merged since doesn't count): anything done since
+	 * wins.
 	 */
 	amend(after: Graph, id: EntityId, patch: (tags: Tags) => Tags | null): void {
-		if (this.graph !== after) return;
+		if (this.locked || this.#made.get(after) !== this.#edits) return;
 		const entity = this.graph.entity(id);
 		const tags = entity && patch(entity.tags);
 		if (!tags) return;
-		this.graph = this.#history.replace(changeTags(id, tags), CHANGE_TAGS);
+		this.#edited(this.#history.replace(changeTags(id, tags), CHANGE_TAGS));
 	}
 
 	/** An entity's tags as downloaded, or undefined for a new feature (for a field's revert). */
@@ -146,12 +175,18 @@ export class EditHistory {
 	merge(entities: Iterable<Entity>): void {
 		this.#history.merge(entities);
 		this.graph = this.#history.graph;
+		this.#made.set(this.graph, this.#edits);
 	}
 
 	/** Starts a new history from `graph` (the server's state after an upload). */
 	reset(graph: Graph): void {
 		this.#typing = null;
 		this.#history = new History<Message>(graph);
+		this.#edited(graph);
+	}
+
+	#edited(graph: Graph): void {
 		this.graph = graph;
+		this.#made.set(graph, ++this.#edits);
 	}
 }

@@ -4,6 +4,9 @@ import type { Tags } from "#lib/osm/tags.ts";
 /** OSM rejects longer tag values. */
 const MAX_LENGTH = 255;
 
+/** OSM refuses a changeset with more changes (`changesets.maximum_elements`). */
+export const MAX_CHANGESET_CHANGES = 10_000;
+
 export interface ChangesetDescription {
 	readonly comment: string;
 	readonly source?: string;

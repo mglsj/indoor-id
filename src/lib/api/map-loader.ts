@@ -35,9 +35,14 @@ export class MapLoader {
 	readonly #pending = new Map<string, Promise<boolean>>();
 	readonly #waiting: (() => void)[] = [];
 	#active = 0;
-	/** Entities downloaded but not handed over yet, and whether a frame is asked for. */
-	#arrived: Entity[] = [];
+	/** Tiles downloaded but not handed over yet, and whether a frame is asked for. */
+	#arrived: { key: string; entities: Entity[] }[] = [];
 	#scheduled = false;
+	/** Bumped by `reset`: answers to requests made before it are dropped. */
+	#generation = 0;
+	/** Resolves when `resume` is called; null while not paused. */
+	#paused: Promise<void> | null = null;
+	#resume: () => void = () => {};
 
 	constructor(options: MapLoaderOptions) {
 		this.#options = {
@@ -62,30 +67,72 @@ export class MapLoader {
 		return { failed: results.filter((ok) => !ok).length, skipped: false };
 	}
 
+	/**
+	 * Holds downloads (while uploading): none starts and nothing is handed over until `resume`.
+	 * Answers to downloads already on their way are kept for then, unless `reset` drops them.
+	 */
+	pause(): void {
+		if (this.#paused) return;
+		this.#paused = new Promise((resolve) => {
+			this.#resume = resolve;
+		});
+	}
+
+	resume(): void {
+		if (!this.#paused) return;
+		this.#paused = null;
+		this.#resume();
+		this.#flush();
+	}
+
+	/**
+	 * The data changed under the loader (an upload's new base): answers not handed over yet
+	 * are dropped and their tiles downloaded again, now for those on their way, on the next
+	 * load for the others.
+	 */
+	reset(): void {
+		this.#generation++;
+		for (const { key } of this.#arrived) this.#loaded.delete(key);
+		this.#arrived = [];
+	}
+
 	#loadTile(tile: Tile): Promise<boolean> {
 		const key = `${tile.z}/${tile.x}/${tile.y}`;
 		if (this.#loaded.has(key)) return Promise.resolve(true);
 		const pending = this.#pending.get(key);
 		if (pending) return pending;
 
-		const loading = this.#limited(() =>
-			this.#options.download(tileBounds(tile)),
-		)
-			.then(
-				(entities) => {
-					this.#loaded.add(key);
-					this.#arrive(entities);
-					return true;
-				},
-				() => false,
-			)
-			.finally(() => this.#pending.delete(key));
+		const loading = this.#download(tile, key).finally(() =>
+			this.#pending.delete(key),
+		);
 		this.#pending.set(key, loading);
 		return loading;
 	}
 
-	#arrive(entities: Entity[]): void {
-		for (const entity of entities) this.#arrived.push(entity);
+	async #download(tile: Tile, key: string): Promise<boolean> {
+		for (;;) {
+			let generation = this.#generation;
+			let entities: Entity[];
+			try {
+				entities = await this.#limited(async () => {
+					while (this.#paused) await this.#paused;
+					generation = this.#generation;
+					return this.#options.download(tileBounds(tile));
+				});
+			} catch {
+				if (generation !== this.#generation) continue;
+				return false;
+			}
+			// Asked for before a reset: the answer may hold what the new base deleted.
+			if (generation !== this.#generation) continue;
+			this.#loaded.add(key);
+			this.#arrive(key, entities);
+			return true;
+		}
+	}
+
+	#arrive(key: string, entities: Entity[]): void {
+		this.#arrived.push({ key, entities });
 		if (this.#scheduled) return;
 		this.#scheduled = true;
 		this.#options.schedule(() => this.#flush());
@@ -93,8 +140,8 @@ export class MapLoader {
 
 	#flush(): void {
 		this.#scheduled = false;
-		if (this.#arrived.length === 0) return;
-		const entities = this.#arrived;
+		if (this.#paused || this.#arrived.length === 0) return;
+		const entities = this.#arrived.flatMap((tile) => tile.entities);
 		this.#arrived = [];
 		this.#options.onData(entities);
 	}

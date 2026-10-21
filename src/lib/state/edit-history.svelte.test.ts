@@ -139,6 +139,44 @@ describe("EditHistory", () => {
 		expect(tagsOf(history, "n1")).toEqual({ name: "Other" });
 	});
 
+	it("amends the last step after downloaded data was merged under it", () => {
+		const history = benches();
+		history.perform(
+			changeTags("n1", { wikidata: "Q1" }),
+			msg("undo_change_tags"),
+		);
+		const after = history.graph;
+		history.merge([node("n3", { amenity: "toilets" }, [2.35, 48.85])]);
+		history.amend(after, "n1", (tags) => ({ ...tags, wikipedia: "en:One" }));
+		expect(tagsOf(history, "n1")).toEqual({
+			wikidata: "Q1",
+			wikipedia: "en:One",
+		});
+		expect(tagsOf(history, "n3")).toEqual({ amenity: "toilets" });
+	});
+
+	it("refuses edits, undo and redo while locked (uploading)", () => {
+		const history = benches();
+		history.perform(
+			changeTags("n1", { amenity: "bench" }),
+			msg("undo_change_tags"),
+		);
+		const after = history.graph;
+		history.lock();
+		expect(history.locked).toBe(true);
+		history.undo();
+		history.perform(changeTags("n2", {}), msg("undo_change_tags"));
+		history.setTags("n2", { amenity: "table" });
+		history.patchTags(["n2"], { name: "X" });
+		history.amend(after, "n1", () => ({ name: "Y" }));
+		expect(history.graph).toBe(after);
+		expect(tagsOf(history, "n1")).toEqual({ amenity: "bench" });
+
+		history.unlock();
+		history.undo();
+		expect(tagsOf(history, "n1")).toEqual({ amenity: "bench", name: "Old" });
+	});
+
 	it("takes downloaded data under the edits, and starts again from an uploaded graph", () => {
 		const history = benches();
 		history.perform(

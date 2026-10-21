@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCombo, isTyping, matches } from "./keys.ts";
+import { formatCombo, isForMap, isTyping, matches } from "./keys.ts";
 
 const key = (
 	k: string,
@@ -74,5 +74,26 @@ describe("isTyping: keys going to a text field rather than the map", () => {
 		).toBe(true);
 		expect(isTyping(element("button") as unknown as EventTarget)).toBe(false);
 		expect(isTyping(null)).toBe(false);
+	});
+});
+
+describe("isForMap", () => {
+	const noModal = { querySelector: () => null };
+	const modal = { querySelector: () => ({}) as Element };
+	const press = (defaultPrevented = false) => ({
+		defaultPrevented,
+		target: null,
+	});
+
+	it("leaves a key press to the map when nothing else took it", () => {
+		expect(isForMap(press(), noModal)).toBe(true);
+	});
+
+	it("skips a key press already handled (the Escape that closed a popover)", () => {
+		expect(isForMap(press(true), noModal)).toBe(false);
+	});
+
+	it("skips key presses while a modal dialog is open", () => {
+		expect(isForMap(press(), modal)).toBe(false);
 	});
 });
