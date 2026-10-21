@@ -16,7 +16,8 @@
 			"!playwright-report",
 			"!skills-lock.json",
 			"!src/lib/map/style/icons",
-			"!tests/e2e/files"
+			"!tests/e2e/files",
+			"!.claude"
 		]
 	},
 	"formatter": {
@@ -56,7 +57,10 @@
 	},
 	"overrides": [
 		{
-			"includes": ["**/*.test.ts", "tests/**"],
+			"includes": [
+				"**/*.test.ts",
+				"tests/**"
+			],
 			"linter": {
 				"rules": {
 					"style": {
@@ -66,7 +70,10 @@
 			}
 		},
 		{
-			"includes": ["src/lib/components/shadcn/**", "src/lib/utils.ts"],
+			"includes": [
+				"src/lib/components/shadcn/**",
+				"src/lib/utils.ts"
+			],
 			"linter": {
 				"rules": {
 					"a11y": {
