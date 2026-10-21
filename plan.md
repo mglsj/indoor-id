@@ -32,7 +32,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | R1    | Foundations for editing (review)           | Done        |
 | R2    | Floor plan content model (review)          | Done        |
 | P4.2  | Vector and light raster floor plans        | Done        |
-| R3    | Fixes from the October audit               | Not started |
+| R3    | Fixes from the October audit               | Done        |
 | W     | Wiki conformance                           | Not started |
 | L     | Level names in the switcher                | Not started |
 | P5.3  | Geometry editing                           | Not started |
@@ -1024,7 +1024,7 @@ the content). Alignment clicks on the plan in Edit (a control point's spot, meas
 the pivot) snap to its own corners within 8 px; a control point's map click to an OSM node,
 else to another plan's corners. P4.2 done.
 
-### R3: Fixes from the October audit — S–M
+### R3: Fixes from the October audit — S–M — done
 
 Before P5.3: these lose edits, hang, or block drags. One slice each, red test first.
 
@@ -1057,6 +1057,20 @@ Before P5.3: these lose edits, hang, or block drags. One slice each, red test fi
    kept deletions (`notDeleted`) listed after an upload; tiles that fail with 400 (too many
    nodes) back off and split; `amend` survives a merge; `changePreset` keeps
    `min_level`/`max_level`; engines `>=22.17` or Node 24 in the session hook.
+
+Done: uploads lock `EditHistory` and pause `MapLoader` (`reset` drops answers from before
+and downloads those tiles again); more than 10,000 changes are refused; `beforeunload` guard.
+`Session.login` rejects on a closed popup (two checks 500 ms apart, unless the callback
+answered), on Cancel or after 5 minutes; only the latest login's answer counts. Map keys go
+through `isForMap` (and Mod+Z is blocked behind a modal, the browser's own undo would edit a
+field). Plan archives inflate only the files the manifest names (256 MB each, 512 MB in all);
+SVG budget; raster sizes from `image-size.ts` (refused over 100 megapixels, scaled while
+decoding). IndexedDB `blocked` fails at once with `plan_storage_blocked`. `ModeManager` on
+pointer events with capture, holding `dragPan`/`touchZoomRotate` during a mode's press.
+Map display as listed (a fallback style replaces a basemap that fails). R3.8 could not be
+reproduced (30 of 30 runs passed): Enter in `SearchCombo` now waits for `Combobox.settle()`
+and picks the result named as typed; `amend` surviving merges may have been the real cause.
+R3.9 as listed; tiles also back off after failures (1 s doubling to 60 s).
 
 ### W: Wiki conformance — S
 

@@ -98,7 +98,7 @@ runs the same commands.
   Import pdf.js only from its legacy build, lazily. E2E tests that reload after saving a plan
   wait for IndexedDB first (`untilSaved` in `floorplans.spec.ts`): a reload can cut a write
   short.
-- Editing (R1): `edit/mode-manager.ts` is the only listener on the map's mouse events; it hands
+- Editing (R1): `edit/mode-manager.ts` is the only listener on the map's pointer events (mouse, touch, pen); it hands
   hover (cursor), click, press (a `Drag`) and keys to one `Mode` (`edit/mode.ts`,
   `edit/modes/*`). Add map interactions as a mode, not as `map.on(...)` in a component.
   Shortcuts use `edit/keys.ts` (`matches`, `formatCombo`, `isTyping`). Map layers insert
