@@ -658,6 +658,7 @@ presentation (edit, view, 3D).
 | [indoor=](https://github.com/indoorequal) (AGPL tiles, BSD plugin, active) | Planet import → PostGIS → MVT; `expand_levels(level, repeat_on)` in SQL; 2D, heatmap at low zoom | Heatmap or count bubbles to find indoor data when zoomed out (V). Not the server stack. |
 | [MapGL Indoor](https://github.com/mapbox-gl-indoor/mapbox-gl-indoor) (MIT) | GeoJSON per building, level filter | Show the level switcher only when a building with indoor data is in view (L). |
 | OpenLevelUp, JOSM indoorhelper, MapComplete indoors | Overpass + Leaflet; JOSM AutoFilter level bar; POI questions | Room list by level (V); "missing level" validator and wall kinds (W). |
+| [osm-simple3d-editor](https://github.com/FelisPimeja/osm-simple3d-editor) (ISC, started 2026-10-06, very active) | Simple 3D Buildings editor; one three.js custom layer in MapLibre (one merged mesh per z14 tile, own raycast picking); indoor plans in 3D, read-mostly: walls with door openings, escalators, lift shafts, atriums, a cut above the shown level; z14 tiles from the OSM API `/map` (Overpass dropped) | Level heights per building part and which levels get a floor (3D.2); atrium inference (3D.2); indoor checks (W); stairs and `repeat_on` research; dropping stale Overpass answers after an upload (V); rebase on upload (P5.4); JOSM Remote Control `/export` as a read-only source (P6); a "view in 3D" link to it (V). Not its 8,000-line `main.ts`, its edit overlay without a graph, or per-frame HTML icons. Keep the ISC notice. Write-up: "osm-simple3d-editor" research doc. |
 
 **Wiki rules not followed yet** (the rest, ranges, lists, decimals, `repeat_on`, never
 rewriting `level`, already is): `level:ref` and `name` of `indoor=level` outlines are not shown
@@ -1065,6 +1066,17 @@ and features inside an indoor outline) with a fix taking the shown level; `door-
 also for doors on an `indoor=wall` area; a hint, never a rewrite, for one-based numbering (no
 level 0 and features above `building:levels`); a hint for `level` on `tunnel=building_passage`.
 
+From osm-simple3d-editor's `validateIndoor` (`src/edit/validate.ts`), each a few lines:
+`room=*` on something that isn't `indoor=room|area|corridor`; `building:part` on an indoor
+space; `inside=*` (not an established key); `entrance=yes` on a door inside the building, more
+than 0.5 m from its outline, with a fix to `indoor=door` + `door=yes`; `indoor=door` without
+`door=*`, fix `door=yes`; `door=loadingdock` (→ `amenity=loading_dock`), `entrance=gate`
+(→ `barrier=gate`), `addr:entrance=yes` (→ `entrance=*`); a door, entrance, window or
+emergency point with several `level` values, fix "lowest in `level`, the rest in
+`repeat_on`" (SIT's "Vertical connections", revised by Tordanik on 2025-12-15, says a stair or
+elevator door is one node with `repeat_on`); a room on several levels that is really one room
+per level, fix: one copy per level sharing nodes (needs P5.3's actions).
+
 ### L: Level names — S–M
 
 The switcher takes `{level, ref, name}` (from `indoor=level` outlines, else
@@ -1110,7 +1122,12 @@ After P5.3 (decided ✔). A read-only route on the same map code: data from Over
 quota; count bubbles or a heatmap of indoor features below zoom 16 (indoor=, OpenLevelUp); a
 side panel with search over names and refs, a room list by level and place details
 (OpenIndoorMaps, OpenLevelUp); the style module gains a presentation switch (edit, view, 3D)
-instead of one fixed layer list; light and dark colour sets. Routing (a graph from
+instead of one fixed layer list; light and dark colour sets. Overpass lags behind the API:
+after an upload, keep the uploaded versions and drop older entities from Overpass answers
+(osm-simple3d-editor dropped Overpass for this reason). Load the selected building's full
+extent once, so rooms cut at tile edges are complete. Rooms coloured by use, counting POIs
+inside them (a shop node in an untagged room). A "view in 3D" link to osm-simple3d-editor
+(`?edit=w123&level=2`) until 3D lands. Routing (a graph from
 `highway=footway`/`corridor`, doors, stairs and elevators with their levels; Dijkstra on a
 heap) only after that.
 
@@ -1128,6 +1145,28 @@ After P5.3 (decided ✔).
    `building:levels`, else 3 m); building → floors → level steps in the viewer.
    `fill-extrusion-opacity` is per layer, so the current level, the ghosted levels and the
    building shell each get a layer.
+3. **Level heights and floors** (from osm-simple3d-editor, ISC: `focusLevels` in `main.ts`,
+   `floorLevels` in `osm/model.ts`, `view/indoor-voids.ts`), a pure `levels/heights.ts`:
+   - Heights per building part, not per building: a part with `building:levels` covers its
+     levels from `building:min_level` up, step `(height − min_height) / (levels −
+     min_level)`; basements from `building:levels:underground`; a raised part without
+     `building:min_level` starts at `round(min_height / 3)`. When several objects give one
+     level, a part beats the outline, an explicit `height` beats levels × 3 m, then more levels
+     wins. Steps outside 2–10 m are dropped. Levels used only by indoor features take the step
+     of the nearest known level. The switcher can say which object each level came from.
+   - Floors: a feature on several levels (`level=0;1`, `1-3`, a double-height room) has a floor
+     on its lowest level only; `repeat_on` on each listed level; stairwells and lifts
+     (`stairs=yes`, `room=stairs|elevator`, `highway=elevator`) a landing on each level; an
+     escalator area only at the bottom. 2D keeps `isOnLevel`; only 3D uses this.
+   - Atriums: a level's outline minus everything mapped on it, thin leftovers removed by a
+     morphological opening, large pieces with mapped space below them are voids; slabs get
+     holes there.
+   - Ranges stay ranges (`levels.ts`); don't port its parser, which expands ranges to integers.
+
+   Renderer: fill-extrusion can't cut door openings into walls, slope escalators or put holes
+   in slabs. osm-simple3d-editor does all three in a three.js custom layer, at the cost of a
+   5,000-line layer with its own picking. Stay on fill-extrusion; revisit a custom layer
+   (we already have one for vector plans) only if users ask for those details.
 
 ### P5.4: Autosave and conflicts — M–L
 
@@ -1137,10 +1176,13 @@ After P5.3 (decided ✔).
    checks it first.
    Use iD's format (`history.toJSON`) and a session lock (`utilSessionMutex`) so two tabs
    don't restore the same edits.
-2. Conflicts (iD's `actions/merge_remote_changes` as the model): the server's newer versions kept next to the base; `OsmApi.loadEntities(ids)`;
+2. Rebase before upload, first (osm-simple3d-editor does only this, and conflicts become
+   rare): fetch the current versions of edited entities, reapply tag edits where the server
+   changed other keys, merge relation members; a real clash falls through to step 3.
+3. Conflicts (iD's `actions/merge_remote_changes` as the model): the server's newer versions kept next to the base; `OsmApi.loadEntities(ids)`;
    `MapLoader.invalidate(area)`; 409, 410 and 412 bodies parsed into entity ids; versions
    taken from the base when uploading; a conflict dialog (keep mine, take theirs, per entity).
-3. After upload, uploaded entities take the uploader and the time.
+4. After upload, uploaded entities take the uploader and the time.
 
 ### P6: Parity and polish — M
 
@@ -1148,6 +1190,10 @@ After P5.3 (decided ✔).
   cs, es); preset and field names from the schema; plurals and dates from `Intl`.
 - Shortcuts help (from the keymap), help pages, indoor= preview (origin-checked
   `postMessage`), README and usage docs.
+- Reach: userscripts adding "Open in IndoorID" to openstreetmap.org and OSMCha (as
+  osm-simple3d-editor does); a read-only `?source=josm` that reads JOSM's active layer,
+  unsaved edits included, from Remote Control `GET http://127.0.0.1:8111/export` (JOSM
+  r19425+, "Export data" permission), upload disabled.
 - Release: an e2e checklist of 1.x features, `LICENSE` (ISC notice for ported code), the
   `legacy-v1.0.16` tag.
 
