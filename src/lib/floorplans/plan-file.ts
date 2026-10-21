@@ -117,15 +117,48 @@ export function isPlanArchive(bytes: Uint8Array): boolean {
 	);
 }
 
-/** Reads a version 2 plan file. */
-export function readPlanArchive(bytes: Uint8Array): PlanArchive {
-	let entries: Record<string, Uint8Array>;
-	try {
-		entries = unzipSync(bytes);
-	} catch {
-		throw new PlanFileError(msg("plan_file_unknown"));
-	}
-	const manifest = entries[MANIFEST];
+/** How much a plan file may inflate to: the files are untrusted, a ZIP can lie about sizes. */
+export interface ArchiveLimits {
+	/** Bytes of `plans.json`. */
+	readonly manifest: number;
+	/** Bytes of each file a plan names. */
+	readonly file: number;
+	/** Bytes of all of them together. */
+	readonly total: number;
+}
+
+const MB = 1024 * 1024;
+export const ARCHIVE_LIMITS: ArchiveLimits = {
+	manifest: 16 * MB,
+	file: 256 * MB,
+	total: 512 * MB,
+};
+
+/**
+ * Reads a version 2 plan file. Only the manifest and the files its plans name are inflated,
+ * each to at most the size the archive gives (fflate's output never grows past it), within
+ * `limits`.
+ */
+export function readPlanArchive(
+	bytes: Uint8Array,
+	limits: ArchiveLimits = ARCHIVE_LIMITS,
+): PlanArchive {
+	const unzip = (keep: (name: string, size: number) => boolean) => {
+		try {
+			return unzipSync(bytes, {
+				filter: ({ name, originalSize }) => keep(name, originalSize),
+			});
+		} catch (error) {
+			if (error instanceof PlanFileError) throw error;
+			throw new PlanFileError(msg("plan_file_unknown"));
+		}
+	};
+	const tooLarge = () => new PlanFileError(msg("plan_file_too_large"));
+	const manifest = unzip((name, size) => {
+		if (name !== MANIFEST) return false;
+		if (size > limits.manifest) throw tooLarge();
+		return true;
+	})[MANIFEST];
 	if (!manifest) throw new PlanFileError(msg("plan_file_unknown"));
 	let data: unknown;
 	try {
@@ -139,6 +172,14 @@ export function readPlanArchive(bytes: Uint8Array): PlanArchive {
 	checkVersion(data.version);
 	if (!Array.isArray(data.plans)) throw invalid();
 	const plans = data.plans.map(readArchivedPlan);
+	const named = new Set(plans.map(({ source }) => source.file));
+	let total = 0;
+	const entries = unzip((name, size) => {
+		if (!named.has(name)) return false;
+		total += size;
+		if (size > limits.file || total > limits.total) throw tooLarge();
+		return true;
+	});
 	const files = new Map<string, Uint8Array>();
 	for (const { source } of plans) {
 		const file = entries[source.file];

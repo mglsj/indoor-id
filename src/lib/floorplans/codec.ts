@@ -78,6 +78,9 @@ export function workerCodec(): PlanCodec & { terminate(): void } {
 		};
 		started.onerror = (event) => {
 			event.preventDefault();
+			// A worker that failed may not answer again: the next call starts a new one.
+			started.terminate();
+			if (worker === started) worker = undefined;
 			failAll(new Error(event.message || "Floor plan worker failed"));
 		};
 		return started;

@@ -309,6 +309,51 @@ describe("plan files, version 2: an archive of plans and the files they come fro
 		return null;
 	};
 
+	it("inflates only the manifest and the files it names, within limits", () => {
+		const limits = { manifest: 10_000, file: 1_000_000, total: 1_500_000 };
+		const big = new Uint8Array(2_000_000);
+		const unnamed = zipSync({
+			"plans.json": strToU8(
+				JSON.stringify({
+					format: "indoorid-floorplans",
+					version: 2,
+					plans: [page(1)],
+				}),
+			),
+			"files/1.pdf": pdf,
+			// 2 MB of zeros, a few KB compressed: never inflated, as no plan names it.
+			"files/bomb.bin": big,
+		});
+		expect(readPlanArchive(unnamed, limits).files.size).toBe(1);
+
+		const named = (file: string) =>
+			zipSync({
+				"plans.json": strToU8(
+					JSON.stringify({
+						format: "indoorid-floorplans",
+						version: 2,
+						plans: [{ ...page(1), source: { ...page(1).source, file } }],
+					}),
+				),
+				[file]: big,
+			});
+		const tooLarge = (bytes: Uint8Array, l = limits) => {
+			try {
+				readPlanArchive(bytes, l);
+			} catch (e) {
+				return (e as PlanFileError).msg.key;
+			}
+			return null;
+		};
+		expect(tooLarge(named("files/1.pdf"))).toBe("plan_file_too_large");
+		expect(tooLarge(named("files/1.pdf"), { ...limits, file: 3_000_000 })).toBe(
+			"plan_file_too_large",
+		);
+		expect(tooLarge(unnamed, { ...limits, manifest: 10 })).toBe(
+			"plan_file_too_large",
+		);
+	});
+
 	it("refuses a file from a newer IndoorID", () => {
 		expect(failure(manifest({ version: 3 }))).toBe("plan_file_newer");
 		expect(() =>
