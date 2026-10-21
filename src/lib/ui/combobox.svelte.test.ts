@@ -70,6 +70,29 @@ describe("Combobox: search", () => {
 		expect(emptying.result).toEqual([]);
 	});
 
+	it("settles: searches at once a query still waiting, and gives its answer", async () => {
+		const { calls, search } = manualSearch();
+		const combo = new Combobox({ search });
+		combo.find("ren");
+		const settled = combo.settle();
+		expect(calls.map((c) => c.query)).toEqual(["ren"]);
+		calls[0]?.resolve(["Rennes"]);
+		await expect(settled).resolves.toEqual(["Rennes"]);
+		// Nothing searched again after the pause.
+		await vi.advanceTimersByTimeAsync(1000);
+		expect(calls).toHaveLength(1);
+	});
+
+	it("settles to null when another query was asked meanwhile", async () => {
+		const { calls, search } = manualSearch();
+		const combo = new Combobox({ search });
+		combo.find("a", { wait: false });
+		const settled = combo.settle();
+		combo.find("b", { wait: false });
+		calls[0]?.resolve(["a"]);
+		await expect(settled).resolves.toBeNull();
+	});
+
 	it("stops a search still waiting when disposed", async () => {
 		const search = vi.fn(() => ["x"]);
 		const combo = new Combobox({ search });

@@ -76,6 +76,24 @@
 		input.value = value;
 	}
 
+	/**
+	 * Enter without a highlighted result: once the search for the typed text has answered,
+	 * the result named exactly that is chosen, else the text is kept as typed.
+	 */
+	async function enter() {
+		combo.open = false;
+		if (!input || !dirty) return commit();
+		const typed = input.value.trim();
+		const results = await combo.settle();
+		// Left or typed on meanwhile: that wins.
+		if (!dirty || input?.value.trim() !== typed) return;
+		const exact = results?.find(
+			(item) => item.label.toLowerCase() === typed.toLowerCase(),
+		);
+		if (exact) choose(exact);
+		else commit();
+	}
+
 	function onkeydown(event: KeyboardEvent) {
 		if (readonly) return;
 		switch (event.key) {
@@ -97,7 +115,7 @@
 					event.stopPropagation();
 				}
 				if (item) choose(item);
-				else if (event.key === "Enter") commit();
+				else if (event.key === "Enter") void enter();
 				break;
 			}
 			case "Escape":

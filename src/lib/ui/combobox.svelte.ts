@@ -32,6 +32,8 @@ export class Combobox<R> implements ComboState {
 	#pending: ReturnType<typeof setTimeout> | undefined;
 	/** The query asked last: answers to others are dropped. */
 	#asked: string | null = null;
+	/** The search for the query asked last, once started. */
+	#running: Promise<void> | null = null;
 
 	constructor(options: ComboboxOptions<R>) {
 		this.#options = options;
@@ -40,7 +42,9 @@ export class Combobox<R> implements ComboState {
 	/** Searches for `query`, after a pause unless nothing is typed (or `wait` says not to). */
 	find(query: string, { wait = query !== "" } = {}): void {
 		clearTimeout(this.#pending);
+		this.#pending = undefined;
 		this.#asked = query;
+		this.#running = null;
 		if (wait) {
 			this.#pending = setTimeout(
 				() => void this.#run(query),
@@ -69,13 +73,36 @@ export class Combobox<R> implements ComboState {
 		return true;
 	}
 
+	/**
+	 * The answer to the query asked last, searching now if it still waits for the pause (Enter
+	 * pressed while typing); null when no search was asked or it failed without a fallback.
+	 */
+	async settle(): Promise<R | null> {
+		const query = this.#asked;
+		if (query === null) return this.result;
+		if (this.#pending !== undefined) {
+			clearTimeout(this.#pending);
+			this.#pending = undefined;
+			void this.#run(query);
+		}
+		await this.#running;
+		return this.#asked === query ? this.result : null;
+	}
+
 	/** Stops a search still waiting (the input is gone). */
 	dispose(): void {
 		clearTimeout(this.#pending);
 		this.#asked = null;
 	}
 
-	async #run(query: string): Promise<void> {
+	#run(query: string): Promise<void> {
+		this.#pending = undefined;
+		const running = this.#search(query);
+		if (this.#asked === query) this.#running = running;
+		return running;
+	}
+
+	async #search(query: string): Promise<void> {
 		const { search, onresult, failed } = this.#options;
 		try {
 			const result = await search(query);
