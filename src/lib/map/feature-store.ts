@@ -18,6 +18,7 @@ import {
 	type FeatureProperties,
 	type IndoorFeature,
 	knownLevels,
+	listedLevels,
 } from "./features.ts";
 
 export interface StoredFeatures {
@@ -86,7 +87,7 @@ export class FeatureStore {
 			}
 		}
 
-		const levels = knownLevels([...this.#drafts.values()].map((d) => d.levels));
+		const levels = knownLevels([...this.#drafts.values()].map(listedLevels));
 		if (whole || !sameNumbers(levels, this.#levels)) {
 			this.#levels = levels;
 			this.#features.clear();
@@ -200,8 +201,9 @@ function nodesOf(graph: Graph, entity: Entity): [NodeId, Loc][] {
 
 /**
  * The entities whose features may differ after `changed` changed, in either graph: the ways
- * of a node and their relations, the nodes of a way (a point turns into a vertex), the
- * members of a relation (its `level` reaches them) and the relations of anything.
+ * of a node and their relations, the nodes of a way (a point turns into a vertex, a vertex
+ * takes the way's levels), the members of a relation and their nodes (its `level` reaches
+ * them) and the relations of anything.
  */
 function affectedBy(
 	changed: ReadonlySet<EntityId>,
@@ -224,7 +226,11 @@ function affectedBy(
 					for (const node of entity.nodes) affected.add(node);
 					break;
 				case "relation":
-					for (const member of entity.members) affected.add(member.ref);
+					for (const member of entity.members) {
+						affected.add(member.ref);
+						const way = g.entity(member.ref);
+						if (way?.type === "way") for (const n of way.nodes) affected.add(n);
+					}
 					break;
 			}
 			for (const r of g.parentRelations(id)) affected.add(r.id);

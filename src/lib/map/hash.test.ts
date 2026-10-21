@@ -88,6 +88,12 @@ describe("formatHash", () => {
 		);
 	});
 
+	it("writes the level exactly, however many decimals it has", () => {
+		const hash = formatHash({ zoom: 19, lat: 1, lon: 2, level: 0.125 });
+		expect(hash).toBe("#19/1/2/0.125");
+		expect(parseHash(hash)?.level).toBe(0.125);
+	});
+
 	it("keeps decimal and negative levels", () => {
 		expect(formatHash({ zoom: 19, lat: 1, lon: 2, level: 0.5 })).toBe(
 			"#19/1/2/0.5",

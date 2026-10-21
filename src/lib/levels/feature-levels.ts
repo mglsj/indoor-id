@@ -40,6 +40,25 @@ export function featureLevels(
 	return union(relationLevels);
 }
 
+/**
+ * Whether a feature's levels come from `building:levels=*`: a count of floors, which draws the
+ * building on them but says nothing about which levels have indoor data.
+ */
+export function isFromBuildingLevels(tags: Tags): boolean {
+	return (
+		tags.level === undefined &&
+		tags.repeat_on === undefined &&
+		(tags.min_level === undefined || tags.max_level === undefined) &&
+		tags["building:levels"] !== undefined
+	);
+}
+
+/** Union of levels, or null if there are none. */
+export function unionOfLevels(all: readonly (Levels | null)[]): Levels | null {
+	const ranges = all.flatMap((levels) => levels ?? []);
+	return ranges.length > 0 ? normalizeLevels(ranges) : null;
+}
+
 /** Union of the readable values, or null if none is readable. */
 function union(values: readonly (string | undefined)[]): Levels | null {
 	const ranges: LevelRange[] = [];

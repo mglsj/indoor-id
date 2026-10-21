@@ -11,10 +11,14 @@ import type {
 	MultiPolygon,
 	Position,
 } from "geojson";
-import { featureLevels } from "#lib/levels/feature-levels.ts";
+import {
+	featureLevels,
+	isFromBuildingLevels,
+	unionOfLevels,
+} from "#lib/levels/feature-levels.ts";
 import { isOnLevel, type Levels } from "#lib/levels/levels.ts";
 import { entityGeometry, isArea } from "#lib/osm/area.ts";
-import type { Entity, NodeId, Relation, Way } from "#lib/osm/entity.ts";
+import type { Entity, Node, NodeId, Relation, Way } from "#lib/osm/entity.ts";
 import { isClosedRing, pointInRing } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import { hasInterestingTags, type Tags } from "#lib/osm/tags.ts";
@@ -54,7 +58,7 @@ export function buildFeatures(
 		const draft = draftOf(graph, entity, options);
 		if (draft) drafts.push(draft);
 	}
-	const levels = knownLevels(drafts.map((d) => d.levels));
+	const levels = knownLevels(drafts.map(listedLevels));
 	const features = drafts.map((draft) => encodeFeature(draft, levels));
 	return { collection: { type: "FeatureCollection", features }, levels };
 }
@@ -65,6 +69,16 @@ export interface FeatureDraft {
 	readonly geometry: Geometry;
 	readonly properties: Tags;
 	readonly levels: Levels | null;
+	/**
+	 * Whether its levels are listed in the level switcher: not a building's
+	 * `building:levels`, which may count 25 floors without a room mapped on any.
+	 */
+	readonly listed: boolean;
+}
+
+/** The levels a feature brings to the switcher. */
+export function listedLevels(draft: FeatureDraft): Levels | null {
+	return draft.listed ? draft.levels : null;
 }
 
 /** An entity's feature without its `@lv`, or null when it isn't drawn. */
@@ -88,10 +102,38 @@ export function draftOf(
 				preset,
 			),
 		},
-		levels: featureLevels(entity.tags, () =>
-			graph.parentRelations(entity.id).map((r) => r.tags),
-		),
+		...levelsOf(graph, entity),
 	};
+}
+
+/**
+ * An entity's levels (see `featureLevels`); a vertex without any takes those of its ways (a
+ * door on a level 1 wall is on level 1), but not a building's `building:levels`.
+ */
+function levelsOf(
+	graph: Graph,
+	entity: Entity,
+): Pick<FeatureDraft, "levels" | "listed"> {
+	const own = ownLevels(graph, entity);
+	if (own || entity.type !== "node") {
+		return { levels: own, listed: !isFromBuildingLevels(entity.tags) };
+	}
+	return { levels: wayLevels(graph, entity), listed: true };
+}
+
+function ownLevels(graph: Graph, entity: Entity): Levels | null {
+	return featureLevels(entity.tags, () =>
+		graph.parentRelations(entity.id).map((r) => r.tags),
+	);
+}
+
+function wayLevels(graph: Graph, node: Node): Levels | null {
+	return unionOfLevels(
+		graph
+			.parentWays(node.id)
+			.filter((way) => !isFromBuildingLevels(way.tags))
+			.map((way) => ownLevels(graph, way)),
+	);
 }
 
 const NO_ICONS: ReadonlySet<string> = new Set();
@@ -175,7 +217,9 @@ function geometryOf(graph: Graph, entity: Entity): Geometry | null {
 				: { type: "LineString", coordinates };
 		}
 		case "relation":
-			return entity.tags.type === "multipolygon"
+			// A bare multipolygon (`type` only, the tags on its outer way) is drawn as that way.
+			return entity.tags.type === "multipolygon" &&
+				Object.keys(entity.tags).some((key) => key !== "type")
 				? multipolygon(graph, entity)
 				: null;
 	}
