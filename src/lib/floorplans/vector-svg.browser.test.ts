@@ -153,6 +153,22 @@ describe("extractSvg (in Chromium)", () => {
 		]);
 	});
 
+	it("refuses an SVG that expands past its budget (<use> fanning out)", () => {
+		// Each level draws the one below ten times: 10⁴ boxes from a few hundred bytes.
+		let defs = '<g id="l0"><rect width="1" height="1" fill="#000"/></g>';
+		for (let i = 1; i <= 4; i++) {
+			const use = `<use href="#l${i - 1}"/>`;
+			defs += `<g id="l${i}">${use.repeat(10)}</g>`;
+		}
+		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><defs>${defs}</defs><use href="#l4"/></svg>`;
+		expect(() => extractSvg(svg, { budget: 10_000 })).toThrow(
+			"could not be read",
+		);
+		expect(extractSvg(svg, { budget: 100_000 }).triangles.length).toBe(
+			10_000 * 2 * 6,
+		);
+	});
+
 	it("refuses a file that isn't SVG", () => {
 		expect(() => extractSvg("<html>not svg")).toThrow(MessageError);
 	});

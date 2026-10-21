@@ -77,6 +77,15 @@ describe("indoorLayers", () => {
 		).toEqual(["indoor-labels"]);
 	});
 
+	it("draws points with neither icon nor name as dots", () => {
+		expect(drawnBy(0, "Point", { "@kind": "poi", "@lv": ";0;" })).toEqual([
+			"indoor-points",
+		]);
+		expect(
+			drawnBy(0, "Point", { "@kind": "poi", "@lv": ";0;", "@label": "Desk" }),
+		).toEqual(["indoor-labels"]);
+	});
+
 	it("draws nothing that is on another level", () => {
 		expect(
 			drawnBy(1, "Polygon", { "@kind": "room", "@lv": ";0;", "@label": "B12" }),

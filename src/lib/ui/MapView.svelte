@@ -9,6 +9,7 @@
 		Map as MapLibreMap,
 		NavigationControl,
 		ScaleControl,
+		type StyleSpecification,
 	} from "#lib/map/maplibre.ts";
 	import { styleReady } from "#lib/map/ready.ts";
 
@@ -38,6 +39,20 @@
 	}: Props = $props();
 
 	let error = $state<string>();
+
+	/** The style shown when the basemap's can't be loaded; its glyphs are OpenFreeMap's. */
+	const FALLBACK_STYLE: StyleSpecification = {
+		version: 8,
+		glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+		sources: {},
+		layers: [
+			{
+				id: "background",
+				type: "background",
+				paint: { "background-color": "#f2f2ef" },
+			},
+		],
+	};
 	let camera = $state<Camera>();
 
 	// Created once: later prop changes must not rebuild the map.
@@ -79,10 +94,13 @@
 			// Tile errors are frequent and transient; only report a basemap style that can't load.
 			let styleLoaded = false;
 			instance.once("style.load", () => (styleLoaded = true));
+			let fallback = false;
 			instance.on("error", (event) => {
-				if (!styleLoaded) {
-					error = `The basemap could not be loaded: ${event.error.message}`;
-				}
+				if (styleLoaded || fallback) return;
+				error = `The basemap could not be loaded: ${event.error.message}`;
+				// A plain background instead, so the indoor data still shows.
+				fallback = true;
+				instance.setStyle(FALLBACK_STYLE);
 			});
 
 			map = instance;

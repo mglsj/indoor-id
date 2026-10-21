@@ -78,9 +78,103 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 			msg("undo_change_tags"),
 		);
 		selection.select("n-1");
-		expect(await sync.upload({ comment: "Benches" })).toBe(42);
+		expect(await sync.upload({ comment: "Benches" })).toEqual({
+			changesetId: 42,
+			notDeleted: [],
+		});
 		expect(history.graph).toBe(uploaded);
 		expect(history.canUndo).toBe(false);
 		expect(selection.ids).toEqual(["n100"]);
+	});
+
+	it("holds edits and downloads while uploading, and downloads again what came before", async () => {
+		let finish: (n: number) => void = () => {};
+		const answers: ((entities: Entity[]) => void)[] = [];
+		const uploaded = Graph.fromEntities([]);
+		const { history, sync } = setup({
+			loadMap: () => new Promise((resolve) => answers.push(resolve)),
+			upload: () =>
+				new Promise((resolve) => {
+					finish = (changesetId) =>
+						resolve({
+							graph: uploaded,
+							idMap: new Map(),
+							notDeleted: [],
+							changesetId,
+						});
+				}),
+		});
+		history.perform(
+			(graph) => graph.replace(node("n-1", { amenity: "bench" }, [0, 0])),
+			msg("undo_change_tags"),
+		);
+
+		const loading = sync.loadView(VIEW, 18);
+		await Promise.resolve();
+		const asked = answers.length;
+		expect(asked).toBeGreaterThan(0);
+		const uploading = sync.upload({ comment: "Bench" });
+		expect(sync.uploading).toBe(true);
+		expect(history.locked).toBe(true);
+		history.undo();
+		expect(history.graph.entity("n-1")).toBeDefined();
+
+		// The server deleted n1 in the meantime: the answer asked for before is dropped.
+		for (const answer of answers.splice(0))
+			answer([node("n1", {}, [2.35, 48.85])]);
+		finish(7);
+		expect((await uploading).changesetId).toBe(7);
+		expect(history.locked).toBe(false);
+		await new Promise((r) => setTimeout(r, 0));
+		expect(history.graph.entity("n1")).toBeUndefined();
+
+		// Its tiles are downloaded again, after the upload.
+		expect(answers).toHaveLength(asked);
+		for (const answer of answers.splice(0)) answer([]);
+		await loading;
+		expect(history.graph.entity("n1")).toBeUndefined();
+	});
+
+	it("keeps downloads that arrive during a failed upload", async () => {
+		const answers: ((entities: Entity[]) => void)[] = [];
+		let fail: () => void = () => {};
+		const { history, sync } = setup({
+			loadMap: () => new Promise((resolve) => answers.push(resolve)),
+			upload: () =>
+				new Promise((_, reject) => {
+					fail = () => reject(new Error("offline"));
+				}),
+		});
+		const loading = sync.loadView(VIEW, 18);
+		await Promise.resolve();
+		const uploading = sync.upload({ comment: "Bench" });
+		for (const answer of answers.splice(0))
+			answer([node("n1", {}, [2.35, 48.85])]);
+		await loading;
+		expect(history.graph.entity("n1")).toBeUndefined();
+		fail();
+		await expect(uploading).rejects.toThrow("offline");
+		expect(history.graph.entity("n1")).toBeDefined();
+	});
+
+	it("refuses to upload more changes than a changeset takes", async () => {
+		let uploads = 0;
+		const { history, sync } = setup({
+			upload: async () => {
+				uploads++;
+				throw new Error("sent");
+			},
+		});
+		history.perform((graph) => {
+			for (let i = 1; i <= 10_001; i++)
+				graph.replace(node(`n${-i}`, { amenity: "bench" }, [0, 0]));
+			return graph;
+		}, msg("undo_change_tags"));
+		expect(history.editCount).toBe(10_001);
+		await expect(sync.upload({ comment: "Benches" })).rejects.toThrow(
+			"10001 features changed: a changeset takes at most 10000",
+		);
+		expect(uploads).toBe(0);
+		expect(history.locked).toBe(false);
 	});
 });

@@ -5,6 +5,7 @@ import {
 	hash,
 	mapLocator,
 	pixelAt,
+	selectRoom,
 	test,
 } from "./fixtures.ts";
 
@@ -81,15 +82,17 @@ test("dragging the map updates the hash", async ({ page }) => {
 	await expect.poll(() => hash(page)).not.toBe("#19/48.13/-1.69/0");
 });
 
-test("reports a basemap that cannot be loaded", async ({ page }) => {
+test("reports a basemap that cannot be loaded, and still shows indoor data", async ({
+	page,
+}) => {
 	await page.route("**/styles/**", (route) =>
 		route.fulfill({ status: 500, body: "down" }),
 	);
-	await page.goto("/#19/48.13/-1.69/0");
-
+	const editor = await selectRoom(page);
 	await expect(page.getByRole("alert")).toContainText(
 		"basemap could not be loaded",
 	);
+	await expect(editor).toBeVisible();
 });
 
 test("draws vector data, which needs the MapLibre worker", async ({ page }) => {

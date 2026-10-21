@@ -109,7 +109,13 @@ export interface CategoryData {
 }
 
 /** Keys a change of type never drops, whatever fields the new type has. */
-const LEVEL_KEYS = ["level", "level:ref", "repeat_on"];
+const LEVEL_KEYS = [
+	"level",
+	"level:ref",
+	"repeat_on",
+	"min_level",
+	"max_level",
+];
 
 /** Presets offered before typing a search, by geometry: the common indoor ones. */
 export const DEFAULT_PRESETS: Record<PresetGeometry, readonly string[]> = {
@@ -374,7 +380,8 @@ export class PresetIndex {
 	 * school keeps its building fields); then the new preset's tags, `area=yes` when needed and
 	 * its field defaults are set. Other tags stay.
 	 *
-	 * Two IndoorID rules on top: `level`, `level:ref` and `repeat_on` always stay, and a feature
+	 * Two IndoorID rules on top: `level`, `level:ref`, `repeat_on`, `min_level` and `max_level`
+	 * always stay, and a feature
 	 * with a level or an `indoor` tag doesn't get a `building` default (a room becoming a cafe).
 	 */
 	changePreset(

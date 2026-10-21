@@ -134,3 +134,47 @@ test("explains that login is not set up on this instance", async ({ page }) => {
 	await expect(dialog).toContainText("Login is not configured");
 	await expect(dialog.getByRole("button", { name: "Upload" })).toBeDisabled();
 });
+
+test("gets out of a login whose window was closed", async ({ page }) => {
+	await page.route("**/config.json", async (route) => {
+		const response = await route.fetch();
+		const config = await response.json();
+		await route.fulfill({
+			response,
+			json: { ...config, oauth_client_id: "test-client" },
+		});
+	});
+	await editRoomNumber(page);
+	await page.getByRole("button", { name: /Save/ }).click();
+	const dialog = page.getByRole("dialog", { name: "Upload your edits" });
+	await dialog
+		.getByRole("textbox", { name: "Comment" })
+		.fill("Add room number");
+	const popup = page.waitForEvent("popup");
+	await dialog.getByRole("button", { name: "Upload" }).click();
+	await expect(dialog.getByRole("button", { name: "Cancel" })).toBeEnabled();
+	await (await popup).close();
+
+	await expect(dialog.getByRole("alert")).toContainText(
+		"The login window was closed",
+	);
+	await expect(dialog.getByRole("button", { name: "Upload" })).toBeEnabled();
+	await dialog.getByRole("button", { name: "Cancel" }).click();
+	await expect(dialog).toBeHidden();
+	await expect(page.getByTestId("edit-count")).toHaveText("1");
+});
+
+test("asks before leaving the page with edits not uploaded", async ({
+	page,
+}) => {
+	await editRoomNumber(page);
+	const asked = new Promise<string>((resolve) =>
+		page.once("dialog", async (dialog) => {
+			resolve(dialog.type());
+			await dialog.dismiss();
+		}),
+	);
+	void page.reload().catch(() => undefined);
+	expect(await asked).toBe("beforeunload");
+	await expect(page.getByTestId("edit-count")).toHaveText("1");
+});

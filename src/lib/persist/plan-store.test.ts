@@ -234,3 +234,24 @@ describe("IndexedDbPlanStore (schema 4)", () => {
 		expect((await store.loadContent("a"))?.kind).toBe("raster");
 	});
 });
+
+describe("IndexedDbPlanStore: other tabs", () => {
+	it("fails at once when an older version is held open elsewhere, and tries again after", async () => {
+		const store = freshStore();
+		// Another tab, on schema 3, that doesn't close for upgrades.
+		const old = await openDB(name, 3, {
+			upgrade: (db) => db.createObjectStore("plans", { keyPath: "id" }),
+		});
+		await expect(store.load()).rejects.toThrow("another tab");
+		old.close();
+		await expect(store.load()).resolves.toEqual([]);
+	});
+
+	it("lets a newer tab upgrade, closing its own connection", async () => {
+		const store = freshStore();
+		await store.save(plan("a", 0));
+		const newer = await openDB(name, 5);
+		expect(newer.version).toBe(5);
+		newer.close();
+	});
+});

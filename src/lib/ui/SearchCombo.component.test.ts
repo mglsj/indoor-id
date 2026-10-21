@@ -53,6 +53,29 @@ describe("SearchCombo", () => {
 		expect(search).toHaveBeenCalledWith("");
 		await userEvent.keyboard("{Escape}");
 		await userEvent.keyboard("Lyon{Enter}");
-		expect(oncommit).toHaveBeenCalledWith("Lyon");
+		await expect.poll(() => oncommit.mock.calls).toEqual([["Lyon"]]);
+	});
+
+	it("takes the result named as typed on Enter, once a search still waiting answers", async () => {
+		let answer: (items: SearchItem[]) => void = () => {};
+		const onchoose = vi.fn();
+		const oncommit = vi.fn();
+		render(SearchCombo, {
+			id: "city",
+			value: "",
+			ariaLabel: "City",
+			search: () => new Promise<SearchItem[]>((resolve) => (answer = resolve)),
+			onchoose,
+			oncommit,
+		});
+		const input = page.getByRole("combobox", { name: "City" });
+		await input.click();
+		// Enter before the pause is over: the search starts at once.
+		await userEvent.keyboard("rennes{Enter}");
+		expect(onchoose).not.toHaveBeenCalled();
+		expect(oncommit).not.toHaveBeenCalled();
+		answer(CITIES);
+		await expect.poll(() => onchoose.mock.calls).toEqual([[CITIES[1]]]);
+		expect(oncommit).not.toHaveBeenCalled();
 	});
 });

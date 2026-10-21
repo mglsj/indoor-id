@@ -5,13 +5,26 @@ import { ModeManager } from "./mode-manager.ts";
 
 type Listener = (event: unknown) => void;
 
-/** A map stand-in: fires mouse events, records gestures and cursor. */
+/** The DOM event each test name stands for. */
+const POINTER: Record<string, string> = {
+	mousedown: "pointerdown",
+	mousemove: "pointermove",
+	mouseup: "pointerup",
+	mouseout: "pointerleave",
+};
+
+/**
+ * A map stand-in: fires pointer events on its container (and clicks on the map), records
+ * gestures, cursor and pointer capture.
+ */
 function fakeMap() {
 	const listeners = new Map<string, Set<Listener>>();
+	const domListeners = new Map<string, Set<Listener>>();
 	const gesture = () => {
 		const state = { on: true };
 		return {
 			state,
+			isEnabled: () => state.on,
 			enable: () => {
 				state.on = true;
 			},
@@ -20,7 +33,23 @@ function fakeMap() {
 			},
 		};
 	};
-	const canvas = { style: { cursor: "" } };
+	const captured = new Set<number>();
+	const container = {
+		addEventListener: (type: string, listener: Listener) => {
+			const set = domListeners.get(type) ?? new Set();
+			set.add(listener);
+			domListeners.set(type, set);
+		},
+		removeEventListener: (type: string, listener: Listener) =>
+			domListeners.get(type)?.delete(listener),
+		setPointerCapture: (id: number) => captured.add(id),
+		hasPointerCapture: (id: number) => captured.has(id),
+		releasePointerCapture: (id: number) => captured.delete(id),
+	};
+	const canvas = {
+		style: { cursor: "" },
+		getBoundingClientRect: () => ({ left: 100, top: 50 }),
+	};
 	const map = {
 		on: (type: string, listener: Listener) => {
 			const set = listeners.get(type) ?? new Set();
@@ -30,29 +59,57 @@ function fakeMap() {
 		off: (type: string, listener: Listener) =>
 			listeners.get(type)?.delete(listener),
 		getCanvas: () => canvas,
+		getCanvasContainer: () => container,
+		unproject: ([x, y]: [number, number]) => ({ lng: x / 10, lat: y / 10 }),
 		doubleClickZoom: gesture(),
 		boxZoom: gesture(),
 		dragRotate: gesture(),
+		dragPan: gesture(),
+		touchZoomRotate: gesture(),
 	};
+	const modifiers = {
+		button: 0,
+		shiftKey: false,
+		ctrlKey: false,
+		metaKey: false,
+		altKey: false,
+	};
+	/** Fires `type` at map pixel x, y: a pointer event (as a mouse by default) or a click. */
 	const fire = (type: string, x = 0, y = 0, extra: object = {}) => {
 		let prevented = false;
+		const preventDefault = () => (prevented = true);
+		if (type === "click") {
+			const event = {
+				point: { x, y },
+				lngLat: { lng: x / 10, lat: y / 10 },
+				originalEvent: { ...modifiers, ...extra },
+				preventDefault,
+			};
+			for (const listener of listeners.get(type) ?? []) listener(event);
+			return { prevented };
+		}
 		const event = {
-			point: { x, y },
-			lngLat: { lng: x / 10, lat: y / 10 },
-			originalEvent: {
-				button: 0,
-				shiftKey: false,
-				ctrlKey: false,
-				metaKey: false,
-				altKey: false,
-				...extra,
-			},
-			preventDefault: () => (prevented = true),
+			type: POINTER[type] ?? type,
+			clientX: x + 100,
+			clientY: y + 50,
+			pointerId: 1,
+			pointerType: "mouse",
+			isPrimary: true,
+			currentTarget: container,
+			...modifiers,
+			...extra,
+			preventDefault,
 		};
-		for (const listener of listeners.get(type) ?? []) listener(event);
+		for (const listener of domListeners.get(event.type) ?? []) listener(event);
 		return { prevented };
 	};
-	return { map: map as unknown as MapLibreMap, fire, canvas, raw: map };
+	return {
+		map: map as unknown as MapLibreMap,
+		fire,
+		canvas,
+		raw: map,
+		captured,
+	};
 }
 
 /** Runs the frame callbacks queued so far. */
@@ -209,5 +266,59 @@ describe("ModeManager", () => {
 		raf.flush();
 		manager.setMode({ name: "other" });
 		expect(log).toEqual(["move 30,10", "cancel"]);
+	});
+
+	it("takes a finger's or a pen's press too, holding the map still and capturing the pointer", () => {
+		const { drag, log } = recordingDrag();
+		const { fire, raf, raw, captured } = setup({
+			name: "test",
+			press: () => drag,
+		});
+		const touch = { pointerType: "touch", pointerId: 7 };
+		expect(fire("pointerdown", 10, 10, touch).prevented).toBe(true);
+		expect(raw.dragPan.state.on).toBe(false);
+		expect(raw.touchZoomRotate.state.on).toBe(false);
+		expect(captured.has(7)).toBe(true);
+		fire("pointermove", 30, 10, touch);
+		raf.flush();
+		fire("pointerup", 32, 12, touch);
+		expect(log).toEqual(["move 30,10", "end 32,12"]);
+		expect(raw.dragPan.state.on).toBe(true);
+		expect(raw.touchZoomRotate.state.on).toBe(true);
+		expect(captured.has(7)).toBe(false);
+	});
+
+	it("follows one pointer at a time", () => {
+		const { drag, log } = recordingDrag();
+		const press = vi.fn(() => drag);
+		const { fire, raf } = setup({ name: "test", press });
+		fire("pointerdown", 10, 10, { pointerType: "touch", pointerId: 1 });
+		const second = { pointerType: "touch", pointerId: 2, isPrimary: false };
+		expect(fire("pointerdown", 50, 50, second).prevented).toBe(false);
+		fire("pointermove", 90, 90, second);
+		fire("pointerup", 90, 90, second);
+		raf.flush();
+		expect(press).toHaveBeenCalledOnce();
+		expect(log).toEqual([]);
+	});
+
+	it("ends a drag where it is released, even before its last move's frame", () => {
+		const { drag, log } = recordingDrag();
+		const { fire } = setup({ name: "test", press: () => drag });
+		fire("mousedown", 10, 10);
+		fire("mousemove", 30, 10);
+		fire("mouseup", 40, 10);
+		expect(log).toEqual(["end 40,10"]);
+	});
+
+	it("cancels a press the browser takes over (pointercancel)", () => {
+		const { drag, log } = recordingDrag();
+		const { fire, raf, raw } = setup({ name: "test", press: () => drag });
+		fire("pointerdown", 10, 10, { pointerType: "touch" });
+		fire("pointermove", 30, 10, { pointerType: "touch" });
+		raf.flush();
+		fire("pointercancel", 30, 10, { pointerType: "touch" });
+		expect(log).toEqual(["move 30,10", "cancel"]);
+		expect(raw.dragPan.state.on).toBe(true);
 	});
 });

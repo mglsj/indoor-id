@@ -61,6 +61,7 @@ export const SELECTABLE_LAYER_IDS = [
 	"indoor-outline",
 	"indoor-lines",
 	"indoor-doors",
+	"indoor-points",
 	"indoor-labels",
 ];
 
@@ -222,6 +223,25 @@ export function indoorLayers(
 					C.doorStroke,
 					C.passageStroke,
 				],
+				"circle-stroke-width": 1,
+			},
+		},
+		{
+			// Points with neither an icon nor a name still show, and can be selected.
+			id: "indoor-points",
+			type: "circle",
+			source: INDOOR_SOURCE,
+			filter: onLevel([
+				"all",
+				isPoint,
+				["!", ["in", kind, ["literal", ["door", "passage"]]]],
+				["!", ["has", "@icon"]],
+				["!", ["has", "@label"]],
+			]),
+			paint: {
+				"circle-radius": width(2, 6),
+				"circle-color": C.point,
+				"circle-stroke-color": C.pointStroke,
 				"circle-stroke-width": 1,
 			},
 		},

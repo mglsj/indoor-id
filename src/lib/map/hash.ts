@@ -66,7 +66,8 @@ export function formatHash(view: MapView): `#${string}` {
 		formatNumber(view.zoom, 2),
 		formatNumber(view.lat, precision),
 		formatNumber(view.lon, precision),
-		formatNumber(view.level, 2),
+		// Exact: level 0.125 is a level of its own, not 0.13.
+		String(Object.is(view.level, -0) ? 0 : view.level),
 	];
 	return `#${parts.join("/")}`;
 }

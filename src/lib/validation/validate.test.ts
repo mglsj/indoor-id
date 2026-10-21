@@ -140,6 +140,25 @@ describe("validate: levels", () => {
 		});
 	});
 
+	it("accepts repeat_on on an elevator's or stairs' door (SIT's vertical connections)", () => {
+		const graph = Graph.fromEntities([
+			node("n1", {
+				door: "sliding",
+				elevator: "yes",
+				level: "0",
+				repeat_on: "1;2",
+			}),
+			node("n2", {
+				entrance: "yes",
+				stairs: "yes",
+				level: "0",
+				repeat_on: "1",
+			}),
+		]);
+		const rules = validate(graph, ["n1", "n2"], []).map((i) => i.rule);
+		expect(rules).not.toContain("vertical-repeat-on");
+	});
+
 	it("accepts repeat_on for features repeated on several levels", () => {
 		expect(
 			issuesOf(

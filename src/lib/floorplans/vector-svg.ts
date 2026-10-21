@@ -38,10 +38,18 @@ const SHAPES = new Set([
 const CONTAINERS = new Set(["svg", "g", "a", "switch"]);
 /** How deep `<use>` may refer to `<use>`: deeper ones (and loops) are left out. */
 const MAX_USE_DEPTH = 8;
+/**
+ * How much drawing an SVG may expand to (elements drawn, counting each `<use>` copy, plus path
+ * commands): a small file can refer to the same group thousands of times over.
+ */
+export const SVG_BUDGET = 2_000_000;
 /** The size browsers give an SVG without one. */
 const DEFAULT_SIZE = { width: 300, height: 150 };
 
-export function extractSvg(text: string): VectorContent {
+export function extractSvg(
+	text: string,
+	{ budget = SVG_BUDGET }: { budget?: number } = {},
+): VectorContent {
 	const doc = new DOMParser().parseFromString(text, "image/svg+xml");
 	const root = doc.documentElement;
 	if (root.localName !== "svg" || doc.querySelector("parsererror")) {
@@ -61,6 +69,13 @@ export function extractSvg(text: string): VectorContent {
 	const builder = new VectorBuilder();
 	const colors = new ColorReader();
 	const meter = new TextMeter();
+	let work = 0;
+	const spend = (amount: number) => {
+		work += amount;
+		if (work > budget) {
+			throw new MessageError(msg("plan_import_svg_unreadable"));
+		}
+	};
 
 	function draw(
 		element: Element,
@@ -68,6 +83,7 @@ export function extractSvg(text: string): VectorContent {
 		inherited: SvgStyle,
 		depth: number,
 	): void {
+		spend(1);
 		const name = element.localName;
 		const style = resolveStyle(inherited, attributesOf(element));
 		if (!style.displayed) return;
@@ -109,6 +125,7 @@ export function extractSvg(text: string): VectorContent {
 				: shapePath(name, attributesOf(element));
 		const commands = parsePathData(d);
 		if (commands.length === 0) return;
+		spend(commands.length);
 		applyTo(builder, commands, m);
 		const fill = colors.read(style.fill, style.opacity * style.fillOpacity);
 		if (fill) builder.fill({ color: fill, width: 0, layer: null });

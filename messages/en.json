@@ -22,14 +22,22 @@
 	"plan_tool_pivot_on_plan": "Click on the plan to pick the centre of rotation.",
 	"plan_storage_restore_failed": "Saved floor plans could not be restored: {error}",
 	"plan_storage_save_failed": "Floor plans could not be saved in this browser: {error}",
+	"plan_storage_blocked": "IndoorID is open in another tab with an older version: close that tab, then reload this one.",
 	"plan_import_unsupported": "IndoorID can import PNG, JPEG, WebP, SVG and PDF plans, and plan files (.zip, or .json from earlier versions).",
 	"plan_import_map_not_ready": "The map is not ready yet.",
 	"plan_import_image_unreadable": "This image could not be read.",
+	"plan_import_image_too_large": "This image is too large to import (over 100 megapixels). Scale it down first.",
 	"plan_import_svg_unreadable": "This SVG drawing could not be read.",
 	"plan_import_pdf_unreadable": "This PDF could not be read.",
 	"plan_file_not_json": "This file is not a floor plan file (not JSON).",
 	"plan_file_unknown": "This file is not an IndoorID or OsmInEdit floor plan file.",
 	"plan_file_no_image": "A floor plan in this file has no image.",
 	"plan_file_damaged": "A floor plan in this file is damaged or incomplete.",
-	"plan_file_newer": "This floor plan file was made by a newer version of IndoorID: update IndoorID to open it."
+	"plan_file_too_large": "This floor plan file is too large to open.",
+	"plan_file_newer": "This floor plan file was made by a newer version of IndoorID: update IndoorID to open it.",
+	"login_cancelled": "Login cancelled.",
+	"login_popup_closed": "The login window was closed before you logged in.",
+	"login_timed_out": "Logging in took too long. Try again.",
+	"upload_too_many_changes": "{count} features changed: a changeset takes at most {max}. Upload part of your edits first.",
+	"upload_not_deleted": "OpenStreetMap kept {count} of the features you deleted, because other data still uses them: {ids}. They are back on the map."
 }

@@ -130,4 +130,18 @@ describe("workerCodec (the plan worker, in Chromium)", () => {
 			key: "plan_import_image_unreadable",
 		});
 	});
+
+	it("refuses a file whose header gives too many pixels, before decoding it", async () => {
+		// A PNG header saying 40,000 × 40,000: 6.4 GB once decoded.
+		const header = new Uint8Array([
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48,
+			0x44, 0x52, 0, 0, 0x9c, 0x40, 0, 0, 0x9c, 0x40, 8, 2, 0, 0, 0,
+		]);
+		const failure = await codec
+			.decodeFile(new Blob([header], { type: "image/png" }))
+			.catch((e: unknown) => e);
+		expect((failure as MessageError).msg).toEqual({
+			key: "plan_import_image_too_large",
+		});
+	});
 });

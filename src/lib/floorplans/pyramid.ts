@@ -6,11 +6,17 @@
  */
 import { MessageError, msg } from "#lib/i18n/messages.ts";
 import type { CutTile, EncodedImage, PlanImage, PlanLevel } from "./content.ts";
+import { type ImageSize, imageSize } from "./image-size.ts";
 import { type Tile, tiles } from "./tiling.ts";
 import type { VectorContent } from "./vector.ts";
 
 /** Longest side kept for a plan, in pixels; larger plans are scaled down on import. */
 export const MAX_IMAGE_SIZE = 8192;
+/**
+ * Largest image decoded, in pixels (400 MB once decoded): its size is read from the header
+ * first, as a file of a few KB can say 40,000 × 40,000.
+ */
+export const MAX_DECODED_PIXELS = 100_000_000;
 /** The pyramid stops once a level fits in this many pixels. */
 const SMALLEST_LEVEL = 256;
 /** Longest side of a plan's thumbnail, in pixels. */
@@ -28,21 +34,45 @@ export type CutImage = Omit<PlanImage<CutTile>, "encoded">;
 export async function pyramidOfFile(
 	file: Blob,
 ): Promise<{ image: CutImage; width: number; height: number }> {
-	const full = await createImageBitmap(file).catch(() => {
+	const header = imageSize(new Uint8Array(await file.arrayBuffer()));
+	if (header && header.width * header.height > MAX_DECODED_PIXELS) {
+		throw new MessageError(msg("plan_import_image_too_large"));
+	}
+	// Scaled while decoding when the header gives the size: the full image is never kept.
+	const fit = header && fitted(header.width, header.height);
+	const decoded = await createImageBitmap(
+		file,
+		fit
+			? {
+					resizeWidth: fit.width,
+					resizeHeight: fit.height,
+					resizeQuality: "high",
+				}
+			: {},
+	).catch(() => {
 		throw new MessageError(msg("plan_import_image_unreadable"));
 	});
-	const { width, height } = full;
-	const scale = Math.min(1, MAX_IMAGE_SIZE / Math.max(width, height));
-	if (scale === 1) {
-		return { image: await buildPyramid(full), width, height };
-	}
-	const scaled = await createImageBitmap(full, {
-		resizeWidth: Math.max(1, Math.round(width * scale)),
-		resizeHeight: Math.max(1, Math.round(height * scale)),
+	const width = header?.width ?? decoded.width;
+	const height = header?.height ?? decoded.height;
+	const scaleTo = fitted(decoded.width, decoded.height);
+	if (!scaleTo) return { image: await buildPyramid(decoded), width, height };
+	const scaled = await createImageBitmap(decoded, {
+		resizeWidth: scaleTo.width,
+		resizeHeight: scaleTo.height,
 		resizeQuality: "high",
 	});
-	full.close();
+	decoded.close();
 	return { image: await buildPyramid(scaled), width, height };
+}
+
+/** The size an image is scaled down to, or null when it fits `MAX_IMAGE_SIZE`. */
+function fitted(width: number, height: number): ImageSize | null {
+	const scale = MAX_IMAGE_SIZE / Math.max(width, height);
+	if (scale >= 1) return null;
+	return {
+		width: Math.max(1, Math.round(width * scale)),
+		height: Math.max(1, Math.round(height * scale)),
+	};
 }
 
 /** The pyramid of a rendered drawing (an SVG, a PDF page). */

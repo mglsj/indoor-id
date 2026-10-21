@@ -2,9 +2,11 @@
  * The editor's exchanges with the OSM API: the visible area downloaded into the history (with
  * its status), incomplete relations completed, and the edits uploaded in one changeset.
  */
+import { MAX_CHANGESET_CHANGES } from "#lib/api/changeset.ts";
 import { MapLoader, type MapLoaderOptions } from "#lib/api/map-loader.ts";
 import type { Bbox, OsmApi } from "#lib/api/osm-api.ts";
-import type { Entity, RelationId } from "#lib/osm/entity.ts";
+import { MessageError, msg } from "#lib/i18n/messages.ts";
+import type { Entity, EntityId, RelationId } from "#lib/osm/entity.ts";
 import type { Tags } from "#lib/osm/tags.ts";
 import type { EditHistory } from "./edit-history.svelte.ts";
 import type { Selection } from "./selection.svelte.ts";
@@ -16,6 +18,16 @@ export type LoadStatus =
 	| { readonly kind: "zoom-in" }
 	/** Some tiles failed; they are retried on the next move. */
 	| { readonly kind: "error"; readonly failed: number };
+
+/** What an upload did. */
+export interface UploadSummary {
+	readonly changesetId: number;
+	/**
+	 * Deleted features the server kept, because other data still uses them (OSM's
+	 * `if-unused`): they are back in the data.
+	 */
+	readonly notDeleted: readonly EntityId[];
+}
 
 export type SyncApi = Pick<OsmApi, "loadMap" | "loadRelation" | "upload">;
 
@@ -39,6 +51,10 @@ export class DataSync {
 	readonly #selection: Selection;
 	readonly #loader: MapLoader;
 	#loads = 0;
+	/** The upload under way, if any. */
+	#uploading: Promise<unknown> | null = null;
+	/** Bumped by each upload that started a new history. */
+	#generation = 0;
 
 	constructor({ api, minZoom, history, selection, schedule }: DataSyncOptions) {
 		this.#api = api;
@@ -71,18 +87,53 @@ export class DataSync {
 
 	/** Downloads the members of an incomplete relation. */
 	async loadRelation(id: RelationId): Promise<void> {
-		this.#receive(await this.#api.loadRelation(id));
+		for (;;) {
+			const generation = this.#generation;
+			const entities = await this.#api.loadRelation(id);
+			while (this.#uploading) await this.#uploading.catch(() => undefined);
+			// Asked for before an upload: the answer may hold what it deleted.
+			if (generation === this.#generation) return this.#receive(entities);
+		}
+	}
+
+	/** True while an upload is under way. */
+	get uploading(): boolean {
+		return this.#uploading !== null;
 	}
 
 	/**
 	 * Uploads the edits in one changeset, then starts a new history from the server's state.
-	 * Returns the changeset id. On failure the edits are kept.
+	 * Returns the changeset id and the deletions the server kept. On failure the edits are kept. Edits and downloads wait
+	 * meanwhile: the upload sends the graph as it was, and downloads asked for before it are
+	 * dropped and made again once it is done.
 	 */
-	async upload(changesetTags: Tags): Promise<number> {
-		const result = await this.#api.upload(this.#history.graph, changesetTags);
-		this.#selection.remap(result.idMap);
-		this.#history.reset(result.graph);
-		return result.changesetId;
+	async upload(changesetTags: Tags): Promise<UploadSummary> {
+		if (this.#uploading) throw new Error("An upload is already under way");
+		const count = this.#history.editCount;
+		if (count > MAX_CHANGESET_CHANGES) {
+			throw new MessageError(
+				msg("upload_too_many_changes", { count, max: MAX_CHANGESET_CHANGES }),
+			);
+		}
+		this.#history.lock();
+		this.#loader.pause();
+		const uploading = this.#api.upload(this.#history.graph, changesetTags);
+		this.#uploading = uploading;
+		try {
+			const result = await uploading;
+			this.#generation++;
+			this.#loader.reset();
+			this.#selection.remap(result.idMap);
+			this.#history.reset(result.graph);
+			return {
+				changesetId: result.changesetId,
+				notDeleted: result.notDeleted,
+			};
+		} finally {
+			this.#uploading = null;
+			this.#history.unlock();
+			this.#loader.resume();
+		}
 	}
 
 	#receive(entities: Entity[]): void {

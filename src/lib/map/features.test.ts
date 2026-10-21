@@ -243,11 +243,62 @@ describe("buildFeatures", () => {
 	it("lists the levels present in the data, including levels inside ranges", () => {
 		const entities = [
 			...square(1, 0, 0),
-			way("w1", ring(1), { building: "yes", "building:levels": "3" }),
+			way("w1", ring(1), { indoor: "area", level: "0-2" }),
 			node("n5", { amenity: "toilets", level: "0.5" }),
 			node("n6", { amenity: "toilets", level: "-1" }),
 		];
 		expect(featuresOf(entities).levels).toEqual([-1, 0, 0.5, 1, 2]);
+	});
+
+	it("draws a building on its building:levels without listing them", () => {
+		const entities = [
+			...square(1, 0, 0),
+			way("w1", ring(1), { building: "yes", "building:levels": "25" }),
+			node("n5", { amenity: "toilets", level: "0" }),
+			node("n6", { amenity: "toilets", level: "1" }),
+		];
+		const { levels } = featuresOf(entities);
+		expect(levels).toEqual([0, 1]);
+		expect(feature(entities, "w1")?.properties["@lv"]).toBe(";0;1;");
+	});
+
+	it("draws a bare multipolygon (tags on its outer way) once, as that way", () => {
+		const entities = [
+			...square(1, 0, 0),
+			way("w1", ring(1), { indoor: "room", level: "0" }),
+			relation("r1", [{ ref: "w1", role: "outer" }], { type: "multipolygon" }),
+		];
+		const ids = featuresOf(entities).collection.features.map(
+			(f) => f.properties["@id"],
+		);
+		expect(ids).toEqual(["w1"]);
+	});
+
+	it("puts a vertex without level on its ways' levels", () => {
+		const entities = [
+			...square(1, 0, 0),
+			...square(2, 5, 0),
+			node("n5", { door: "hinged" }, [0, -1]),
+			way("w1", ["n11", "n5", "n12", "n13", "n14", "n11"], {
+				indoor: "room",
+				level: "1",
+			}),
+			way("w2", [...ring(2).slice(0, 2), "n5", ...ring(2).slice(2)], {
+				indoor: "corridor",
+				level: "2",
+			}),
+			// On the building outline only: still shown on every level.
+			node("n6", { entrance: "main" }, [1, 1]),
+			way("w3", ["n13", "n6", "n14"], {
+				building: "yes",
+				"building:levels": "3",
+			}),
+			node("n7", { door: "yes", level: "0" }, [-1, 0]),
+			way("w4", ["n14", "n7", "n11"], { indoor: "wall", level: "1" }),
+		];
+		expect(feature(entities, "n5")?.properties["@lv"]).toBe(";1;2;");
+		expect(feature(entities, "n6")?.properties["@lv"]).toBe("*");
+		expect(feature(entities, "n7")?.properties["@lv"]).toBe(";0;");
 	});
 });
 
