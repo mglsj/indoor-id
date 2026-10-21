@@ -41,7 +41,11 @@ export function floorPlanMode({
 			return {
 				cursor: GRAB_CURSORS[grab.kind],
 				move: (to) => floorplans.preview(plan.id, dragTo(plan, grab, to)),
-				end: () => floorplans.commitPlacement(plan.id),
+				end: (to) => {
+					// Where released: the last move may not have been drawn yet.
+					floorplans.preview(plan.id, dragTo(plan, grab, to));
+					floorplans.commitPlacement(plan.id);
+				},
 				cancel: () => floorplans.preview(plan.id, plan.transform),
 			};
 		},
