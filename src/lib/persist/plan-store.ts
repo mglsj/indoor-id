@@ -20,6 +20,7 @@ import type {
 } from "#lib/floorplans/georef.ts";
 import type { Tile } from "#lib/floorplans/tiling.ts";
 import type { VectorContent } from "#lib/floorplans/vector.ts";
+import { MessageError, msg } from "#lib/i18n/messages.ts";
 
 /** A plan's settings: everything but its content. */
 export interface StoredPlan {
@@ -155,30 +156,59 @@ export class IndexedDbPlanStore implements PlanStore {
 		this.#name = name;
 	}
 
+	/**
+	 * The database, opened on first use. An open blocked by another tab holding an older
+	 * version fails at once (the user is asked to close it) rather than waiting; a newer tab
+	 * asking for an upgrade gets the database closed (opened again on the next call); a failed
+	 * open is not kept, so the next call tries again.
+	 */
 	#open(): Promise<IDBPDatabase<Schema>> {
-		this.#db ??= openDB<Schema>(this.#name, 4, {
-			// Each store is made if missing, whatever version the database says it is at:
-			// version 2 added "settings", version 3 the content stores. "images" stays for the
-			// plans not converted yet; version 4 added "vectors".
-			upgrade(db) {
-				const stores = db.objectStoreNames;
-				if (!stores.contains("plans")) {
-					db.createObjectStore("plans", { keyPath: "id" });
-				}
-				for (const store of [
-					"images",
-					"settings",
-					"rasters",
-					"tiles",
-					"originals",
-					"thumbnails",
-					"vectors",
-				] as const) {
-					if (!stores.contains(store)) db.createObjectStore(store);
-				}
-			},
+		if (this.#db) return this.#db;
+		let gaveUp = false;
+		const opening = new Promise<IDBPDatabase<Schema>>((resolve, reject) => {
+			openDB<Schema>(this.#name, 4, {
+				// Each store is made if missing, whatever version the database says it is at:
+				// version 2 added "settings", version 3 the content stores. "images" stays for the
+				// plans not converted yet; version 4 added "vectors".
+				upgrade(db) {
+					const stores = db.objectStoreNames;
+					if (!stores.contains("plans")) {
+						db.createObjectStore("plans", { keyPath: "id" });
+					}
+					for (const store of [
+						"images",
+						"settings",
+						"rasters",
+						"tiles",
+						"originals",
+						"thumbnails",
+						"vectors",
+					] as const) {
+						if (!stores.contains(store)) db.createObjectStore(store);
+					}
+				},
+				blocked: () => {
+					gaveUp = true;
+					reject(new MessageError(msg("plan_storage_blocked")));
+				},
+				blocking: () => {
+					void opening.then((db) => db.close());
+					if (this.#db === opening) this.#db = undefined;
+				},
+				terminated: () => {
+					if (this.#db === opening) this.#db = undefined;
+				},
+			}).then((db) => {
+				// Opened once the other tab let go, after this one gave up: the next call opens again.
+				if (gaveUp) db.close();
+				else resolve(db);
+			}, reject);
 		});
-		return this.#db;
+		this.#db = opening;
+		opening.catch(() => {
+			if (this.#db === opening) this.#db = undefined;
+		});
+		return opening;
 	}
 
 	async load(): Promise<StoredPlan[]> {

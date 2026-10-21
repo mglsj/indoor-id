@@ -22,6 +22,7 @@
 	"plan_tool_pivot_on_plan": "Click on the plan to pick the centre of rotation.",
 	"plan_storage_restore_failed": "Saved floor plans could not be restored: {error}",
 	"plan_storage_save_failed": "Floor plans could not be saved in this browser: {error}",
+	"plan_storage_blocked": "IndoorID is open in another tab with an older version: close that tab, then reload this one.",
 	"plan_import_unsupported": "IndoorID can import PNG, JPEG, WebP, SVG and PDF plans, and plan files (.zip, or .json from earlier versions).",
 	"plan_import_map_not_ready": "The map is not ready yet.",
 	"plan_import_image_unreadable": "This image could not be read.",
