@@ -57,10 +57,7 @@
 	},
 	"overrides": [
 		{
-			"includes": [
-				"**/*.test.ts",
-				"tests/**"
-			],
+			"includes": ["**/*.test.ts", "tests/**"],
 			"linter": {
 				"rules": {
 					"style": {
@@ -70,10 +67,7 @@
 			}
 		},
 		{
-			"includes": [
-				"src/lib/components/shadcn/**",
-				"src/lib/utils.ts"
-			],
+			"includes": ["src/lib/components/shadcn/**", "src/lib/utils.ts"],
 			"linter": {
 				"rules": {
 					"a11y": {
