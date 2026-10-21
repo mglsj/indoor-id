@@ -20,7 +20,20 @@ export interface MapLoaderOptions {
 	readonly concurrency?: number;
 	/** Areas needing more tiles are skipped: the view is zoomed out too far. */
 	readonly maxTiles?: number;
+	/**
+	 * Whether a download failed because the area holds too much data (OSM's 400 for more than
+	 * 50,000 nodes): the tile is then downloaded as its four quarters.
+	 */
+	readonly tooLarge?: (error: unknown) => boolean;
+	/** Tiles aren't split past this zoom. */
+	readonly maxSplitZoom?: number;
+	/** The time in milliseconds (`Date.now` by default), for the backoff of failed tiles. */
+	readonly now?: () => number;
 }
+
+/** The first wait before a failed tile is downloaded again, doubled after each failure. */
+const FIRST_BACKOFF_MS = 1000;
+const MAX_BACKOFF_MS = 60_000;
 
 export interface LoadResult {
 	/** Tiles that failed; they are retried on the next load. */
@@ -32,6 +45,10 @@ export interface LoadResult {
 export class MapLoader {
 	readonly #options: Required<MapLoaderOptions>;
 	readonly #loaded = new Set<string>();
+	/** Tiles too large to download whole: their quarters are downloaded instead. */
+	readonly #split = new Set<string>();
+	/** Failed tiles, and when they may be downloaded again. */
+	readonly #failures = new Map<string, { count: number; until: number }>();
 	readonly #pending = new Map<string, Promise<boolean>>();
 	readonly #waiting: (() => void)[] = [];
 	#active = 0;
@@ -52,6 +69,9 @@ export class MapLoader {
 			concurrency: options.concurrency ?? 4,
 			maxTiles: options.maxTiles ?? 64,
 			schedule: options.schedule ?? nextFrame,
+			tooLarge: options.tooLarge ?? isBadRequest,
+			maxSplitZoom: options.maxSplitZoom ?? 19,
+			now: options.now ?? Date.now,
 		};
 	}
 
@@ -99,8 +119,14 @@ export class MapLoader {
 	#loadTile(tile: Tile): Promise<boolean> {
 		const key = `${tile.z}/${tile.x}/${tile.y}`;
 		if (this.#loaded.has(key)) return Promise.resolve(true);
+		if (this.#split.has(key)) return this.#loadQuarters(tile);
 		const pending = this.#pending.get(key);
 		if (pending) return pending;
+		// Failed lately: not asked again on every move.
+		const failure = this.#failures.get(key);
+		if (failure && this.#options.now() < failure.until) {
+			return Promise.resolve(false);
+		}
 
 		const loading = this.#download(tile, key).finally(() =>
 			this.#pending.delete(key),
@@ -119,16 +145,41 @@ export class MapLoader {
 					generation = this.#generation;
 					return this.#options.download(tileBounds(tile));
 				});
-			} catch {
+			} catch (error) {
 				if (generation !== this.#generation) continue;
+				if (
+					tile.z < this.#options.maxSplitZoom &&
+					this.#options.tooLarge(error)
+				) {
+					this.#split.add(key);
+					return this.#loadQuarters(tile);
+				}
+				const count = (this.#failures.get(key)?.count ?? 0) + 1;
+				const wait = Math.min(
+					FIRST_BACKOFF_MS * 2 ** (count - 1),
+					MAX_BACKOFF_MS,
+				);
+				this.#failures.set(key, { count, until: this.#options.now() + wait });
 				return false;
 			}
 			// Asked for before a reset: the answer may hold what the new base deleted.
 			if (generation !== this.#generation) continue;
+			this.#failures.delete(key);
 			this.#loaded.add(key);
 			this.#arrive(key, entities);
 			return true;
 		}
+	}
+
+	/** A tile too large, as its four quarters: true once all four are in. */
+	async #loadQuarters({ x, y, z }: Tile): Promise<boolean> {
+		const quarters = [0, 1].flatMap((dy) =>
+			[0, 1].map((dx) => ({ x: 2 * x + dx, y: 2 * y + dy, z: z + 1 })),
+		);
+		const results = await Promise.all(
+			quarters.map((quarter) => this.#loadTile(quarter)),
+		);
+		return results.every(Boolean);
 	}
 
 	#arrive(key: string, entities: Entity[]): void {
@@ -159,6 +210,10 @@ export class MapLoader {
 			this.#waiting.shift()?.();
 		}
 	}
+}
+
+function isBadRequest(error: unknown): boolean {
+	return (error as { status?: unknown } | null)?.status === 400;
 }
 
 function nextFrame(run: () => void): void {

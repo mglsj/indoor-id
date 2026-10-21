@@ -38,5 +38,6 @@
 	"login_cancelled": "Login cancelled.",
 	"login_popup_closed": "The login window was closed before you logged in.",
 	"login_timed_out": "Logging in took too long. Try again.",
-	"upload_too_many_changes": "{count} features changed: a changeset takes at most {max}. Upload part of your edits first."
+	"upload_too_many_changes": "{count} features changed: a changeset takes at most {max}. Upload part of your edits first.",
+	"upload_not_deleted": "OpenStreetMap kept {count} of the features you deleted, because other data still uses them: {ids}. They are back on the map."
 }

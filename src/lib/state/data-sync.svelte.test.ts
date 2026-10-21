@@ -78,7 +78,10 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 			msg("undo_change_tags"),
 		);
 		selection.select("n-1");
-		expect(await sync.upload({ comment: "Benches" })).toBe(42);
+		expect(await sync.upload({ comment: "Benches" })).toEqual({
+			changesetId: 42,
+			notDeleted: [],
+		});
 		expect(history.graph).toBe(uploaded);
 		expect(history.canUndo).toBe(false);
 		expect(selection.ids).toEqual(["n100"]);
@@ -120,7 +123,7 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 		for (const answer of answers.splice(0))
 			answer([node("n1", {}, [2.35, 48.85])]);
 		finish(7);
-		expect(await uploading).toBe(7);
+		expect((await uploading).changesetId).toBe(7);
 		expect(history.locked).toBe(false);
 		await new Promise((r) => setTimeout(r, 0));
 		expect(history.graph.entity("n1")).toBeUndefined();

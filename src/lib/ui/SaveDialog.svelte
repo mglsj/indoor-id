@@ -35,7 +35,7 @@
 		| { kind: "form" }
 		| { kind: "signing-in"; cancel: AbortController }
 		| { kind: "uploading" }
-		| { kind: "done"; changesetId: number }
+		| { kind: "done"; changesetId: number; notDeleted: readonly string[] }
 		| { kind: "error"; message: string }
 	>({ kind: "form" });
 
@@ -62,10 +62,10 @@
 				await session.login({ signal: cancel.signal });
 			}
 			phase = { kind: "uploading" };
-			const changesetId = await editor.sync.upload(
+			const { changesetId, notDeleted } = await editor.sync.upload(
 				changesetTags({ comment, source, imagery, reviewRequested }),
 			);
-			phase = { kind: "done", changesetId };
+			phase = { kind: "done", changesetId, notDeleted };
 		} catch (error) {
 			// Cancelled: the form is back already.
 			if (phase.kind === "form") return;
@@ -140,6 +140,19 @@
 					>changeset {phase.changesetId}</a
 				>. Thank you!
 			</p>
+			{#if phase.notDeleted.length > 0}
+				<Alert.Root role="note" aria-label="Deletions kept">
+					<TriangleAlert />
+					<Alert.Description>
+						{t(
+							msg("upload_not_deleted", {
+								count: phase.notDeleted.length,
+								ids: phase.notDeleted.join(", "),
+							}),
+						)}
+					</Alert.Description>
+				</Alert.Root>
+			{/if}
 			<Dialog.Footer>
 				<Button onclick={() => (open = false)}>Close</Button>
 			</Dialog.Footer>

@@ -272,6 +272,15 @@ describe("PresetIndex.changePreset, as iD's actionChangePreset", () => {
 				},
 			),
 			preset(
+				"indoor/area",
+				"Indoor Area",
+				["area"],
+				{ indoor: "area" },
+				{
+					fields: ["name", "min_level", "max_level"],
+				},
+			),
+			preset(
 				"shop/bakery",
 				"Bakery",
 				["point", "area"],
@@ -341,6 +350,8 @@ describe("PresetIndex.changePreset, as iD's actionChangePreset", () => {
 		[
 			field("name", "name"),
 			field("level", "level"),
+			field("min_level", "min_level"),
+			field("max_level", "max_level"),
 			field("opening_hours", "opening_hours"),
 			field("fee", "fee"),
 			field("building_levels", "building:levels"),
@@ -367,6 +378,16 @@ describe("PresetIndex.changePreset, as iD's actionChangePreset", () => {
 				"indoor/corridor",
 			),
 		).toEqual({ indoor: "corridor", level: "0", name: "Hall", ref: "1" });
+	});
+
+	it("keeps every level key, min_level and max_level too, even from a field", () => {
+		expect(
+			change(
+				{ indoor: "area", min_level: "0", max_level: "2" },
+				"indoor/area",
+				"amenity/toilets",
+			),
+		).toEqual({ amenity: "toilets", min_level: "0", max_level: "2" });
 	});
 
 	it("drops values of the old type's fields the new type has no field for", () => {

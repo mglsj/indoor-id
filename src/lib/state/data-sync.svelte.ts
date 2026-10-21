@@ -6,7 +6,7 @@ import { MAX_CHANGESET_CHANGES } from "#lib/api/changeset.ts";
 import { MapLoader, type MapLoaderOptions } from "#lib/api/map-loader.ts";
 import type { Bbox, OsmApi } from "#lib/api/osm-api.ts";
 import { MessageError, msg } from "#lib/i18n/messages.ts";
-import type { Entity, RelationId } from "#lib/osm/entity.ts";
+import type { Entity, EntityId, RelationId } from "#lib/osm/entity.ts";
 import type { Tags } from "#lib/osm/tags.ts";
 import type { EditHistory } from "./edit-history.svelte.ts";
 import type { Selection } from "./selection.svelte.ts";
@@ -18,6 +18,16 @@ export type LoadStatus =
 	| { readonly kind: "zoom-in" }
 	/** Some tiles failed; they are retried on the next move. */
 	| { readonly kind: "error"; readonly failed: number };
+
+/** What an upload did. */
+export interface UploadSummary {
+	readonly changesetId: number;
+	/**
+	 * Deleted features the server kept, because other data still uses them (OSM's
+	 * `if-unused`): they are back in the data.
+	 */
+	readonly notDeleted: readonly EntityId[];
+}
 
 export type SyncApi = Pick<OsmApi, "loadMap" | "loadRelation" | "upload">;
 
@@ -93,11 +103,11 @@ export class DataSync {
 
 	/**
 	 * Uploads the edits in one changeset, then starts a new history from the server's state.
-	 * Returns the changeset id. On failure the edits are kept. Edits and downloads wait
+	 * Returns the changeset id and the deletions the server kept. On failure the edits are kept. Edits and downloads wait
 	 * meanwhile: the upload sends the graph as it was, and downloads asked for before it are
 	 * dropped and made again once it is done.
 	 */
-	async upload(changesetTags: Tags): Promise<number> {
+	async upload(changesetTags: Tags): Promise<UploadSummary> {
 		if (this.#uploading) throw new Error("An upload is already under way");
 		const count = this.#history.editCount;
 		if (count > MAX_CHANGESET_CHANGES) {
@@ -115,7 +125,10 @@ export class DataSync {
 			this.#loader.reset();
 			this.#selection.remap(result.idMap);
 			this.#history.reset(result.graph);
-			return result.changesetId;
+			return {
+				changesetId: result.changesetId,
+				notDeleted: result.notDeleted,
+			};
 		} finally {
 			this.#uploading = null;
 			this.#history.unlock();

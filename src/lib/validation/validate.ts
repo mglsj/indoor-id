@@ -128,7 +128,10 @@ function levelIssues(entity: Entity): Issue[] {
 	const repeatOn = entity.tags.repeat_on
 		? parseLevels(entity.tags.repeat_on)
 		: null;
-	if (isVertical(entity.tags) && level && repeatOn) {
+	// SIT: a stair or elevator door is one node with repeat_on, not a level list.
+	const opening =
+		entity.tags.door !== undefined || entity.tags.entrance !== undefined;
+	if (isVertical(entity.tags) && !opening && level && repeatOn) {
 		const { repeat_on: _, ...rest } = entity.tags;
 		const tags = {
 			...rest,
