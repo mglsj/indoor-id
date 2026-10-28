@@ -1241,6 +1241,9 @@ test("puts a plan back as it was when Edit was pressed on Cancel", async ({
 test("asks to save or discard a plan's changes when closing floor plans", async ({
 	page,
 }) => {
+	// Three rounds (keep editing, discard, save and reload) while the worker still encodes the
+	// imported plan's tiles: 22–27 s of the default 30 under SwiftShader, so it timed out.
+	test.slow();
 	await importPlan(page, "plan.png");
 	const plan = await importedPlanBox(page);
 	const moved = {
