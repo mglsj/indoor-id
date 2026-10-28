@@ -89,3 +89,63 @@ test("dragging a corner shared by rooms on two levels says what it moves", async
 	await expect(page.getByTestId("drag-hint")).toBeHidden();
 	await expect(page.getByTestId("edit-count")).toHaveText("1");
 });
+
+test("an area is drawn corner by corner, then its type is picked", async ({
+	page,
+}) => {
+	await serveOsm(page, []);
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	await page.getByRole("button", { name: "Draw area" }).click();
+	await expect(page.getByTestId("draw-hint")).toBeVisible();
+	await page.mouse.click(x - 100, y - 100);
+	await page.mouse.click(x + 100, y - 100);
+	await page.mouse.click(x + 100, y + 100);
+	// Back on the first corner: the area closes.
+	await page.mouse.click(x - 100, y - 100);
+	await expect(page.getByTestId("edit-count")).toHaveText("4");
+	await expect(page.getByTestId("draw-hint")).toBeHidden();
+	await expect(
+		page.getByRole("heading", { name: "Select feature type" }),
+	).toBeVisible();
+
+	await page.getByRole("button", { name: "Undo" }).click();
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+});
+
+test("a line is finished with Enter, and Escape stops a drawing too short", async ({
+	page,
+}) => {
+	await serveOsm(page, []);
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	await page.keyboard.press("2");
+	await page.mouse.click(x - 100, y);
+	await page.keyboard.press("Escape");
+	await expect(page.getByTestId("draw-hint")).toBeHidden();
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+
+	await page.keyboard.press("2");
+	await page.mouse.click(x - 100, y);
+	await page.mouse.click(x + 100, y);
+	await page.keyboard.press("Enter");
+	await expect(page.getByTestId("edit-count")).toHaveText("3");
+});
+
+test("a point on a room's side becomes a door", async ({ page }) => {
+	await serveOsm(page, room(100, LON, LAT, "0"));
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	await mapDrawn(page);
+	const { x, y } = await mapCenter(page);
+	await page.getByRole("button", { name: "Draw point" }).click();
+	// Just off the room's west side: it snaps onto it.
+	await page.mouse.click(x - HALF_WIDTH + 3, y + 40);
+	// The new door and the room it was put in.
+	await expect(page.getByTestId("edit-count")).toHaveText("2");
+	await expect(
+		page.getByRole("button", { name: /^Indoor Door, change feature type/ }),
+	).toBeVisible();
+});

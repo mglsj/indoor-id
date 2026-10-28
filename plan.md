@@ -35,7 +35,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | R3    | Fixes from the October audit               | Done        |
 | W     | Wiki conformance                           | Done        |
 | L     | Level names in the switcher                | Done        |
-| P5.3  | Geometry editing                           | Slices 1–3 done |
+| P5.3  | Geometry editing                           | Slices 1–4 done |
 | V     | Viewer mode                                | Not started |
 | 3D    | 3D floors                                  | Not started |
 | P5.4  | Autosave and conflicts                     | Not started |
@@ -1159,7 +1159,7 @@ doesn't disappear but falls back to stepping by one without a list, since the ed
 to start mapping a building (V can hide it). `non_existent_levels` is read on building
 outlines only, not on `building:part`.
 
-### P5.3: Geometry editing — L — slices 1–3 done
+### P5.3: Geometry editing — L — slices 1–4 done
 
 On R1's modes, drag, selection and geometry, and R3's pointer events. Follow iD's layering
 (see "Research and audit"): behaviours (hover, select, drag, draw, lasso, paste) that modes
@@ -1208,7 +1208,24 @@ undo or upload meanwhile wins, downloads keep it) rather than a separate drag so
 made an edit reach the map in 3–5 ms. While a shared vertex is dragged a hint says how many
 features on which levels move ("moves 2 features on levels 0;1"). Browse mode takes the
 overlay: the cursor shows what can be dragged (the way stays hovered), a click on a vertex
-selects it. Not yet: dragging a way or an area whole, drawing (slice 4).
+selects it. Not yet: dragging a way or an area whole.
+
+Done ✅ (slice 4): a Draw group in the toolbar (Point, Line, Area; keys 1, 2, 3 as iD) turns on
+`edit/modes/draw.ts`. `drawWayMode` on `edit/draw-way.ts` (`WayDrawing`): each click adds a
+corner, onto the node it snaps to (shared), onto a side (a new node in every way with that
+side) or a new node; the pointer drags the last side along; a click on the last corner (or an
+area's first), or Enter, finishes; Backspace takes the last corner back; Escape finishes, or
+stops when there are too few corners; switching tool or mode keeps nothing. The way carries
+the shown level (and `area=yes` for an area, which `changePreset` drops for the type picked),
+and the whole drawing is one undo step, previewed as drags are. `drawPointMode` on
+`edit/place-point.ts`, the role-by-snap point tool: on a side of an indoor way a door
+(`indoor=door` + `door=yes`, in every way with that side, no `level`: vertices take their
+ways'), on a building's outline an entrance (`entrance=yes` + `door=yes` + the shown level, in
+the building's ways and the indoor ways along it), on an untagged corner of those ways that
+corner becomes it, on a tagged node that node is selected, elsewhere a point on the shown
+level. A drawing ends selecting the new feature; the Inspector opens on the type list for a new
+feature with only `level` and `area` (iD's new feature). A hint at the bottom says what clicks
+and keys do. Midpoints (slice 4's "vertex at a midpoint") came with slice 3's drag.
 
 Lessons from osm-simple3d-editor's floor plan tools (built 2026-10-26 to 10-28; details in the
 research doc):

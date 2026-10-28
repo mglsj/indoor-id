@@ -1,6 +1,9 @@
 <script lang="ts">
 	import FileImage from "@lucide/svelte/icons/file-image";
+	import MapPin from "@lucide/svelte/icons/map-pin";
+	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
+	import Spline from "@lucide/svelte/icons/spline";
 	import Undo2 from "@lucide/svelte/icons/undo-2";
 	import Upload from "@lucide/svelte/icons/upload";
 	import { type Component, untrack } from "svelte";
@@ -26,6 +29,7 @@
 	import type { MapPoint } from "#lib/edit/mode.ts";
 	import { ModeManager } from "#lib/edit/mode-manager.ts";
 	import { browseMode } from "#lib/edit/modes/browse.ts";
+	import { drawPointMode, drawWayMode } from "#lib/edit/modes/draw.ts";
 	import {
 		floorPlanMode,
 		floorPlanToolMode,
@@ -35,9 +39,10 @@
 	import { workerCodec } from "#lib/floorplans/codec.ts";
 	import { groundDistance, type LngLat } from "#lib/floorplans/georef.ts";
 	import { planDecoders } from "#lib/floorplans/import.ts";
-	import { type Message, t } from "#lib/i18n/messages.ts";
+	import { type Message, msg, t } from "#lib/i18n/messages.ts";
 	import { setBackground } from "#lib/map/background.ts";
 	import { EditOverlay } from "#lib/map/edit-overlay.ts";
+	import type { Segment } from "#lib/map/feature-store.ts";
 	import {
 		FloorPlanLayers,
 		PlanToolLayer,
@@ -135,6 +140,7 @@
 
 	function setPlanMode(on: boolean) {
 		planMode = on;
+		drawing = null;
 		if (on) editor.select(null);
 		// Locks the plan in Edit: callers ask first about unsaved changes (closePlanMode).
 		else floorplans.cancel();
@@ -193,9 +199,36 @@
 		if (map) void setBackground(map, entry);
 	}
 
+	/** The drawing tool on (P5.3.4), or null when browsing. */
+	let drawing = $state<"point" | "line" | "area" | null>(null);
+
+	/** Turns a drawing tool on, or off when it is on already. */
+	function draw(kind: "point" | "line" | "area") {
+		drawing = drawing === kind ? null : kind;
+		if (drawing) editor.select(null);
+	}
+
+	/** A drawing ended: back to browsing, the new feature selected for its type to be picked. */
+	function drawingEnded(id: EntityId | null) {
+		drawing = null;
+		if (id) editor.select(id);
+	}
+
+	const DRAW_HINTS = {
+		point: msg("draw_point_hint"),
+		line: msg("draw_line_hint"),
+		area: msg("draw_area_hint"),
+	};
+
 	/** What the map's clicks, drags and keys do now (see `edit/modes`). */
 	const modeKind = $derived(
-		!planMode ? "browse" : floorplans.tool ? "floorplan-tool" : "floorplan",
+		planMode
+			? floorplans.tool
+				? "floorplan-tool"
+				: "floorplan"
+			: drawing
+				? `draw-${drawing}`
+				: "browse",
 	);
 	let modes = $state.raw<ModeManager>();
 
@@ -270,48 +303,77 @@
 		const manager = new ModeManager(instance);
 		modes = manager;
 		$effect(() => {
-			switch (modeKind) {
-				case "browse":
-					manager.setMode(
-						browseMode({
-							hitTest: (point) => indoor.hitTest(point),
-							select: (id) => editor.select(id as EntityId | null),
-							hover: (id) => editor.selection.setHover(id as EntityId | null),
-							draggable: (point) => grabAt(point) !== null,
-							vertexAt: (point) => {
-								const grab = overlay.grabAt(point);
-								return grab?.kind === "vertex" ? grab.id : null;
-							},
-							drag: (at) => {
-								const grab = grabAt(at.point);
-								return (
-									grab &&
-									nodeDrag(grab, {
-										history: editor.history,
-										snap: snapNode,
-										onhint: (hint) => (dragHint = hint),
-									})
-								);
-							},
-						}),
-					);
-					break;
-				case "floorplan":
-					manager.setMode(
-						floorPlanMode({ map: instance, floorplans, close: closePlanMode }),
-					);
-					break;
-				case "floorplan-tool":
-					manager.setMode(
-						floorPlanToolMode({
-							floorplans,
-							snap,
-							onmessage: (message) => (toolMessage = message),
-							onpointer: (at) => (pointer = at),
-						}),
-					);
-					break;
-			}
+			// Only the kind decides: a mode reads the graph and level as they are when it starts.
+			const kind = modeKind;
+			untrack(() => {
+				switch (kind) {
+					case "browse":
+						manager.setMode(
+							browseMode({
+								hitTest: (point) => indoor.hitTest(point),
+								select: (id) => editor.select(id as EntityId | null),
+								hover: (id) => editor.selection.setHover(id as EntityId | null),
+								draggable: (point) => grabAt(point) !== null,
+								vertexAt: (point) => {
+									const grab = overlay.grabAt(point);
+									return grab?.kind === "vertex" ? grab.id : null;
+								},
+								drag: (at) => {
+									const grab = grabAt(at.point);
+									return (
+										grab &&
+										nodeDrag(grab, {
+											history: editor.history,
+											snap: snapNode,
+											onhint: (hint) => (dragHint = hint),
+										})
+									);
+								},
+							}),
+						);
+						break;
+					case "draw-point":
+						manager.setMode(
+							drawPointMode({
+								history: editor.history,
+								level,
+								snap: snapNode,
+								onfinish: drawingEnded,
+							}),
+						);
+						break;
+					case "draw-line":
+					case "draw-area":
+						manager.setMode(
+							drawWayMode(kind === "draw-line" ? "line" : "area", {
+								history: editor.history,
+								level,
+								snap: snapNode,
+								onfinish: drawingEnded,
+							}),
+						);
+						break;
+					case "floorplan":
+						manager.setMode(
+							floorPlanMode({
+								map: instance,
+								floorplans,
+								close: closePlanMode,
+							}),
+						);
+						break;
+					case "floorplan-tool":
+						manager.setMode(
+							floorPlanToolMode({
+								floorplans,
+								snap,
+								onmessage: (message) => (toolMessage = message),
+								onpointer: (at) => (pointer = at),
+							}),
+						);
+						break;
+				}
+			});
 		});
 		return () => {
 			modes = undefined;
@@ -375,6 +437,7 @@
 	function snapNode(
 		at: MapPoint,
 		exclude: ReadonlySet<NodeId>,
+		keepSide: (side: Segment) => boolean = () => true,
 	): SnapTarget | null {
 		if (!map || at.altKey) return null;
 		const area = areaAround(at.point, unprojectPoint);
@@ -386,7 +449,9 @@
 					.filter((n) => !exclude.has(n.id)),
 				segments: editor.features
 					.segmentsNear(area, level)
-					.filter((s) => !exclude.has(s.a.id) && !exclude.has(s.b.id)),
+					.filter(
+						(s) => !exclude.has(s.a.id) && !exclude.has(s.b.id) && keepSide(s),
+					),
 				planVertices: floorplans.verticesNear(area, level),
 			},
 			projectLoc,
@@ -537,6 +602,9 @@
 	const mac = isMac();
 	/** Shortcuts that apply in every mode but floor plan mode (OSM edits can't be seen there). */
 	const SHORTCUTS = [
+		{ combo: "1", run: () => draw("point") },
+		{ combo: "2", run: () => draw("line") },
+		{ combo: "3", run: () => draw("area") },
 		{ combo: "Mod+Z", run: () => editor.history.undo() },
 		{ combo: "Mod+Shift+Z", run: () => editor.history.redo() },
 		{ combo: "Mod+Y", run: () => editor.history.redo() },
@@ -610,6 +678,33 @@
 			{/snippet}
 		</Tooltip.Trigger>
 		<Tooltip.Content side="bottom">{hint}</Tooltip.Content>
+	</Tooltip.Root>
+{/snippet}
+
+{#snippet drawButton(
+	kind: "point" | "line" | "area",
+	label: string,
+	key: string,
+	Icon: Component,
+)}
+	<Tooltip.Root>
+		<Tooltip.Trigger onclick={() => draw(kind)}>
+			{#snippet child({
+				props,
+			})}
+				<Button
+					{...props}
+					variant={drawing === kind ? "secondary" : "outline"}
+					size="icon"
+					aria-label={`Draw ${label.toLowerCase()}`}
+					aria-pressed={drawing === kind}
+					disabled={editor.history.locked}
+				>
+					<Icon />
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="bottom">{label} ({key})</Tooltip.Content>
 	</Tooltip.Root>
 {/snippet}
 
@@ -708,6 +803,13 @@
 				</Button>
 			</ButtonGroup.Root>
 		</div>
+		<div class="rounded-md bg-background shadow-md">
+			<ButtonGroup.Root aria-label="Draw">
+				{@render drawButton("point", "Point", "1", MapPin)}
+				{@render drawButton("line", "Line", "2", Spline)}
+				{@render drawButton("area", "Area", "3", Pentagon)}
+			</ButtonGroup.Root>
+		</div>
 	{/if}
 	<ImageryPicker
 		center={camera && [camera.lon, camera.lat]}
@@ -743,6 +845,16 @@
 		]}
 	>
 		{statusMessage}
+	</p>
+{/if}
+
+{#if drawing && !dragHint}
+	<p
+		role="status"
+		data-testid="draw-hint"
+		class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+	>
+		{t(DRAW_HINTS[drawing])}
 	</p>
 {/if}
 
