@@ -4,7 +4,7 @@
 	"description": "Web tool for editing OpenStreetMap building indoors data",
 	"private": true,
 	"type": "module",
-	"license": "MIT",
+	"license": "ISC",
 	"author": "mglsj",
 	"repository": {
 		"type": "git",

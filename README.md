@@ -38,4 +38,6 @@ Copyright (c) Adrien Pavie 2019
 
 Copyright (c) Daimler AG 2019
 
+Copyright (c) IndoorID contributors 2026
+
 Released under ISC license, see [LICENSE](LICENSE.md) for complete license text.
