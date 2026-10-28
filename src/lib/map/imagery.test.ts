@@ -75,6 +75,31 @@ describe("rasterSource", () => {
 		]);
 	});
 
+	it("asks Esri for missing tiles rather than its placeholder picture", () => {
+		const esri = (url: string) => rasterSource(tms({ url }).properties)?.tiles;
+		expect(
+			esri(
+				"https://{switch:services,server}.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{zoom}/{y}/{x}",
+			),
+		).toEqual([
+			"https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false",
+			"https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false",
+		]);
+		expect(
+			esri(
+				"https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{zoom}/{y}/{x}?token=x",
+			),
+		).toEqual([
+			"https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=x&blankTile=false",
+		]);
+		const kept =
+			"https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{zoom}/{y}/{x}?blankTile=true";
+		expect(esri(kept)).toEqual([kept.replace("{zoom}", "{z}")]);
+		expect(
+			esri("https://tiles.example.org/MapServer/tile/{zoom}/{y}/{x}"),
+		).toEqual(["https://tiles.example.org/MapServer/tile/{z}/{y}/{x}"]);
+	});
+
 	it("converts a WMS template in Web Mercator", () => {
 		const source = rasterSource({
 			id: "wms",
