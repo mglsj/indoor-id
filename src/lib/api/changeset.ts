@@ -12,6 +12,11 @@ export interface ChangesetDescription {
 	readonly source?: string;
 	/** Names of the imagery shown while editing. */
 	readonly imagery: readonly string[];
+	/**
+	 * Whether floor plans were shown: tagged as custom imagery (OSM wiki), never by their file
+	 * names, which can carry private details.
+	 */
+	readonly floorPlans?: boolean;
 	readonly reviewRequested: boolean;
 }
 
@@ -22,8 +27,17 @@ export function changesetTags(description: ChangesetDescription): Tags {
 		if (v) tags[key] = v.slice(0, MAX_LENGTH);
 	};
 	set("comment", description.comment);
-	set("source", description.source);
-	set("imagery_used", description.imagery.join(";"));
+	const custom = description.floorPlans ?? false;
+	set(
+		"source",
+		[description.source?.trim(), custom ? "custom imagery" : undefined]
+			.filter(Boolean)
+			.join(";"),
+	);
+	set(
+		"imagery_used",
+		[...description.imagery, ...(custom ? ["Custom"] : [])].join(";"),
+	);
 	set(
 		"hashtags",
 		(description.comment.match(/#[\p{L}\p{N}_-]+/gu) ?? []).join(";"),

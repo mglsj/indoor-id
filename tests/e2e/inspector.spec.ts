@@ -190,6 +190,19 @@ test("flags a level value it can't read", async ({ page }) => {
 	);
 });
 
+test("sets a missing level to the one the map shows", async ({ page }) => {
+	const elements = room(100, LON, LAT, "0");
+	const way = elements.at(-1) as { tags: Record<string, string> };
+	way.tags = { indoor: "room" };
+	const editor = await selectRoom(page, {}, elements);
+	const issues = editor.getByRole("region", { name: "Issues" });
+	await expect(issues).toContainText("has no level");
+
+	await issues.getByRole("button", { name: "Set level=0" }).click();
+	await expect(await tagsBox(page)).toHaveValue("indoor=room\nlevel=0");
+	await expect(issues).toBeHidden();
+});
+
 test("lays the editor out in iD's sections", async ({ page }) => {
 	const elements = room(100, LON, LAT, "0");
 	Object.assign(elements.at(-1) as object, {

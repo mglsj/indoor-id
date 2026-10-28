@@ -4,22 +4,37 @@
  */
 import { changeTags } from "#lib/actions/change-tags.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
+import { featureLevels, unionOfLevels } from "#lib/levels/feature-levels.ts";
 import {
 	formatLevels,
+	isOnLevel,
+	type Levels,
 	normalizeLevels,
 	parseLevels,
 } from "#lib/levels/levels.ts";
-import type { Entity, EntityId } from "#lib/osm/entity.ts";
+import type { Entity, EntityId, Loc, Node, Way } from "#lib/osm/entity.ts";
+import { isClosed, pointInRing } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
 import type { Tags } from "#lib/osm/tags.ts";
+import { Outlines } from "./outlines.ts";
 import { describeTags, type UpgradeRule, upgradeTags } from "./upgrades.ts";
 
 export type IssueRule =
 	| "outdated-tags"
 	| "unreadable-level"
 	| "vertical-repeat-on"
-	| "door-not-on-wall";
+	| "door-not-on-wall"
+	| "room-not-indoor"
+	| "building-part-indoor"
+	| "unknown-inside"
+	| "door-without-type"
+	| "building-passage-level"
+	| "opening-on-several-levels"
+	| "missing-level"
+	| "outer-door-no-entrance"
+	| "entrance-inside"
+	| "one-based-levels";
 
 export interface Issue {
 	/** Stable id, `rule:entity`. */
@@ -28,13 +43,25 @@ export interface Issue {
 	readonly severity: "warning" | "error";
 	readonly entityId: EntityId;
 	readonly message: Message;
-	readonly fix?: { readonly label: Message; readonly action: Action };
+	readonly fix?: Fix;
+	/** A fix that takes the level shown on the map (`missing-level`). */
+	readonly levelFix?: (level: number) => Fix;
 }
 
+export interface Fix {
+	readonly label: Message;
+	readonly action: Action;
+}
+
+/**
+ * The issues of the entities `ids`. Checks that depend on where a feature is use `outlines`
+ * (by default indexed from `graph`; the `Validator` keeps one up to date).
+ */
 export function validate(
 	graph: Graph,
 	ids: Iterable<EntityId>,
 	upgrades: readonly UpgradeRule[],
+	outlines: Outlines = Outlines.of(graph),
 ): Issue[] {
 	const issues: Issue[] = [];
 	for (const id of ids) {
@@ -42,8 +69,12 @@ export function validate(
 		if (!entity) continue;
 		issues.push(
 			...outdatedTags(entity, upgrades),
+			...tagIssues(entity, upgradeTags(entity.tags, upgrades)),
 			...levelIssues(entity),
-			...doorIssues(graph, entity),
+			...openingIssues(entity),
+			...doorIssues(graph, entity, outlines),
+			...missingLevel(graph, entity, outlines),
+			...oneBasedLevels(entity, outlines),
 		);
 	}
 	return issues;
@@ -54,7 +85,7 @@ function issue(
 	rule: IssueRule,
 	entity: Entity,
 	message: Message,
-	fix?: Issue["fix"],
+	fix?: Fix,
 	key?: string,
 ): Issue {
 	return {
@@ -147,10 +178,299 @@ function levelIssues(entity: Entity): Issue[] {
 	return issues;
 }
 
-function doorIssues(graph: Graph, entity: Entity): Issue[] {
-	if (entity.type !== "node" || entity.tags.door === undefined) return [];
-	if (graph.parentWays(entity.id).length > 0) return [];
-	return [issue("door-not-on-wall", entity, msg("issue_door_not_on_wall"))];
+/** How far from the building's outline a door counts as on its outer wall (W). */
+const OUTER_WALL_METRES = 0.3;
+/** How far inside the building an entrance can be before it is an indoor door. */
+const ENTRANCE_METRES = 0.5;
+
+function doorIssues(graph: Graph, entity: Entity, outlines: Outlines): Issue[] {
+	if (entity.type !== "node") return [];
+	const { tags } = entity;
+	const isDoor = tags.door !== undefined || tags.indoor === "door";
+	const issues: Issue[] = [];
+	if (tags.door !== undefined) {
+		const ways = graph.parentWays(entity.id);
+		if (ways.length === 0) {
+			issues.push(
+				issue("door-not-on-wall", entity, msg("issue_door_not_on_wall")),
+			);
+		} else if (ways.every(isWallArea)) {
+			// SIT puts doors on wall lines: routing can't go through an area.
+			issues.push(
+				issue("door-not-on-wall", entity, msg("issue_door_on_wall_area")),
+			);
+		}
+	}
+	if (isDoor && tags.entrance === undefined) {
+		const levels = nodeLevels(graph, entity);
+		const outer = outlines
+			.near(entity.loc, OUTER_WALL_METRES)
+			.some(
+				(o) =>
+					o.building ||
+					(o.indoor === "level" &&
+						(!levels || !o.levels || overlap(levels, o.levels))),
+			);
+		if (outer) {
+			issues.push(
+				issue(
+					"outer-door-no-entrance",
+					entity,
+					msg("issue_outer_door_no_entrance"),
+					{
+						label: msg("fix_add_entrance_yes"),
+						action: changeTags(entity.id, { ...tags, entrance: "yes" }),
+					},
+				),
+			);
+		}
+	}
+	if (tags.entrance === "yes" && isInsideBuilding(entity.loc, outlines)) {
+		const { entrance: _, ...rest } = tags;
+		const door = tags.door ?? "yes";
+		issues.push(
+			issue("entrance-inside", entity, msg("issue_entrance_inside"), {
+				label: msg("fix_entrance_to_door", { door }),
+				action: changeTags(entity.id, { ...rest, indoor: "door", door }),
+			}),
+		);
+	}
+	return issues;
+}
+
+/** A closed `indoor=wall` drawn as an area (the wall preset is a line). */
+function isWallArea(way: Way): boolean {
+	return way.tags.indoor === "wall" && way.tags.area === "yes" && isClosed(way);
+}
+
+/** Inside a building, and more than `ENTRANCE_METRES` from every building's outline. */
+function isInsideBuilding(loc: Loc, outlines: Outlines): boolean {
+	return (
+		outlines.at(loc).some((o) => o.building) &&
+		!outlines.near(loc, ENTRANCE_METRES).some((o) => o.building)
+	);
+}
+
+/** A node's own levels, or those of its ways (a door takes its wall's). */
+function nodeLevels(graph: Graph, node: Node): Levels | null {
+	return (
+		featureLevels(node.tags) ??
+		unionOfLevels(graph.parentWays(node.id).map((w) => featureLevels(w.tags)))
+	);
+}
+
+function overlap(a: Levels, b: Levels): boolean {
+	return a.some((x) => b.some((y) => x.min <= y.max && y.min <= x.max));
+}
+
+/** Whether the tags place a feature on a level (unreadable values have their own issue). */
+function hasLevel(graph: Graph, entity: Entity): boolean {
+	const { tags } = entity;
+	return (
+		tags.level !== undefined ||
+		tags.repeat_on !== undefined ||
+		(tags.min_level !== undefined && tags.max_level !== undefined) ||
+		graph
+			.parentRelations(entity.id)
+			.some(
+				(r) =>
+					(r.tags.type === "multipolygon" || r.tags.type === "level") &&
+					r.tags.level !== undefined,
+			)
+	);
+}
+
+/**
+ * An indoor feature, or a point inside an indoor outline, without a level: it shows on every
+ * level. A vertex is left to its ways' levels. The fix takes the level shown.
+ */
+function missingLevel(
+	graph: Graph,
+	entity: Entity,
+	outlines: Outlines,
+): Issue[] {
+	const { tags } = entity;
+	if (hasLevel(graph, entity)) return [];
+	const indoor = tags.indoor !== undefined && tags.indoor !== "no";
+	if (!indoor) {
+		if (entity.type !== "node" || Object.keys(tags).length === 0) return [];
+		if (graph.parentWays(entity.id).length > 0) return [];
+		if (!outlines.at(entity.loc).some((o) => o.indoor)) return [];
+	} else if (
+		entity.type === "node" &&
+		graph.parentWays(entity.id).some((w) => hasLevel(graph, w))
+	) {
+		return [];
+	}
+	return [
+		{
+			...issue("missing-level", entity, msg("issue_missing_level")),
+			levelFix: (level) => {
+				const value = String(level);
+				return {
+					label: msg("fix_set_level", { level: value }),
+					action: changeTags(entity.id, { ...tags, level: value }),
+				};
+			},
+		},
+	];
+}
+
+/**
+ * A building whose indoor outlines have no level 0 and reach above `building:levels`: its
+ * levels may be numbered from 1. A hint only, as some countries count from 1.
+ */
+function oneBasedLevels(entity: Entity, outlines: Outlines): Issue[] {
+	const count = Number(entity.tags["building:levels"]);
+	if (entity.type !== "way" || !Number.isInteger(count) || count < 1) return [];
+	const self = outlines.get(entity.id);
+	if (!self?.building) return [];
+	const levels = outlines
+		.within(self.extent)
+		.filter((o) => o.indoor && o.levels && inside(o.ring, self.ring))
+		.flatMap((o) => o.levels ?? []);
+	if (levels.length === 0) return [];
+	if (isOnLevel(levels, 0)) return [];
+	if (Math.max(...levels.map((l) => l.max)) < count) return [];
+	return [
+		issue("one-based-levels", entity, msg("issue_one_based_levels", { count })),
+	];
+}
+
+/** Whether a ring's centre (the mean of its corners) is inside another ring. */
+function inside(ring: readonly Loc[], outer: readonly Loc[]): boolean {
+	const corners = ring.slice(0, -1);
+	const centre = [0, 1].map(
+		(i) =>
+			corners.reduce((sum, loc) => sum + (loc[i] ?? 0), 0) / corners.length,
+	);
+	return pointInRing(centre, outer);
+}
+
+const ROOM_SPACES = new Set(["room", "area", "corridor"]);
+
+/**
+ * Indoor tagging mistakes (osm-simple3d-editor's `validateIndoor`), checked on the tags as the
+ * upgrades leave them, so that `room=stairs` is only reported as outdated.
+ */
+function tagIssues(entity: Entity, tags: Tags): Issue[] {
+	const issues: Issue[] = [];
+	const indoor = tags.indoor;
+	const room = tags.room;
+	if (room !== undefined && !(indoor && ROOM_SPACES.has(indoor))) {
+		if (indoor === "wall" || indoor === "column") {
+			issues.push(
+				issue(
+					"room-not-indoor",
+					entity,
+					msg("issue_room_on_wall", { indoor, value: room }),
+				),
+			);
+		} else {
+			issues.push(
+				issue(
+					"room-not-indoor",
+					entity,
+					msg("issue_room_not_indoor", { value: room }),
+					indoor === undefined
+						? {
+								label: msg("fix_add_indoor_room"),
+								action: changeTags(entity.id, {
+									indoor: "room",
+									...entity.tags,
+								}),
+							}
+						: undefined,
+				),
+			);
+		}
+	}
+	if (
+		tags["building:part"] !== undefined &&
+		indoor &&
+		ROOM_SPACES.has(indoor)
+	) {
+		issues.push(
+			issue("building-part-indoor", entity, msg("issue_building_part_indoor")),
+		);
+	}
+	if (tags.inside !== undefined) {
+		issues.push(issue("unknown-inside", entity, msg("issue_unknown_inside")));
+	}
+	if (indoor === "door" && tags.door === undefined) {
+		issues.push(
+			issue("door-without-type", entity, msg("issue_door_without_type"), {
+				label: msg("fix_add_door_yes"),
+				action: changeTags(entity.id, { ...entity.tags, door: "yes" }),
+			}),
+		);
+	}
+	if (tags.tunnel === "building_passage" && tags.level !== undefined) {
+		issues.push(
+			issue(
+				"building-passage-level",
+				entity,
+				msg("issue_building_passage_level"),
+			),
+		);
+	}
+	return issues;
+}
+
+/** Keys of a point that is on one level, repeated on others (SIT's vertical connections). */
+const OPENINGS = ["door", "entrance", "window", "emergency"];
+
+/**
+ * A door, entrance, window or emergency point with several levels in `level`: the lowest stays
+ * in `level`, the others go to `repeat_on`. Left alone when a range can't be listed (`0-0.5`).
+ */
+function openingIssues(entity: Entity): Issue[] {
+	const { level, repeat_on: repeatOn } = entity.tags;
+	if (!OPENINGS.some((key) => entity.tags[key] !== undefined)) return [];
+	const levels = level === undefined ? null : listLevels(level);
+	if (!levels || levels.length < 2) return [];
+	const [lowest, ...others] = levels;
+	const repeated =
+		repeatOn === undefined ? [] : (parseLevels(repeatOn) ?? null);
+	if (repeated === null) return [];
+	const tags = {
+		...entity.tags,
+		level: String(lowest),
+		repeat_on: formatLevels(
+			normalizeLevels([
+				...others.map((l) => ({ min: l, max: l })),
+				...repeated,
+			]),
+		),
+	};
+	return [
+		issue(
+			"opening-on-several-levels",
+			entity,
+			msg("issue_opening_on_several_levels"),
+			{
+				label: msg("fix_set_level_repeat_on", {
+					level: tags.level,
+					repeat_on: tags.repeat_on,
+				}),
+				action: changeTags(entity.id, tags),
+			},
+		),
+	];
+}
+
+/** Every level of a value, sorted, with ranges of whole levels listed; null if it can't be. */
+function listLevels(value: string): number[] | null {
+	const ranges = parseLevels(value);
+	if (!ranges) return null;
+	const levels: number[] = [];
+	for (const { min, max } of ranges) {
+		if (min === max) levels.push(min);
+		else if (Number.isInteger(min) && Number.isInteger(max)) {
+			for (let l = min; l <= max; l++) levels.push(l);
+		} else return null;
+	}
+	return levels;
 }
 
 function only(tags: Tags, keep: (key: string) => boolean): Tags {

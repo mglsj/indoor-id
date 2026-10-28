@@ -15,7 +15,7 @@
 	import type { Preset } from "#lib/presets/presets.ts";
 	import { keySuggestions, valueSuggestions } from "#lib/presets/tag-table.ts";
 	import { presetReference } from "#lib/presets/wiki.ts";
-	import { fix, setPreset } from "#lib/state/commands.ts";
+	import { fix, fixOf, setPreset } from "#lib/state/commands.ts";
 	import { type Editor, getEditor } from "#lib/state/editor.svelte.ts";
 	import FieldsSection from "#lib/ui/FieldsSection.svelte";
 	import InfoButton from "#lib/ui/InfoButton.svelte";
@@ -44,6 +44,8 @@
 		onshow?: (id: EntityId) => void;
 		/** Shown, not edited (P5.3's hover preview): every input and button is disabled. */
 		readonly?: boolean;
+		/** The level shown on the map, for fixes that set a level. */
+		level?: number;
 	}
 
 	let {
@@ -53,6 +55,7 @@
 		onzoom,
 		onshow,
 		readonly = false,
+		level = 0,
 	}: Props = $props();
 	const editor = getEditor();
 
@@ -188,14 +191,15 @@
 								<Alert.Root role="note">
 									<TriangleAlert />
 									<Alert.Description>{t(issue.message)}</Alert.Description>
-									{#if issue.fix}
+									{@const shownFix = fixOf(issue, level)}
+									{#if shownFix}
 										<div class="col-start-2 mt-2">
 											<Button
 												variant="outline"
 												size="xs"
-												onclick={() => fix(editor, issue)}
+												onclick={() => fix(editor, issue, level)}
 											>
-												{t(issue.fix.label)}
+												{t(shownFix.label)}
 											</Button>
 										</div>
 									{/if}
