@@ -120,3 +120,63 @@ test("scrolls a long imagery list inside the window", async ({ page }) => {
 	await last.check();
 	await expect(last).toBeChecked();
 });
+
+test("scales up Esri's last tiles where it has none at this zoom", async ({
+	page,
+}) => {
+	const esri =
+		"https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile";
+	await page.route(INDEX, (route) =>
+		route.fulfill({
+			json: {
+				type: "FeatureCollection",
+				features: [
+					{
+						type: "Feature",
+						geometry: null,
+						properties: {
+							id: "EsriWorldImagery",
+							name: "Esri World Imagery",
+							type: "tms",
+							url: `${esri}/{zoom}/{y}/{x}`,
+							max_zoom: 22,
+						},
+					},
+				],
+			},
+		}),
+	);
+	// Esri has no tiles past zoom 19 here: asked with blankTile=false, it answers 404.
+	const requested: number[] = [];
+	await page.route(`${esri}/**`, (route) => {
+		const url = new URL(route.request().url());
+		expect(url.searchParams.get("blankTile")).toBe("false");
+		const z = Number(url.pathname.split("/").at(-3));
+		requested.push(z);
+		const headers = { "access-control-allow-origin": "*" };
+		return z > 19
+			? route.fulfill({ status: 404, headers })
+			: route.fulfill({
+					headers,
+					contentType: "image/png",
+					// A 1×1 transparent PNG.
+					body: Buffer.from(
+						"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+						"base64",
+					),
+				});
+	});
+	await page.goto("/#20/48.13/-1.69/0");
+	await camera(page);
+
+	await page.getByRole("button", { name: "Background" }).click();
+	const zoom19 = page.waitForResponse(
+		(r) => r.url().startsWith(`${esri}/19/`) && r.ok(),
+	);
+	await page
+		.getByRole("group", { name: "Background imagery" })
+		.getByRole("radio", { name: "Esri World Imagery" })
+		.check();
+	await zoom19;
+	expect(requested).toContain(21);
+});

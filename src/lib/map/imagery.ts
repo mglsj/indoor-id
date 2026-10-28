@@ -126,7 +126,7 @@ export function rasterSource(
 		return null;
 	}
 
-	const tiles = expandSwitch(template);
+	const tiles = expandSwitch(withoutBlankTiles(template));
 	const placeholders = tiles.flatMap((t) => t.match(/\{[^}]*\}/g) ?? []);
 	const supported = new Set([
 		"{z}",
@@ -148,6 +148,20 @@ export function rasterSource(
 	const attribution = attributionHtml(p.attribution);
 	if (attribution) source.attribution = attribution;
 	return source;
+}
+
+/**
+ * Esri answers a tile it has no imagery for with a "Map data not yet available" picture, which
+ * MapLibre would draw. Asked with `blankTile=false`, it answers 404 instead, and MapLibre draws
+ * the nearest lower zoom tile it has, scaled up, as iD does (iD issue #4327).
+ */
+function withoutBlankTiles(template: string): string {
+	const esri =
+		/^https:\/\/[^/]*\barcgis(online)?\.com\/.*\/MapServer\/tile\//i.test(
+			template,
+		);
+	if (!esri || /[?&]blankTile=/i.test(template)) return template;
+	return `${template}${template.includes("?") ? "&" : "?"}blankTile=false`;
 }
 
 /** `https://{switch:a,b}.example.org` → one URL per server. */
