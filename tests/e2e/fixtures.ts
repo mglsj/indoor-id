@@ -92,7 +92,11 @@ export function blend(
 /** Background colour of `blankStyle`. */
 export const BACKGROUND: [number, number, number] = [0xe8, 0xee, 0xf4];
 
-/** Waits until the pixel's colour is within `tolerance` of `expected` on each channel. */
+/**
+ * Waits until the pixel's colour is within `tolerance` of `expected` on each channel. Up to
+ * 20 s: under SwiftShader one frame can take 10 s after a resize (closing the side panel)
+ * while the plan worker is busy, and a screenshot waits for a frame.
+ */
 export async function expectPixel(
 	page: Page,
 	x: number,
@@ -110,7 +114,7 @@ export async function expectPixel(
 					? "match"
 					: actual.join(",");
 			},
-			{ timeout: 10_000 },
+			{ timeout: 20_000 },
 		)
 		.toBe("match");
 }
