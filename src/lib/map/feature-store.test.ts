@@ -256,3 +256,119 @@ describe("FeatureStore without levels", () => {
 		expect(update(empty, graph).byId.has("w1")).toBe(true);
 	});
 });
+
+describe("FeatureStore: the levels in view", () => {
+	const everywhere = { west: -100, south: -100, east: 100, north: 100 };
+	const levels = (
+		graph: Graph,
+		extent = everywhere,
+		store = new FeatureStore(),
+	) => store.update(graph).levelsIn(extent);
+
+	it("lists the levels of the features in view only", () => {
+		const graph = Graph.fromEntities([
+			...square(1, 0, 0),
+			way("w1", ring(1), { indoor: "room", level: "0" }),
+			...square(2, 50, 0),
+			way("w2", ring(2), { indoor: "room", level: "4" }),
+		]);
+		expect(levels(graph).map((e) => e.level)).toEqual([0, 1, 2, 3, 4]);
+		expect(
+			levels(graph, { west: -2, south: -2, east: 2, north: 2 }).map(
+				(e) => e.level,
+			),
+		).toEqual([0]);
+		// Nothing on a level in view: no list.
+		expect(levels(graph, { west: 20, south: 20, east: 30, north: 30 })).toEqual(
+			[],
+		);
+	});
+
+	it("doesn't list a building's building:levels, nor a building alone", () => {
+		const graph = Graph.fromEntities([
+			...square(1, 0, 0),
+			way("w1", ring(1), { building: "yes", "building:levels": "25" }),
+		]);
+		expect(levels(graph)).toEqual([]);
+	});
+
+	it("names levels from indoor=level outlines, then building:levels:ref", () => {
+		const graph = Graph.fromEntities([
+			...square(1, 0, 0),
+			way("w1", ring(1), {
+				building: "yes",
+				"building:levels": "2",
+				"building:levels:underground": "1",
+				"building:levels:ref": "UG;EG;OG",
+			}),
+			...square(2, 0, 0.5),
+			way("w2", ring(2), {
+				indoor: "level",
+				level: "0",
+				"level:ref": "E0",
+				name: "Erdgeschoss",
+			}),
+			...square(3, 0, -0.5),
+			way("w3", ring(3), { indoor: "room", level: "-1" }),
+		]);
+		expect(levels(graph)).toEqual([
+			{ level: -1, ref: "UG" },
+			{ level: 0, ref: "E0", name: "Erdgeschoss" },
+		]);
+	});
+
+	it("takes the names of the building nearest the middle of the view", () => {
+		const building = (prefix: number, x: number, ref: string) => [
+			...square(prefix, x, 0),
+			way(`w${prefix}`, ring(prefix), {
+				building: "yes",
+				"building:levels:ref:equivalent": `${ref}=level 0`,
+			}),
+			...square(prefix + 1, x, 0),
+			way(`w${prefix + 1}`, ring(prefix + 1), { indoor: "room", level: "0" }),
+		];
+		const graph = Graph.fromEntities([
+			...building(1, 0, "A"),
+			...building(3, 10, "B"),
+		]);
+		const view = (x: number) => ({
+			west: x - 12,
+			south: -5,
+			east: x + 12,
+			north: 5,
+		});
+		expect(levels(graph, view(1))).toEqual([{ level: 0, ref: "A" }]);
+		expect(levels(graph, view(9))).toEqual([{ level: 0, ref: "B" }]);
+	});
+
+	it("skips a building's non-existent levels", () => {
+		const graph = Graph.fromEntities([
+			...square(1, 0, 0),
+			way("w1", ring(1), { building: "yes", non_existent_levels: "13" }),
+			...square(2, 0, 0),
+			way("w2", ring(2), {
+				indoor: "room",
+				highway: "elevator",
+				level: "12-14",
+			}),
+		]);
+		expect(levels(graph).map((e) => e.level)).toEqual([12, 14]);
+	});
+
+	it("follows edits", () => {
+		const store = new FeatureStore();
+		const graph = Graph.fromEntities([
+			...square(1, 0, 0),
+			way("w1", ring(1), { indoor: "room", level: "0" }),
+		]);
+		expect(levels(graph, everywhere, store)).toEqual([{ level: 0 }]);
+		const named = graph.replace(
+			way("w1", ring(1), { indoor: "level", level: "1", "level:ref": "M" }),
+		);
+		expect(levels(named, everywhere, store)).toEqual([{ level: 1, ref: "M" }]);
+		const moved = named.replace(node(nid(1, 1), {}, [80, 80]));
+		expect(
+			levels(moved, { west: 70, south: 70, east: 90, north: 90 }, store),
+		).toEqual([{ level: 1, ref: "M" }]);
+	});
+});

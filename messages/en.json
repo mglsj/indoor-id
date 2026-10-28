@@ -34,6 +34,7 @@
 	"issue_entrance_inside": "entrance=* marks a way into the building, but this one is inside it, away from the outer wall.",
 	"fix_entrance_to_door": "Change to indoor=door + door={door}",
 	"issue_one_based_levels": "This building has no level 0 and indoor features above its {count} levels: are its levels numbered from 1? In OSM the ground floor is usually level 0 (some countries count from 1, keep it then).",
+	"issue_non_existent_level": "This building's non_existent_levels says level {level} doesn't exist, so it isn't in the level list. Is the level right?",
 	"plan_tool_click_plan_first": "Click a spot on the plan first.",
 	"plan_tool_measure_on_plan": "Click on the plan to measure.",
 	"plan_tool_pivot_on_plan": "Click on the plan to pick the centre of rotation.",

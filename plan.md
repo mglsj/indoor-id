@@ -34,7 +34,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | P4.2  | Vector and light raster floor plans        | Done        |
 | R3    | Fixes from the October audit               | Done        |
 | W     | Wiki conformance                           | Done        |
-| L     | Level names in the switcher                | Not started |
+| L     | Level names in the switcher                | Done        |
 | P5.3  | Geometry editing                           | Not started |
 | V     | Viewer mode                                | Not started |
 | 3D    | 3D floors                                  | Not started |
@@ -1123,7 +1123,7 @@ of entities near an outline that changed. The Save dialog adds `imagery_used=Cus
 the imagery list). Not done: one copy per level for a room on several levels (needs P5.3's
 actions); outlines drawn as multipolygon relations are not indexed yet.
 
-### L: Level names — S–M
+### L: Level names — S–M — done
 
 The switcher takes `{level, ref, name}` (from `indoor=level` outlines, else
 `building:levels:ref` with `building:levels:ref:equivalent`) and shows `level:ref` with the
@@ -1136,6 +1136,24 @@ numbers, codes (`E0`, `U1`), US numbering (first floor = 1) and full names
 (`Untere Verkaufsebene`). Show it as is, shorten long values with the full text in the
 tooltip, and fall back to `name`. Levels missing between known ones (0, 1, 3) still get a
 button.
+
+Done: `levels/level-names.ts` (pure): `outlineLevelName` (`level:ref` and `name` of an
+`indoor=level` outline on one level), `buildingLevelRefs` (`building:levels:ref:equivalent`,
+`1=level 0;2=level 1`, and `building:levels:ref` read from the lowest floor only when it names
+every floor the building counts: the wiki says the list may be incomplete), `nonExistentLevels`,
+`explicitLevels` (single levels and range ends), `levelList` (gaps filled up to 100 levels, a
+skipped level kept only when a feature names it, so an elevator on `12-14` doesn't bring 13
+back) and the labels (`shortLabel`: 6 characters, `fullLabel` for the tooltip). The feature
+store keeps a second lazy rbush beside the node index (`DraftIndex`), and
+`StoredFeatures.levelsIn(extent)` gives the switcher the levels of the features in view, named
+from the outlines nearest the middle of the view first, then the buildings'. `LevelControl` takes
+`LevelEntry[]`: buttons show the short label, the tooltip and accessible name the full one
+(`Level 0: EG · Erdgeschoss · level 0`); the hash keeps the number. A new rule,
+`non-existent-level`, flags a feature in a building that names one of its
+`non_existent_levels` (no fix). Not as planned: with no indoor data in view the switcher
+doesn't disappear but falls back to stepping by one without a list, since the editor needs it
+to start mapping a building (V can hide it). `non_existent_levels` is read on building
+outlines only, not on `building:part`.
 
 ### P5.3: Geometry editing — L
 

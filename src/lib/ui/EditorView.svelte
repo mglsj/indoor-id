@@ -366,6 +366,12 @@
 		);
 	}
 
+	/** The levels of the data in view, named, for the switcher; followed after each move. */
+	const levelsInView = $derived.by(() => {
+		const extent = camera && visibleExtent();
+		return extent ? editor.features.levelsIn(extent) : [];
+	});
+
 	/** Fits a feature in the part of the map the side panel leaves visible. */
 	function zoomTo(id: EntityId) {
 		const extent = entityExtent(editor.graph, id);
@@ -667,7 +673,7 @@
 </div>
 
 <div class="absolute top-4 right-4 z-10">
-	<LevelControl bind:level levels={editor.features.levels} />
+	<LevelControl bind:level levels={levelsInView} />
 </div>
 
 {#if statusMessage}
