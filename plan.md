@@ -33,7 +33,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | R2    | Floor plan content model (review)          | Done        |
 | P4.2  | Vector and light raster floor plans        | Done        |
 | R3    | Fixes from the October audit               | Done        |
-| W     | Wiki conformance                           | Not started |
+| W     | Wiki conformance                           | Done        |
 | L     | Level names in the switcher                | Not started |
 | P5.3  | Geometry editing                           | Not started |
 | V     | Viewer mode                                | Not started |
@@ -1073,7 +1073,7 @@ reproduced (30 of 30 runs passed): Enter in `SearchCombo` now waits for `Combobo
 and picks the result named as typed; `amend` surviving merges may have been the real cause.
 R3.9 as listed; tiles also back off after failures (1 s doubling to 60 s).
 
-### W: Wiki conformance — S
+### W: Wiki conformance — S — done
 
 Pure modules, can run beside P5.3: `highway=elevator` in the elevator upgrades;
 `indoor=highway` and `indoor=stairs` → `indoor=yes`; a `missing-level` rule (indoor features
@@ -1100,6 +1100,28 @@ the changeset as `imagery_used=Custom` and `source=custom imagery`, never their 
 (they can carry private details). Doors on an `indoor=wall` area are flagged only:
 osm-simple3d-editor cuts a notch into the wall polygon to fix them, which rewrites geometry and
 stays out of W.
+
+Done: upgrades for the elevator (`highway=elevator` added, `elevator=yes` kept),
+`indoor=highway|stairs` → `indoor=yes`, `door=loadingdock` → `amenity=loading_dock` + `door=yes`,
+`entrance=gate` → `barrier=gate`, `addr:entrance=yes` → `entrance=yes`. New rules in
+`validate()`: `missing-level` (an `indoor=*` feature, or a point inside an indoor outline, with
+no `level`, `repeat_on`, `min_level`/`max_level` or parent multipolygon level; a vertex is left
+to its ways), fixed through `Issue.levelFix(level)` with the level the map shows;
+`door-not-on-wall` with its own message for a closed `indoor=wall` + `area=yes`;
+`outer-door-no-entrance` (0.3 m from a building outline, or from an `indoor=level` outline
+whose levels overlap the door's); `entrance-inside` (`entrance=yes` inside a building and more
+than 0.5 m from every building outline, fixed to `indoor=door` + `door=*`); `one-based-levels`
+on a building (its indoor outlines have no level 0 and reach `building:levels`; no fix);
+`building-passage-level` (no fix); `room-not-indoor` (fix `indoor=room` when there is no
+`indoor=*`; the wall and column message has no fix); `building-part-indoor`; `unknown-inside`;
+`door-without-type` (fix `door=yes`); `opening-on-several-levels` (fix: lowest in `level`, the
+rest merged into `repeat_on`; ranges of non-whole levels such as `0-0.5` are left alone).
+Where a feature is comes from `validation/outlines.ts` (`Outlines`: building and indoor outlines
+in an rbush, updated from `changedSince`); the `Validator` keeps one and drops the cached issues
+of entities near an outline that changed. The Save dialog adds `imagery_used=Custom` and
+`source=custom imagery` once a floor plan was shown on the map (reset after each upload, as is
+the imagery list). Not done: one copy per level for a room on several levels (needs P5.3's
+actions); outlines drawn as multipolygon relations are not indexed yet.
 
 ### L: Level names — S–M
 

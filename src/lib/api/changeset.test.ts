@@ -18,6 +18,30 @@ describe("changesetTags", () => {
 		});
 	});
 
+	it("names floor plans as custom imagery, never by their file names", () => {
+		expect(
+			changesetTags({
+				comment: "Rooms from the fire plan",
+				source: "survey",
+				imagery: ["Esri World Imagery"],
+				floorPlans: true,
+				reviewRequested: false,
+			}),
+		).toEqual({
+			comment: "Rooms from the fire plan",
+			source: "survey;custom imagery",
+			imagery_used: "Esri World Imagery;Custom",
+		});
+		expect(
+			changesetTags({
+				comment: "Rooms",
+				imagery: [],
+				floorPlans: true,
+				reviewRequested: false,
+			}),
+		).toMatchObject({ source: "custom imagery", imagery_used: "Custom" });
+	});
+
 	it("leaves out what wasn't given", () => {
 		expect(
 			changesetTags({

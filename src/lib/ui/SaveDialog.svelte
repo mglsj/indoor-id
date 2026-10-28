@@ -19,12 +19,23 @@
 		session: Session;
 		/** Names of the imagery used while editing. */
 		imagery: readonly string[];
+		/** Whether floor plans were shown while editing (tagged as custom imagery). */
+		floorPlans?: boolean;
+		/** Called once the changes are uploaded. */
+		onuploaded?: () => void;
 		/** OSM website, to link to the uploaded changeset. */
 		websiteUrl: string;
 		onclose: () => void;
 	}
 
-	let { session, imagery, websiteUrl, onclose }: Props = $props();
+	let {
+		session,
+		imagery,
+		floorPlans = false,
+		onuploaded,
+		websiteUrl,
+		onclose,
+	}: Props = $props();
 	const editor = getEditor();
 
 	let open = $state(true);
@@ -63,9 +74,16 @@
 			}
 			phase = { kind: "uploading" };
 			const { changesetId, notDeleted } = await editor.sync.upload(
-				changesetTags({ comment, source, imagery, reviewRequested }),
+				changesetTags({
+					comment,
+					source,
+					imagery,
+					floorPlans,
+					reviewRequested,
+				}),
 			);
 			phase = { kind: "done", changesetId, notDeleted };
+			onuploaded?.();
 		} catch (error) {
 			// Cancelled: the form is back already.
 			if (phase.kind === "form") return;

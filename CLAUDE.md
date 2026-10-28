@@ -54,7 +54,9 @@ runs the same commands.
   in the style.
 - Tagging and upload (P3): `presets/` (`PresetIndex`: match, search, fields, `listFor`,
   `changePreset`; `RecentPresets`; `field-list.ts`: shown and addable fields, remove, revert; `combo.ts`, `choice.ts`, `text.ts`, `localized.ts`, `address.ts`, `access.ts`, `wiki.ts`: field values and references),
-  `validation/` (`validate()` rules with one-click fixes, tag upgrades), `api/changeset.ts`,
+  `validation/` (`validate()` rules with one-click fixes, or `levelFix(level)` taking the
+  shown level; tag upgrades; `outlines.ts`, building and indoor outlines by position for the
+  rules that depend on where a feature is), `api/changeset.ts`,
   `api/taginfo.ts` (value suggestions; e2e tests serve it with `serveTaginfo()`),
   `api/wikidata.ts` (Wikidata, Wikipedia search), `api/osm-wikibase.ts` (ⓘ documentation; e2e
   `serveWiki()`),

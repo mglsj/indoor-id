@@ -59,6 +59,7 @@
 	import { Editor, setEditor } from "#lib/state/editor.svelte.ts";
 	import {
 		FloorPlans,
+		isPlanOnLevel,
 		type View as PlanView,
 	} from "#lib/state/floorplans.svelte.ts";
 	import { Session } from "#lib/state/session.svelte.ts";
@@ -165,6 +166,22 @@
 	let background = $state.raw<ImageryEntry | null>(null);
 	/** Imagery shown since the last upload, for the changeset's imagery_used tag. */
 	let imageryUsed = $state<string[]>([]);
+
+	/** Whether floor plans were shown since the last upload: custom imagery in the changeset. */
+	let floorPlansUsed = $state(false);
+	$effect(() => {
+		if (floorplans.plans.some((p) => p.visible && isPlanOnLevel(p, level))) {
+			floorPlansUsed = true;
+		}
+	});
+
+	/** After an upload, only what is shown now counts for the next changeset. */
+	function uploaded() {
+		imageryUsed = background ? [background.name] : [];
+		floorPlansUsed = floorplans.plans.some(
+			(p) => p.visible && isPlanOnLevel(p, level),
+		);
+	}
 
 	function showBackground(entry: ImageryEntry | null) {
 		background = entry;
@@ -563,6 +580,7 @@
 					viewExtent={visibleExtent}
 					onzoom={zoomTo}
 					onshow={show}
+					{level}
 				/>
 			{/key}
 		{:else}
@@ -671,6 +689,8 @@
 	<SaveDialog
 		{session}
 		imagery={imageryUsed}
+		floorPlans={floorPlansUsed}
+		onuploaded={uploaded}
 		{websiteUrl}
 		onclose={() => (saving = false)}
 	/>

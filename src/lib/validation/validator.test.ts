@@ -71,6 +71,31 @@ describe("Validator: issues cached per entity, checked again when an edit affect
 		expect(check(validator, loaded, [])).toEqual([]);
 	});
 
+	it("checks again what is around an outline that changed", () => {
+		const validator = new Validator();
+		const room = (graph: Graph) =>
+			graph.update((g) =>
+				[
+					node("n6", {}, [4, 4]),
+					node("n7", {}, [6, 4]),
+					node("n8", {}, [6, 6]),
+					node("n9", {}, [4, 6]),
+					way("w3", ["n6", "n7", "n8", "n9", "n6"], {
+						indoor: "room",
+						level: "0",
+					}),
+				].reduce((next, entity) => next.replace(entity), g),
+			);
+		let graph = start();
+		expect(check(validator, graph)).not.toContain("missing-level:n4");
+		// A room drawn around the toilet: it needs a level now.
+		graph = room(graph);
+		expect(check(validator, graph)).toContain("missing-level:n4");
+		// The room's corner moved, leaving the toilet outside.
+		graph = moveNode("n8", [4.5, 4.5])(graph);
+		expect(check(validator, graph)).not.toContain("missing-level:n4");
+	});
+
 	it("checks only the entities an edit affected", () => {
 		const checked: EntityId[] = [];
 		const validator = new Validator((graph, ids, upgrades) => {

@@ -12,7 +12,9 @@ export interface UpgradeRule {
 
 /**
  * Indoor upgrades the schema doesn't have: the IndoorOSM `buildingpart=*` scheme and `room=*`
- * used as the main type, to Simple Indoor Tagging. Specific rules come first.
+ * used as the main type, to Simple Indoor Tagging (an elevator is `indoor=room` with
+ * `highway=elevator`), values that are mistakes for others (`indoor=highway`, `indoor=stairs`)
+ * and door tags osm-simple3d-editor found misused. Specific rules come first.
  */
 export const LOCAL_UPGRADES: readonly UpgradeRule[] = [
 	{
@@ -20,7 +22,7 @@ export const LOCAL_UPGRADES: readonly UpgradeRule[] = [
 			buildingpart: "verticalpassage",
 			"buildingpart:verticalpassage": "elevator",
 		},
-		replace: { indoor: "room", elevator: "yes" },
+		replace: { indoor: "room", elevator: "yes", highway: "elevator" },
 	},
 	{
 		old: {
@@ -34,7 +36,18 @@ export const LOCAL_UPGRADES: readonly UpgradeRule[] = [
 	{ old: { buildingpart: "corridor" }, replace: { indoor: "corridor" } },
 	{ old: { buildingpart: "hall" }, replace: { indoor: "area" } },
 	{ old: { room: "stairs" }, replace: { indoor: "room", stairs: "yes" } },
-	{ old: { room: "elevator" }, replace: { indoor: "room", elevator: "yes" } },
+	{
+		old: { room: "elevator" },
+		replace: { indoor: "room", elevator: "yes", highway: "elevator" },
+	},
+	{ old: { indoor: "highway" }, replace: { indoor: "yes" } },
+	{ old: { indoor: "stairs" }, replace: { indoor: "yes" } },
+	{
+		old: { door: "loadingdock" },
+		replace: { door: "yes", amenity: "loading_dock" },
+	},
+	{ old: { entrance: "gate" }, replace: { barrier: "gate" } },
+	{ old: { "addr:entrance": "yes" }, replace: { entrance: "yes" } },
 ];
 
 /** The tags with every matching rule applied, or the same object when nothing changes. */

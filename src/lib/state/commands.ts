@@ -19,12 +19,18 @@ import type {
 	RelationId,
 } from "#lib/osm/entity.ts";
 import type { Preset } from "#lib/presets/presets.ts";
-import type { Issue } from "#lib/validation/validate.ts";
+import type { Fix, Issue } from "#lib/validation/validate.ts";
 import type { Editor } from "./editor.svelte.ts";
 
+/** An issue's one-click fix, if any; `level` is the one shown, for fixes that set it. */
+export function fixOf(issue: Issue, level: number): Fix | undefined {
+	return issue.fix ?? issue.levelFix?.(level);
+}
+
 /** Applies an issue's one-click fix. */
-export function fix(editor: Editor, issue: Issue): void {
-	if (issue.fix) editor.history.perform(issue.fix.action, issue.fix.label);
+export function fix(editor: Editor, issue: Issue, level = 0): void {
+	const chosen = fixOf(issue, level);
+	if (chosen) editor.history.perform(chosen.action, chosen.label);
 }
 
 /** Changes a feature's type, keeping the tags the new preset doesn't replace. */

@@ -62,7 +62,7 @@ describe("Editor", () => {
 	it("gives the issues of a feature and of the edits, with their fixes", () => {
 		const editor = editorWith([
 			node("n1", { door: "yes" }),
-			node("n2", { room: "stairs", indoor: "room" }),
+			node("n2", { room: "stairs", indoor: "room", level: "0" }),
 		]);
 		expect(editor.issuesOf("n1").map((i) => i.rule)).toEqual([
 			"door-not-on-wall",

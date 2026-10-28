@@ -68,6 +68,31 @@ describe("SaveDialog", () => {
 		);
 	});
 
+	it("tags shown floor plans as custom imagery, and says when it uploaded", async () => {
+		const upload = vi.fn<SyncApi["upload"]>(async () => ({
+			graph: Graph.fromEntities([]),
+			idMap: new Map(),
+			notDeleted: [],
+			changesetId: 7,
+		}));
+		const onuploaded = vi.fn();
+		renderWithEditor(await editedBench(upload), SaveDialog, {
+			...props(session(true)),
+			floorPlans: true,
+			onuploaded,
+		});
+		await page.getByRole("textbox", { name: "Comment" }).fill("Rooms");
+		await page.getByRole("button", { name: "Upload" }).click();
+		await expect
+			.element(page.getByRole("link", { name: "changeset 7" }))
+			.toBeVisible();
+		expect(upload.mock.calls[0]?.[1]).toMatchObject({
+			imagery_used: "Custom",
+			source: "custom imagery",
+		});
+		expect(onuploaded).toHaveBeenCalledOnce();
+	});
+
 	it("can be cancelled while logging in", async () => {
 		let signal: AbortSignal | undefined;
 		const login = vi.fn(
