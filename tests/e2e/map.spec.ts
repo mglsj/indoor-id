@@ -135,3 +135,24 @@ test("draws vector data, which needs the MapLibre worker", async ({ page }) => {
 		.poll(() => pixelAt(page, x, y), { timeout: 10_000 })
 		.toEqual([255, 0, 0]);
 });
+
+test.describe("with a known location", () => {
+	test.use({
+		geolocation: { latitude: 48.11, longitude: -1.68 },
+		permissions: ["geolocation"],
+	});
+
+	test("the location button centres the map on the user", async ({ page }) => {
+		await page.goto("/#16/48.13/-1.69/0");
+		await camera(page);
+
+		await page.getByRole("button", { name: "Find my location" }).click();
+
+		await expect
+			.poll(async () => (await camera(page)).lat)
+			.toBeCloseTo(48.11, 4);
+		const view = await camera(page);
+		expect(view.lon).toBeCloseTo(-1.68, 4);
+		expect(view.zoom).toBeGreaterThan(16);
+	});
+});

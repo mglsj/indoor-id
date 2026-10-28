@@ -5,6 +5,7 @@
 	import * as Alert from "#lib/components/shadcn/alert/index.ts";
 	import { MAX_ZOOM, type MapView } from "#lib/map/hash.ts";
 	import {
+		GeolocateControl,
 		GPUInitializationError,
 		Map as MapLibreMap,
 		NavigationControl,
@@ -80,6 +81,15 @@
 			void styleReady(instance);
 			instance.addControl(
 				new NavigationControl({ visualizePitch: true }),
+				"bottom-right",
+			);
+			// Indoor mapping needs a closer zoom than MapLibre's default of 15.
+			instance.addControl(
+				new GeolocateControl({
+					positionOptions: { enableHighAccuracy: true },
+					fitBoundsOptions: { maxZoom: 19 },
+					trackUserLocation: true,
+				}),
 				"bottom-right",
 			);
 			instance.addControl(new ScaleControl({ unit: "metric" }), "bottom-left");
