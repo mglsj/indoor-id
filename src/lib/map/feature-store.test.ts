@@ -372,3 +372,50 @@ describe("FeatureStore: the levels in view", () => {
 		).toEqual([{ level: 1, ref: "M" }]);
 	});
 });
+
+describe("StoredFeatures.segmentsNear: sides to snap onto, on the shown level", () => {
+	const sides = (store: FeatureStore, graph: Graph, level: number) =>
+		store
+			.update(graph)
+			.segmentsNear({ west: -100, south: -100, east: 100, north: 100 }, level)
+			.map((s) => `${s.a.id}-${s.b.id}`)
+			.sort();
+
+	it("gives each side of the ways drawn on the level once, even when shared", () => {
+		// A wall along w1's side n11–n12, both on level 0.
+		const graph = rooms().replace(
+			way("w5", ["n12", "n11"], { indoor: "wall", level: "0" }),
+		);
+		const store = new FeatureStore();
+		expect(sides(store, graph, 0)).toEqual(
+			[
+				"n11-n12",
+				"n12-n13",
+				"n13-n14",
+				"n14-n11",
+				"n21-n22",
+				"n22-n23",
+				"n23-n24",
+				"n24-n21",
+			].sort(),
+		);
+		// Only w2 is on level 1.
+		expect(sides(store, graph, 1)).toEqual(
+			["n21-n22", "n22-n23", "n23-n24", "n24-n21"].sort(),
+		);
+	});
+
+	it("follows a moved node, and gives the way the side belongs to", () => {
+		const store = new FeatureStore();
+		sides(store, rooms(), 0);
+		const moved = rooms().replace(node("n13", {}, [50, 50]));
+		const near = store
+			.update(moved)
+			.segmentsNear({ west: 49, south: 49, east: 51, north: 51 }, 0);
+		expect(near.map((s) => [s.way, s.a.id, s.b.id])).toEqual([
+			["w1", "n12", "n13"],
+			["w1", "n13", "n14"],
+		]);
+		expect(near[0]?.b.loc).toEqual([50, 50]);
+	});
+});

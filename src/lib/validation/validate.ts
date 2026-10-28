@@ -3,6 +3,7 @@
  * through the history like any edit (so it can be undone).
  */
 import { changeTags } from "#lib/actions/change-tags.ts";
+import { onePerLevel } from "#lib/actions/split-levels.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import { featureLevels, unionOfLevels } from "#lib/levels/feature-levels.ts";
 import { explicitLevels } from "#lib/levels/level-names.ts";
@@ -36,7 +37,8 @@ export type IssueRule =
 	| "outer-door-no-entrance"
 	| "entrance-inside"
 	| "one-based-levels"
-	| "non-existent-level";
+	| "non-existent-level"
+	| "room-on-several-levels";
 
 export interface Issue {
 	/** Stable id, `rule:entity`. */
@@ -74,6 +76,7 @@ export function validate(
 			...tagIssues(entity, upgradeTags(entity.tags, upgrades)),
 			...levelIssues(entity),
 			...openingIssues(entity),
+			...roomOnSeveralLevels(graph, entity),
 			...doorIssues(graph, entity, outlines),
 			...missingLevel(graph, entity, outlines),
 			...oneBasedLevels(entity, outlines),
@@ -492,6 +495,43 @@ function openingIssues(entity: Entity): Issue[] {
 					repeat_on: tags.repeat_on,
 				}),
 				action: changeTags(entity.id, tags),
+			},
+		),
+	];
+}
+
+/** Indoor spaces that are a room on each level when tagged with several. */
+const SPACES = new Set(["room", "area", "corridor"]);
+/** Rooms that do span levels. */
+const SPANNING_ROOMS = new Set(["stairs", "elevator", "atrium", "shaft"]);
+
+/**
+ * A room, area or corridor with a list of levels in `level`: right for a space that spans them
+ * (an atrium, a hall: the message says so), but often one room per level mapped once. The fix
+ * makes one per level, sharing its nodes. Left alone: stairs, elevators and atriums, a room
+ * also in `repeat_on`, a way in a relation (its copies wouldn't be members), ranges of
+ * non-whole levels.
+ */
+function roomOnSeveralLevels(graph: Graph, entity: Entity): Issue[] {
+	const { tags } = entity;
+	if (entity.type !== "way" || !isClosed(entity)) return [];
+	if (!SPACES.has(tags.indoor ?? "") || tags.repeat_on !== undefined) return [];
+	if (isVertical(tags) || SPANNING_ROOMS.has(tags.room ?? "")) return [];
+	if (tags.level === undefined || graph.parentRelations(entity.id).length > 0)
+		return [];
+	const levels = listLevels(tags.level);
+	if (!levels || levels.length < 2) return [];
+	return [
+		issue(
+			"room-on-several-levels",
+			entity,
+			msg("issue_room_on_several_levels", {
+				indoor: tags.indoor ?? "room",
+				level: tags.level,
+			}),
+			{
+				label: msg("fix_room_per_level", { count: levels.length }),
+				action: onePerLevel(entity.id, levels),
 			},
 		),
 	];

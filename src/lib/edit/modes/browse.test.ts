@@ -50,3 +50,44 @@ describe("browseMode", () => {
 		expect(log.selected).toEqual(["w1", null, null]);
 	});
 });
+
+describe("browseMode with the edit overlay", () => {
+	/** A vertex n1 at x = 60, inside the room. */
+	function overlay() {
+		const log: { selected: (string | null)[]; hovered: (string | null)[] } = {
+			selected: [],
+			hovered: [],
+		};
+		const near = (point: { x: number }) => Math.abs(point.x - 60) < 5;
+		const drag = { move() {}, end() {}, cancel() {} };
+		const mode = browseMode({
+			hitTest: (point) => (point.x > 50 ? "w1" : null),
+			select: (id) => log.selected.push(id),
+			hover: (id) => log.hovered.push(id),
+			draggable: near,
+			vertexAt: (point) => (near(point) ? "n1" : null),
+			drag: (at) => (near(at.point) ? drag : null),
+		});
+		return { mode, log, drag };
+	}
+
+	it("shows a vertex can be dragged, keeping its way hovered", () => {
+		const { mode, log } = overlay();
+		expect(mode.hover?.(at(70))).toBe("pointer");
+		expect(mode.hover?.(at(60))).toBe("move");
+		expect(log.hovered).toEqual(["w1"]);
+	});
+
+	it("selects a clicked vertex rather than its way", () => {
+		const { mode, log } = overlay();
+		mode.click?.(at(60));
+		mode.click?.(at(70));
+		expect(log.selected).toEqual(["n1", "w1"]);
+	});
+
+	it("drags what is pressed, and lets the map pan elsewhere", () => {
+		const { mode, drag } = overlay();
+		expect(mode.press?.(at(60))).toBe(drag);
+		expect(mode.press?.(at(70))).toBeNull();
+	});
+});

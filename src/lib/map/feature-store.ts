@@ -16,7 +16,14 @@ import {
 	outlineLevelName,
 } from "#lib/levels/level-names.ts";
 import { isOnLevel, type Levels } from "#lib/levels/levels.ts";
-import type { Entity, EntityId, Loc, NodeId, Way } from "#lib/osm/entity.ts";
+import type {
+	Entity,
+	EntityId,
+	Loc,
+	NodeId,
+	Way,
+	WayId,
+} from "#lib/osm/entity.ts";
 import { type Extent, extentOf, type Point } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import {
@@ -43,10 +50,27 @@ export interface StoredFeatures {
 	 */
 	nodesNear(extent: Extent, level: number): { id: NodeId; loc: Loc }[];
 	/**
+	 * The sides of the features drawn on `level` (or without a level) crossing `extent`, once
+	 * each whichever ways share them: what a vertex can snap onto.
+	 */
+	segmentsNear(extent: Extent, level: number): Segment[];
+	/**
 	 * The levels of the features inside `extent`, named, for the level switcher; none when no
 	 * feature there is on a level.
 	 */
 	levelsIn(extent: Extent): LevelEntry[];
+}
+
+/** A side of a drawn way, between two nodes that follow each other in it. */
+export interface Segment {
+	readonly way: WayId;
+	readonly a: { readonly id: NodeId; readonly loc: Loc };
+	readonly b: { readonly id: NodeId; readonly loc: Loc };
+}
+
+/** A side of a drawn feature, in the spatial index. */
+interface IndexedSegment extends Box, Segment {
+	readonly levels: Levels | null;
 }
 
 /** A node of a drawn feature, in the spatial index. */
@@ -70,6 +94,11 @@ export class FeatureStore {
 	readonly #nodeIndex = new DraftIndex<IndexedNode>(
 		() => this.#drafts.keys(),
 		(id) => this.#nodes(id),
+	);
+	/** The sides of every drawn feature, kept up to date only when asked (a snap). */
+	readonly #segmentIndex = new DraftIndex<IndexedSegment>(
+		() => this.#drafts.keys(),
+		(id) => this.#segments(id),
 	);
 	/** What each drawn feature says about levels, by extent, for the level switcher. */
 	readonly #levelIndex = new DraftIndex<LevelItem>(
@@ -98,6 +127,7 @@ export class FeatureStore {
 			this.#drafts.clear();
 			this.#features.clear();
 			this.#nodeIndex.reset();
+			this.#segmentIndex.reset();
 			this.#levelIndex.reset();
 			// Encoded below, once the levels of the data are known.
 			for (const entity of graph.entities()) this.#redraft(entity.id, false);
@@ -117,6 +147,7 @@ export class FeatureStore {
 		}
 		const features = this.#features;
 		const nodeIndex = this.#nodeIndex;
+		const segmentIndex = this.#segmentIndex;
 		const levelIndex = this.#levelIndex;
 		const result: StoredFeatures = {
 			nodesNear(extent, level) {
@@ -128,6 +159,15 @@ export class FeatureStore {
 					}
 				}
 				return [...found].map(([id, loc]) => ({ id, loc }));
+			},
+			segmentsNear(extent, level) {
+				const found = new Map<string, Segment>();
+				for (const { way, a, b, levels } of segmentIndex.search(extent)) {
+					if (levels && !isOnLevel(levels, level)) continue;
+					const key = a.id < b.id ? `${a.id} ${b.id}` : `${b.id} ${a.id}`;
+					if (!found.has(key)) found.set(key, { way, a, b });
+				}
+				return [...found.values()];
 			},
 			levelsIn(extent) {
 				return levelsOf(levelIndex.search(extent), extent);
@@ -151,6 +191,7 @@ export class FeatureStore {
 		const entity = graph.entity(id);
 		const draft = entity ? draftOf(graph, entity, this.#options) : null;
 		this.#nodeIndex.changed(id);
+		this.#segmentIndex.changed(id);
 		this.#levelIndex.changed(id);
 		if (draft) {
 			this.#drafts.set(id, draft);
@@ -159,6 +200,41 @@ export class FeatureStore {
 			this.#drafts.delete(id);
 			this.#features.delete(id);
 		}
+	}
+
+	/** A drawn feature's sides, for the index: its way's, or its multipolygon's ways'. */
+	#segments(id: EntityId): IndexedSegment[] {
+		const graph = this.#graph as Graph;
+		const entity = graph.entity(id);
+		const draft = this.#drafts.get(id);
+		if (!entity || !draft || entity.type === "node") return [];
+		const ways =
+			entity.type === "way"
+				? [entity]
+				: entity.members.flatMap((m) => {
+						const member = graph.entity(m.ref);
+						return member?.type === "way" ? [member] : [];
+					});
+		const segments: IndexedSegment[] = [];
+		for (const way of ways) {
+			for (let i = 1; i < way.nodes.length; i++) {
+				const a = graph.entity(way.nodes[i - 1] as NodeId);
+				const b = graph.entity(way.nodes[i] as NodeId);
+				// Sides with a node not downloaded can't be drawn.
+				if (a?.type !== "node" || b?.type !== "node") continue;
+				segments.push({
+					minX: Math.min(a.loc[0], b.loc[0]),
+					minY: Math.min(a.loc[1], b.loc[1]),
+					maxX: Math.max(a.loc[0], b.loc[0]),
+					maxY: Math.max(a.loc[1], b.loc[1]),
+					way: way.id,
+					a: { id: a.id, loc: a.loc },
+					b: { id: b.id, loc: b.loc },
+					levels: draft.levels,
+				});
+			}
+		}
+		return segments;
 	}
 
 	/** A drawn feature's nodes, for the index; none for an entity not drawn. */

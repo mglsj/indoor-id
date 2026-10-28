@@ -23,17 +23,21 @@
 		isTyping,
 		matches,
 	} from "#lib/edit/keys.ts";
+	import type { MapPoint } from "#lib/edit/mode.ts";
 	import { ModeManager } from "#lib/edit/mode-manager.ts";
 	import { browseMode } from "#lib/edit/modes/browse.ts";
 	import {
 		floorPlanMode,
 		floorPlanToolMode,
 	} from "#lib/edit/modes/floorplan.ts";
+	import { type NodeGrab, nodeDrag } from "#lib/edit/node-drag.ts";
+	import { overlayFeatures } from "#lib/edit/overlay.ts";
 	import { workerCodec } from "#lib/floorplans/codec.ts";
 	import { groundDistance, type LngLat } from "#lib/floorplans/georef.ts";
 	import { planDecoders } from "#lib/floorplans/import.ts";
-	import type { Message } from "#lib/i18n/messages.ts";
+	import { type Message, t } from "#lib/i18n/messages.ts";
 	import { setBackground } from "#lib/map/background.ts";
+	import { EditOverlay } from "#lib/map/edit-overlay.ts";
 	import {
 		FloorPlanLayers,
 		PlanToolLayer,
@@ -52,7 +56,8 @@
 		type LngLatLike,
 		type Map as MapLibreMap,
 	} from "#lib/map/maplibre.ts";
-	import type { EntityId } from "#lib/osm/entity.ts";
+	import { areaAround, type SnapTarget, snapAt } from "#lib/map/snap.ts";
+	import type { EntityId, Loc, NodeId } from "#lib/osm/entity.ts";
 	import { type Extent, extentsIntersect } from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
@@ -156,9 +161,6 @@
 		panelWidth = width;
 		rememberWidth(localStorage, width);
 	}
-	/** Snapping distance for alignment clicks, in screen pixels. */
-	const SNAP_DISTANCE = 8;
-
 	let map = $state.raw<MapLibreMap>();
 	let camera = $state.raw<Omit<View, "level">>();
 	let level = $state(fromUrl?.level ?? 0);
@@ -209,6 +211,35 @@
 		$effect(() => indoor.setPlanMode(planMode));
 		$effect(() => indoor.setBuildingsVisible(floorplans.buildings.visible));
 		const stopDrawn = indoor.onDrawn((count) => (drawn = count));
+		const overlay = new EditOverlay(instance);
+		$effect(() =>
+			overlay.setData(
+				planMode
+					? { type: "FeatureCollection", features: [] }
+					: overlayFeatures(editor.graph, {
+							selected: editor.selection.ids,
+							hover: editor.selection.hover,
+							zoom: camera?.zoom ?? 0,
+							nodesInView: () => {
+								const extent = visibleExtent();
+								return extent ? editor.features.nodesNear(extent, level) : [];
+							},
+						}),
+			),
+		);
+		/** What a press at a screen point drags: an overlay vertex or midpoint, the selected point. */
+		const grabAt = (point: { x: number; y: number }): NodeGrab | null => {
+			if (editor.history.locked) return null;
+			const grab = overlay.grabAt(point);
+			if (grab) return grab;
+			const id = editor.selection.single;
+			const selected = id ? editor.graph.entity(id) : undefined;
+			return selected?.type === "node" &&
+				editor.graph.parentWays(selected.id).length === 0 &&
+				indoor.hitTest(point) === selected.id
+				? { kind: "vertex", id: selected.id }
+				: null;
+		};
 
 		const layers = new FloorPlanLayers(instance, floorplans.tiles);
 		const stopTiles = layers.onTiles((count) => (planTiles = count));
@@ -246,6 +277,22 @@
 							hitTest: (point) => indoor.hitTest(point),
 							select: (id) => editor.select(id as EntityId | null),
 							hover: (id) => editor.selection.setHover(id as EntityId | null),
+							draggable: (point) => grabAt(point) !== null,
+							vertexAt: (point) => {
+								const grab = overlay.grabAt(point);
+								return grab?.kind === "vertex" ? grab.id : null;
+							},
+							drag: (at) => {
+								const grab = grabAt(at.point);
+								return (
+									grab &&
+									nodeDrag(grab, {
+										history: editor.history,
+										snap: snapNode,
+										onhint: (hint) => (dragHint = hint),
+									})
+								);
+							},
 						}),
 					);
 					break;
@@ -271,6 +318,7 @@
 			manager.remove();
 			stopDrawn();
 			stopTiles();
+			overlay.remove();
 			marks.remove();
 			layers.remove();
 			indoor.remove();
@@ -293,65 +341,72 @@
 		const { lng, lat } = LngLatClass.convert(lngLat);
 		const clicked: LngLat = [lng, lat];
 		if (!map) return clicked;
-		// The square around the click, on the ground (all four corners: the map may be rotated).
-		const d = SNAP_DISTANCE;
-		const corners = [
-			[-d, -d],
-			[d, -d],
-			[d, d],
-			[-d, d],
-		].map(([dx, dy]) =>
-			LngLatClass.convert(
-				map?.unproject([point.x + (dx ?? 0), point.y + (dy ?? 0)]) ?? lngLat,
-			),
-		);
-		const area = {
-			west: Math.min(...corners.map((c) => c.lng)),
-			south: Math.min(...corners.map((c) => c.lat)),
-			east: Math.max(...corners.map((c) => c.lng)),
-			north: Math.max(...corners.map((c) => c.lat)),
-		};
+		const area = areaAround(point, unprojectPoint);
 		const editing = floorplans.editing?.id;
 		const tool = floorplans.tool;
-		if (!(tool?.kind === "points" && tool.pending)) {
-			return (
-				nearest(
-					point,
-					floorplans.verticesNear(area, level, (p) => p.id === editing),
-				) ?? clicked
-			);
-		}
-		const nodes = editor.features
-			.nodesNear(area, level)
-			.map((node): LngLat => [node.loc[0], node.loc[1]]);
-		return (
-			nearest(point, nodes) ??
-			nearest(
-				point,
-				floorplans.verticesNear(area, level, (p) => p.id !== editing),
-			) ??
-			clicked
+		const target = snapAt(
+			point,
+			tool?.kind === "points" && tool.pending
+				? {
+						nodes: editor.features.nodesNear(area, level),
+						planVertices: floorplans.verticesNear(
+							area,
+							level,
+							(p) => p.id !== editing,
+						),
+					}
+				: {
+						planVertices: floorplans.verticesNear(
+							area,
+							level,
+							(p) => p.id === editing,
+						),
+					},
+			projectLoc,
+		);
+		return target ? [target.loc[0], target.loc[1]] : clicked;
+	}
+
+	/**
+	 * Where a dragged node snaps (P5.3.2): onto a node, a side of a way, or a floor plan's
+	 * vertex within 8 px on the shown level, leaving out the nodes dragged and their sides.
+	 * Alt held: nowhere.
+	 */
+	function snapNode(
+		at: MapPoint,
+		exclude: ReadonlySet<NodeId>,
+	): SnapTarget | null {
+		if (!map || at.altKey) return null;
+		const area = areaAround(at.point, unprojectPoint);
+		return snapAt(
+			at.point,
+			{
+				nodes: editor.features
+					.nodesNear(area, level)
+					.filter((n) => !exclude.has(n.id)),
+				segments: editor.features
+					.segmentsNear(area, level)
+					.filter((s) => !exclude.has(s.a.id) && !exclude.has(s.b.id)),
+				planVertices: floorplans.verticesNear(area, level),
+			},
+			projectLoc,
 		);
 	}
 
-	/** The position nearest a screen point, within 8 px of it; undefined when none is. */
-	function nearest(
-		point: { x: number; y: number },
-		positions: readonly LngLat[],
-	): LngLat | undefined {
-		let best: LngLat | undefined;
-		let bestDistance = SNAP_DISTANCE;
-		for (const position of positions) {
-			const screen = map?.project(position);
-			if (!screen) continue;
-			const distance = Math.hypot(screen.x - point.x, screen.y - point.y);
-			if (distance < bestDistance) {
-				bestDistance = distance;
-				best = position;
-			}
-		}
-		return best;
+	function projectLoc(loc: Loc): { x: number; y: number } {
+		return map?.project([loc[0], loc[1]]) ?? { x: Number.NaN, y: Number.NaN };
 	}
+
+	function unprojectPoint(point: { x: number; y: number }): Loc {
+		const { lng, lat } = map?.unproject([point.x, point.y]) ?? {
+			lng: 0,
+			lat: 0,
+		};
+		return [lng, lat];
+	}
+
+	/** What the node being dragged moves with it (shared vertices), while dragging. */
+	let dragHint = $state.raw<Message | null>(null);
 
 	/** The map in view, as an extent. */
 	function visibleExtent(): Extent | undefined {
@@ -688,6 +743,16 @@
 		]}
 	>
 		{statusMessage}
+	</p>
+{/if}
+
+{#if dragHint}
+	<p
+		role="status"
+		data-testid="drag-hint"
+		class="absolute bottom-20 left-1/2 z-10 -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+	>
+		{t(dragHint)}
 	</p>
 {/if}
 

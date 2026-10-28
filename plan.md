@@ -35,7 +35,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | R3    | Fixes from the October audit               | Done        |
 | W     | Wiki conformance                           | Done        |
 | L     | Level names in the switcher                | Done        |
-| P5.3  | Geometry editing                           | Not started |
+| P5.3  | Geometry editing                           | Slices 1–3 done |
 | V     | Viewer mode                                | Not started |
 | 3D    | 3D floors                                  | Not started |
 | P5.4  | Autosave and conflicts                     | Not started |
@@ -348,7 +348,7 @@ user are marked ✔; the rest follow from them.
    clicking a row switches the level; inline rename saved by Done, dropped by Cancel.
 6. ✅ PDF pages. E2E: importing pages 1 and 2 of `plan.pdf` adds two plans, both on level 0.
 
-### P5: Feature editor, fast core, geometry editing — P5.0 to P5.2 done
+### P5: Feature editor, fast core, geometry editing — P5.0 to P5.2 done, P5.3 started
 
 Order agreed with the user: quick performance fixes, then the iD-style feature editor, then
 the fast core (needed before anything is dragged), then geometry editing. Decisions agreed
@@ -1115,13 +1115,17 @@ on a building (its indoor outlines have no level 0 and reach `building:levels`; 
 `building-passage-level` (no fix); `room-not-indoor` (fix `indoor=room` when there is no
 `indoor=*`; the wall and column message has no fix); `building-part-indoor`; `unknown-inside`;
 `door-without-type` (fix `door=yes`); `opening-on-several-levels` (fix: lowest in `level`, the
-rest merged into `repeat_on`; ranges of non-whole levels such as `0-0.5` are left alone).
+rest merged into `repeat_on`; ranges of non-whole levels such as `0-0.5` are left alone);
+`room-on-several-levels` (added with P5.3's first slices: an `indoor=room|area|corridor` way
+listing several levels in `level`, fix "one per level", `actions/split-levels.ts`: the way keeps
+the lowest level, each other level gets a copy with the same tags and nodes; the message says
+a room that spans levels is right as it is; stairs, elevators, atriums, `repeat_on`, ways in a
+relation and non-whole ranges are left alone).
 Where a feature is comes from `validation/outlines.ts` (`Outlines`: building and indoor outlines
 in an rbush, updated from `changedSince`); the `Validator` keeps one and drops the cached issues
 of entities near an outline that changed. The Save dialog adds `imagery_used=Custom` and
 `source=custom imagery` once a floor plan was shown on the map (reset after each upload, as is
-the imagery list). Not done: one copy per level for a room on several levels (needs P5.3's
-actions); outlines drawn as multipolygon relations are not indexed yet.
+the imagery list). Not done: outlines drawn as multipolygon relations are not indexed yet.
 
 ### L: Level names — S–M — done
 
@@ -1155,7 +1159,7 @@ doesn't disappear but falls back to stepping by one without a list, since the ed
 to start mapping a building (V can hide it). `non_existent_levels` is read on building
 outlines only, not on `building:part`.
 
-### P5.3: Geometry editing — L
+### P5.3: Geometry editing — L — slices 1–3 done
 
 On R1's modes, drag, selection and geometry, and R3's pointer events. Follow iD's layering
 (see "Research and audit"): behaviours (hover, select, drag, draw, lasso, paste) that modes
@@ -1184,6 +1188,27 @@ compose, operations over actions, actions that say why they can't run. Slices:
    idle time.
 10. Floor plans: snap control points to building outlines, numeric offset, assign plans to a
     building.
+
+Done ✅ (slices 1–3): `edit/overlay.ts` (pure: the vertices of the selected and hovered ways,
+of a selected vertex's ways and of a relation's member ways; midpoints of the selected ways'
+sides once 40 px long, one per side shared by several; junctions in view from zoom 18, marked
+`@shared`; untagged member ways as lines) drawn by `map/edit-overlay.ts` (`EditOverlay`, its
+own source in the `edit` slot, `grabAt` for presses: a vertex first, then a midpoint).
+`map/snap.ts` (`snapAt`: node, then side, then plan vertex, 8 px on screen; `areaAround`);
+the feature store gained a side index beside the node index (`segmentsNear(extent, level)`,
+each side once whichever ways share it), and the floor plan tools' snapping goes through
+`snapAt` too (no change in behaviour). `edit/node-drag.ts` (`nodeDrag`): a vertex or the
+selected point moves with every way using it, a midpoint becomes a vertex of every way sharing
+its side (`addVertex`, `insertNodeInSegment`); dropped on a node it joins it
+(`actions/connect.ts`, iD's connect, refused for two nodes with different tags or a way that
+would collapse), dropped on a side it becomes a vertex of that side's ways (not of its own
+way); Alt turns snapping off. Moves are shown live through `EditHistory.preview` (the graph
+changes without a step; `commit` makes the one undo step, `cancelPreview` drops it, an edit,
+undo or upload meanwhile wins, downloads keep it) rather than a separate drag source: P5.2
+made an edit reach the map in 3–5 ms. While a shared vertex is dragged a hint says how many
+features on which levels move ("moves 2 features on levels 0;1"). Browse mode takes the
+overlay: the cursor shows what can be dragged (the way stays hovered), a click on a vertex
+selects it. Not yet: dragging a way or an area whole, drawing (slice 4).
 
 Lessons from osm-simple3d-editor's floor plan tools (built 2026-10-26 to 10-28; details in the
 research doc):

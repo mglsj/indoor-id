@@ -33,6 +33,8 @@ export class EditHistory {
 	 * replaces the last step instead of adding one.
 	 */
 	#typing: string | null = null;
+	/** The action a drag shows on the map, not a step yet (see `preview`). */
+	#preview: Action | null = null;
 
 	constructor(base: Graph) {
 		this.#history = new History<Message>(base);
@@ -65,12 +67,14 @@ export class EditHistory {
 	/** Applies an action as an undo step, labelled for the user. */
 	perform(action: Action, annotation: Message): void {
 		if (this.locked) return;
+		this.#endPreview();
 		this.#typing = null;
 		this.#edited(this.#history.perform(action, annotation));
 	}
 
 	undo(): void {
 		if (this.locked) return;
+		this.#endPreview();
 		this.#typing = null;
 		this.#history.undo();
 		this.#edited(this.#history.graph);
@@ -78,9 +82,49 @@ export class EditHistory {
 
 	redo(): void {
 		if (this.locked) return;
+		this.#endPreview();
 		this.#typing = null;
 		this.#history.redo();
 		this.#edited(this.#history.graph);
+	}
+
+	/**
+	 * Shows `action` (a drag's latest move) applied to the last step, without making a step:
+	 * each call replaces the one before. `commit` makes it a step, `cancelPreview` drops it.
+	 */
+	preview(action: Action): void {
+		if (this.locked) return;
+		this.#typing = null;
+		this.#preview = action;
+		this.graph = this.#history.graph.update(action);
+	}
+
+	/** Whether a preview is shown. */
+	get previewing(): boolean {
+		return this.#preview !== null;
+	}
+
+	/** Makes `action` (the drag's end, often the last preview) one undo step, ending the preview. */
+	commit(action: Action, annotation: Message): void {
+		if (this.locked) {
+			this.cancelPreview();
+			return;
+		}
+		this.#preview = null;
+		// An action that changed nothing makes no step: the graph goes back to the last one.
+		this.perform(action, annotation);
+	}
+
+	/** Drops the preview: the map shows the last step again. */
+	cancelPreview(): void {
+		if (this.#endPreview()) this.graph = this.#history.graph;
+	}
+
+	/** Ends a preview still shown (an edit made meanwhile wins); true when there was one. */
+	#endPreview(): boolean {
+		if (this.#preview === null) return false;
+		this.#preview = null;
+		return true;
 	}
 
 	/** Typing is over (another feature selected): the next tag change is a step of its own. */
@@ -174,13 +218,17 @@ export class EditHistory {
 	/** Adds downloaded entities under every step (see `History.merge`). */
 	merge(entities: Iterable<Entity>): void {
 		this.#history.merge(entities);
-		this.graph = this.#history.graph;
+		// A drag goes on over the downloaded data.
+		this.graph = this.#preview
+			? this.#history.graph.update(this.#preview)
+			: this.#history.graph;
 		this.#made.set(this.graph, this.#edits);
 	}
 
 	/** Starts a new history from `graph` (the server's state after an upload). */
 	reset(graph: Graph): void {
 		this.#typing = null;
+		this.#preview = null;
 		this.#history = new History<Message>(graph);
 		this.#edited(graph);
 	}

@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
+import type { NodeId } from "#lib/osm/entity.ts";
 import { node, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
-import { addNode, addWay, insertNodeInWay, moveNode } from "./geometry.ts";
+import {
+	addNode,
+	addVertex,
+	addWay,
+	insertNodeInSegment,
+	insertNodeInWay,
+	moveNode,
+} from "./geometry.ts";
 
 describe("addNode", () => {
 	it("creates a new node, without version", () => {
@@ -74,5 +82,46 @@ describe("insertNodeInWay", () => {
 
 		expect(after.entity("w1")).toMatchObject({ nodes: ["n1", "n3", "n2"] });
 		expect(after.parentWays("n3").map((w) => w.id)).toEqual(["w1"]);
+	});
+});
+
+describe("insertNodeInSegment", () => {
+	it("puts the node into every way with that side, either way round", () => {
+		// Two rooms sharing the side n2–n3, a wall along it, and a way elsewhere.
+		const graph = Graph.fromEntities([
+			...["n1", "n2", "n3", "n4", "n5", "n6", "n7"].map((id) =>
+				node(id as NodeId),
+			),
+			way("w1", ["n1", "n2", "n3", "n1"], { indoor: "room" }),
+			way("w2", ["n3", "n2", "n4", "n3"], { indoor: "room" }),
+			way("w3", ["n2", "n3"], { indoor: "wall" }),
+			way("w4", ["n2", "n5", "n3"]),
+		]);
+		const after = insertNodeInSegment("n7", "n2", "n3")(graph);
+
+		expect(after.entity("w1")).toMatchObject({
+			nodes: ["n1", "n2", "n7", "n3", "n1"],
+		});
+		expect(after.entity("w2")).toMatchObject({
+			nodes: ["n3", "n7", "n2", "n4", "n3"],
+		});
+		expect(after.entity("w3")).toMatchObject({ nodes: ["n2", "n7", "n3"] });
+		// n2 and n3 are not next to each other there.
+		expect(after.entity("w4")).toBe(graph.entity("w4"));
+	});
+});
+
+describe("addVertex", () => {
+	it("creates an untagged node on the side", () => {
+		const graph = Graph.fromEntities([
+			node("n1"),
+			node("n2", {}, [2, 0]),
+			way("w1", ["n1", "n2"]),
+		]);
+		const id = graph.newId("node");
+		const after = addVertex(id, [1, 0], "n1", "n2")(graph);
+
+		expect(after.entity(id)).toMatchObject({ loc: [1, 0], tags: {} });
+		expect(after.entity("w1")).toMatchObject({ nodes: ["n1", id, "n2"] });
 	});
 });

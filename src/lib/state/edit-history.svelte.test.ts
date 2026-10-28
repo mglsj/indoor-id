@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { changeTags } from "#lib/actions/change-tags.ts";
+import { moveNode } from "#lib/actions/geometry.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import type { EntityId } from "#lib/osm/entity.ts";
 import { node } from "#lib/osm/fixtures.ts";
@@ -243,5 +244,59 @@ describe("EditHistory.patchTags: a field's change over every selected feature", 
 		history.patchTags(["n1", "n2"], { amenity: "bench" });
 		history.patchTags(["n9"], { amenity: "bench" });
 		expect(history.canUndo).toBe(false);
+	});
+});
+
+describe("EditHistory.preview: a drag shown live, one undo step on release", () => {
+	const move = (lon: number) => moveNode("n1", [lon, 48.85]);
+
+	it("shows each move without a step, and makes the last one step on commit", () => {
+		const history = benches();
+		history.preview(move(1));
+		history.preview(move(2));
+		expect(history.graph.entity("n1")).toMatchObject({ loc: [2, 48.85] });
+		expect(history.canUndo).toBe(false);
+
+		history.commit(move(3), msg("undo_move_node"));
+		expect(history.graph.entity("n1")).toMatchObject({ loc: [3, 48.85] });
+		expect(history.previewing).toBe(false);
+		expect(undoAll(history)).toBe(1);
+		expect(history.graph.entity("n1")).toMatchObject({ loc: [2.35, 48.85] });
+	});
+
+	it("goes back to the last step when cancelled", () => {
+		const history = benches();
+		history.setTags("n1", { amenity: "bench" });
+		const before = history.graph;
+		history.preview(move(1));
+		history.cancelPreview();
+		expect(history.graph).toBe(before);
+		expect(history.canRedo).toBe(false);
+	});
+
+	it("keeps the drag over data downloaded meanwhile", () => {
+		const history = benches();
+		history.preview(move(1));
+		history.merge([node("n9", { amenity: "toilets" })]);
+		expect(history.graph.entity("n9")).toBeDefined();
+		expect(history.graph.entity("n1")).toMatchObject({ loc: [1, 48.85] });
+	});
+
+	it("drops the preview when another edit or an undo comes first", () => {
+		const history = benches();
+		history.setTags("n2", { amenity: "bench", name: "B" });
+		history.preview(move(1));
+		history.undo();
+		expect(history.previewing).toBe(false);
+		expect(history.graph.entity("n1")).toMatchObject({ loc: [2.35, 48.85] });
+		expect(history.graph.entity("n2")?.tags.name).toBeUndefined();
+	});
+
+	it("shows nothing and makes no step while uploading", () => {
+		const history = benches();
+		history.lock();
+		history.preview(move(1));
+		history.commit(move(1), msg("undo_move_node"));
+		expect(history.graph.entity("n1")).toMatchObject({ loc: [2.35, 48.85] });
 	});
 });

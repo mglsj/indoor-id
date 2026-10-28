@@ -9,6 +9,10 @@
 	"undo_change_role": "Change role",
 	"undo_remove_from_relation": "Remove from relation",
 	"undo_reorder_members": "Reorder members",
+	"undo_move_node": "Move a point",
+	"undo_add_vertex": "Add a vertex",
+	"undo_connect": "Connect points",
+	"undo_room_per_level": "One room per level",
 	"issue_outdated_tags": "Outdated tags: {tags}",
 	"fix_upgrade_tags": "Upgrade to {tags}",
 	"fix_remove_tags": "Remove {tags}",
@@ -35,6 +39,8 @@
 	"fix_entrance_to_door": "Change to indoor=door + door={door}",
 	"issue_one_based_levels": "This building has no level 0 and indoor features above its {count} levels: are its levels numbered from 1? In OSM the ground floor is usually level 0 (some countries count from 1, keep it then).",
 	"issue_non_existent_level": "This building's non_existent_levels says level {level} doesn't exist, so it isn't in the level list. Is the level right?",
+	"issue_room_on_several_levels": "This {indoor} is on levels {level}. A room that really spans them (an atrium, a hall) is right as it is; if each level has its own room here, make one per level.",
+	"fix_room_per_level": "Make one per level ({count})",
 	"plan_tool_click_plan_first": "Click a spot on the plan first.",
 	"plan_tool_measure_on_plan": "Click on the plan to measure.",
 	"plan_tool_pivot_on_plan": "Click on the plan to pick the centre of rotation.",
@@ -57,5 +63,7 @@
 	"login_popup_closed": "The login window was closed before you logged in.",
 	"login_timed_out": "Logging in took too long. Try again.",
 	"upload_too_many_changes": "{count} features changed: a changeset takes at most {max}. Upload part of your edits first.",
-	"upload_not_deleted": "OpenStreetMap kept {count} of the features you deleted, because other data still uses them: {ids}. They are back on the map."
+	"upload_not_deleted": "OpenStreetMap kept {count} of the features you deleted, because other data still uses them: {ids}. They are back on the map.",
+	"drag_moves_features": "Moving this point moves {count} features on levels {levels}",
+	"drag_moves_features_no_level": "Moving this point moves {count} features"
 }
