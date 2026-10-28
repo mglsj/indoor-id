@@ -645,9 +645,8 @@ describe("validate: non-existent levels", () => {
 		["an elevator through the skipped level", "12-14"],
 		["another level", "12"],
 	])("says nothing about %s", (_, level) => {
-		expect(rulesOf(building(skips13, { indoor: "room", level }), "w2")).toEqual(
-			[],
-		);
+		const tags = { indoor: "room", highway: "elevator", level };
+		expect(rulesOf(building(skips13, tags), "w2")).toEqual([]);
 	});
 
 	it("says nothing outside the building", () => {
@@ -657,5 +656,45 @@ describe("validate: non-existent levels", () => {
 			node("n9", { amenity: "toilets", level: "13" }, [0.001, 0.001]),
 		);
 		expect(rulesOf(entities, "n9")).not.toContain("non-existent-level");
+	});
+});
+
+describe("validate: a room on several levels", () => {
+	const rules = (tags: Record<string, string>) =>
+		issuesOf(roomWith(tags), "w1").map((i) => i.rule);
+
+	it("suggests one room per level, sharing the nodes", () => {
+		const entities = roomWith({ indoor: "room", level: "0-2" });
+		const graph = Graph.fromEntities(entities);
+		const issue = validate(graph, ["w1"], RULES).find(
+			(i) => i.rule === "room-on-several-levels",
+		);
+		expect(issue?.message).toEqual(
+			msg("issue_room_on_several_levels", { indoor: "room", level: "0-2" }),
+		);
+		expect(issue?.fix?.label).toEqual(msg("fix_room_per_level", { count: 3 }));
+		const after = issue?.fix?.action(graph);
+		expect(after?.entity("w1")?.tags.level).toBe("0");
+		expect(after?.changes().created.map((w) => w.tags.level)).toEqual([
+			"1",
+			"2",
+		]);
+	});
+
+	it("leaves alone one level, stairs, elevators, atriums and repeat_on", () => {
+		expect(rules({ indoor: "room", level: "1" })).not.toContain(
+			"room-on-several-levels",
+		);
+		const kept: Record<string, string>[] = [
+			{ indoor: "room", level: "0;1", stairs: "yes" },
+			{ indoor: "room", level: "0;1", room: "elevator" },
+			{ indoor: "area", level: "0;1", room: "atrium" },
+			{ indoor: "room", level: "0", repeat_on: "1" },
+			{ indoor: "room", level: "0-0.5" },
+			{ indoor: "level", level: "0;1" },
+		];
+		for (const tags of kept) {
+			expect(rules(tags)).not.toContain("room-on-several-levels");
+		}
 	});
 });

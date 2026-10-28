@@ -106,6 +106,12 @@ runs the same commands.
   Shortcuts use `edit/keys.ts` (`matches`, `formatCombo`, `isTyping`). Map layers insert
   before a slot from `map/layer-slots.ts` (`slotId("plans")`), never before another owner's
   layer.
+- Geometry editing (P5.3): `edit/overlay.ts` (vertices, midpoints, junctions, untagged members;
+  pure) drawn by `map/edit-overlay.ts` (`EditOverlay.grabAt`); `map/snap.ts` (`snapAt`: node,
+  side, plan vertex within 8 px, from `nodesNear`/`segmentsNear`); `edit/node-drag.ts` (drag a
+  vertex, point or midpoint; joins with `actions/connect.ts`). A drag shows its moves with
+  `history.preview(action)` and ends with one `commit` (or `cancelPreview`): never `perform`
+  on every move.
 - Messages (R1.7): text shown to users is a `Message` made with `msg("key", {params})` from
   `i18n/messages.ts` and rendered with `t()` in components; errors shown to users are
   `MessageError`s. Add the English to `messages/en.json` (snake_case keys, `{param}`
