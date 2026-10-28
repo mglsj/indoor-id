@@ -723,7 +723,7 @@ Vector plans come before editing so that drawing can snap to plan walls from the
 slice still agrees its test seams first.
 
 After the October research and audit: the audit's fixes (R3) first, then the licence file
-(see Open questions; a few minutes, and osm-simple3d-editor is waiting on it), then wiki conformance (W)
+(done: ISC, see Open questions; osm-simple3d-editor was waiting on it), then wiki conformance (W)
 and level names (L), which are small and can run beside geometry editing (P5.3); then the
 viewer (V) and 3D floors (3D), after P5.3 (decided ✔); then autosave and conflicts (P5.4) and
 parity (P6).
@@ -1300,10 +1300,6 @@ After P5.3 (decided ✔).
 
 ## Open questions
 
-- **License — now blocking others.** `package.json` says MIT, the README says ISC and links a
-  `LICENSE.md` that doesn't exist, while 1.x is ISC (© Adrien Pavie, Daimler AG). The ISC
-  notice must be kept with any ported code (level logic, style, presets). osm-simple3d-editor
-  (ISC) lists our floor plan modules as references but won't reuse code until this is clear.
-  Proposed: `LICENSE.md` with ISC (the 1.x notice plus ours) and `"license": "ISC"` in
-  `package.json`, before W. Needs the owner's call.
+- ~~**License.**~~ Settled 2026-10-28 with the owner: ISC. `LICENSE.md` restored (the 1.x
+  notice plus ours) and `package.json` says `ISC`. Keep the ISC notice with ported code.
 - **Legacy tag.** `legacy-v1.0.16` has to be pushed from a machine with tag permissions.
