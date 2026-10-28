@@ -33,7 +33,7 @@ runs the same commands.
   (`style/icons.ts`): the 1.x set in `src/lib/map/style/icons/` (`key_value.svg|png`) and the
   presets' Maki/Temaki icons (`maki-toilet.svg`) copied into `presets/generated/icons/`.
 - Data model (P1): `osm/` (entities, immutable `Graph`, `History`, osmChange), `actions/`
-  (pure `graph => graph` functions), `levels/` (level values as ranges), `api/` (`OsmApi`).
+  (pure `graph => graph` functions), `levels/` (level values as ranges; `level-names.ts`: what the switcher lists, `level:ref`, `building:levels:ref`, `non_existent_levels`), `api/` (`OsmApi`).
   Get ids for new entities from `graph.newId(type)`; never mutate entities or graphs.
   Geometry (closed ways, point in polygon, extents, Web Mercator, midpoints, distances) lives
   in `osm/geometry.ts`, a way's nodes come from `graph.childNodes(way)`: don't write another copy.
@@ -44,7 +44,7 @@ runs the same commands.
   what the edit set. Avoid full scans (`changes()`, iterating every entity) on each edit.
 - Viewer (P2): `map/features.ts` (graph → GeoJSON with `@lv`, `@kind`, `@icon`, `@label`),
   `map/feature-store.ts` (P5.2: features rebuilt only for changed entities, sent to the map
-  with `updateData`; an rbush index of drawn nodes, `nodesNear`, for snapping),
+  with `updateData`; an rbush index of drawn nodes, `nodesNear`, for snapping; `levelsIn(extent)`, the named levels in view for `LevelControl`),
   `map/classify.ts` (all tag → drawing rules), `map/style/layers.ts`, `map/indoor-map.ts` (source
   and layers on the map), `api/map-loader.ts`, `state/editor.svelte.ts` (`Editor`: `history`
   (`EditHistory`), `selection`, `sync` (`DataSync`), `catalog` (presets, upgrades, web

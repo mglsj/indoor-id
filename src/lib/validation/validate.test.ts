@@ -609,3 +609,53 @@ describe("validate: one-based level numbers", () => {
 		expect(rulesOf(entities, "w1")).toEqual([]);
 	});
 });
+
+describe("validate: non-existent levels", () => {
+	const skips13 = { building: "yes", non_existent_levels: "4;13" };
+
+	it("flags a room on a level its building skips, without a fix", () => {
+		const [issue, ...rest] = issuesOf(
+			building(skips13, { indoor: "room", level: "13" }),
+			"w2",
+		);
+		expect(rest).toEqual([]);
+		expect(issue).toMatchObject({ rule: "non-existent-level" });
+		expect(issue?.message).toEqual(
+			msg("issue_non_existent_level", { level: "13" }),
+		);
+		expect(issue?.fix).toBeUndefined();
+	});
+
+	it("flags a point inside the building, naming every skipped level", () => {
+		const entities = building(
+			skips13,
+			null,
+			node(
+				"n9",
+				{ amenity: "toilets", level: "4", repeat_on: "13" },
+				[0.0001, 0.0001],
+			),
+		);
+		expect(issuesOf(entities, "n9")[0]?.message).toEqual(
+			msg("issue_non_existent_level", { level: "4;13" }),
+		);
+	});
+
+	it.each([
+		["an elevator through the skipped level", "12-14"],
+		["another level", "12"],
+	])("says nothing about %s", (_, level) => {
+		expect(rulesOf(building(skips13, { indoor: "room", level }), "w2")).toEqual(
+			[],
+		);
+	});
+
+	it("says nothing outside the building", () => {
+		const entities = building(
+			skips13,
+			null,
+			node("n9", { amenity: "toilets", level: "13" }, [0.001, 0.001]),
+		);
+		expect(rulesOf(entities, "n9")).not.toContain("non-existent-level");
+	});
+});

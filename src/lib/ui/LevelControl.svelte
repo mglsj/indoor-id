@@ -5,18 +5,29 @@
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
 	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
+	import {
+		fullLabel,
+		type LevelEntry,
+		shortLabel,
+	} from "#lib/levels/level-names.ts";
 
 	interface Props {
 		level: number;
-		/** Levels present in the data, sorted ascending. Without data, levels step by one. */
-		levels?: readonly number[];
+		/**
+		 * The levels of the data in view, sorted ascending, with their names. Without any,
+		 * levels step by one and no list shows.
+		 */
+		levels?: readonly LevelEntry[];
 	}
 
 	let { level = $bindable(), levels = [] }: Props = $props();
 
-	const above = $derived(levels.find((l) => l > level));
-	const below = $derived(levels.findLast((l) => l < level));
+	const numbers = $derived(levels.map((e) => e.level));
+	const above = $derived(numbers.find((l) => l > level));
+	const below = $derived(numbers.findLast((l) => l < level));
 	const descending = $derived([...levels].reverse());
+	/** The level shown, named when the data in view names it. */
+	const current = $derived(levels.find((e) => e.level === level) ?? { level });
 
 	const upTarget = $derived(levels.length > 0 ? above : level + 1);
 	const downTarget = $derived(levels.length > 0 ? below : level - 1);
@@ -25,6 +36,14 @@
 	function selectLevel(value: string) {
 		// Clicking the current level again would unselect it: keep it.
 		if (value) level = Number(value);
+	}
+
+	/** A level's accessible name: its number, then its names, which the button shows. */
+	function accessibleName(entry: LevelEntry): string {
+		const label = fullLabel(entry);
+		return entry.ref === undefined && entry.name === undefined
+			? label
+			: `Level ${String(entry.level)}: ${label}`;
 	}
 </script>
 
@@ -61,15 +80,20 @@
 <ButtonGroup.Root
 	orientation="vertical"
 	aria-label="Level"
-	class="rounded-md bg-background shadow-md"
+	class="max-w-20 rounded-md bg-background shadow-md"
 >
 	{@render stepButton("Level up", ChevronUp, upTarget)}
-	<ButtonGroup.Text class="justify-center px-0 tabular-nums">
+	<ButtonGroup.Text class="justify-center px-1 tabular-nums">
 		{#snippet child({
 			props,
 		})}
-			<output {...props} aria-label="Current level" data-testid="level">
-				{level}
+			<output
+				{...props}
+				aria-label="Current level"
+				data-testid="level"
+				data-level={level}
+			>
+				{shortLabel(current)}
 			</output>
 		{/snippet}
 	</ButtonGroup.Text>
@@ -82,14 +106,24 @@
 			class="max-h-64 w-full overflow-y-auto"
 			bind:value={selectedValue, selectLevel}
 		>
-			{#each descending as l (l)}
-				<ToggleGroup.Item
-					value={String(l)}
-					aria-label={`Level ${l}`}
-					class="tabular-nums"
-				>
-					{l}
-				</ToggleGroup.Item>
+			{#each descending as entry (entry.level)}
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({
+							props,
+						})}
+							<ToggleGroup.Item
+								{...props}
+								value={String(entry.level)}
+								aria-label={accessibleName(entry)}
+								class="px-1 tabular-nums"
+							>
+								{shortLabel(entry)}
+							</ToggleGroup.Item>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content side="left">{fullLabel(entry)}</Tooltip.Content>
+				</Tooltip.Root>
 			{/each}
 		</ToggleGroup.Root>
 	{/if}

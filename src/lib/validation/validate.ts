@@ -5,6 +5,7 @@
 import { changeTags } from "#lib/actions/change-tags.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import { featureLevels, unionOfLevels } from "#lib/levels/feature-levels.ts";
+import { explicitLevels } from "#lib/levels/level-names.ts";
 import {
 	formatLevels,
 	isOnLevel,
@@ -13,7 +14,7 @@ import {
 	parseLevels,
 } from "#lib/levels/levels.ts";
 import type { Entity, EntityId, Loc, Node, Way } from "#lib/osm/entity.ts";
-import { isClosed, pointInRing } from "#lib/osm/geometry.ts";
+import { isClosed, pointInRing, wayLocs } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
 import type { Tags } from "#lib/osm/tags.ts";
@@ -34,7 +35,8 @@ export type IssueRule =
 	| "missing-level"
 	| "outer-door-no-entrance"
 	| "entrance-inside"
-	| "one-based-levels";
+	| "one-based-levels"
+	| "non-existent-level";
 
 export interface Issue {
 	/** Stable id, `rule:entity`. */
@@ -75,6 +77,7 @@ export function validate(
 			...doorIssues(graph, entity, outlines),
 			...missingLevel(graph, entity, outlines),
 			...oneBasedLevels(entity, outlines),
+			...nonExistentLevel(graph, entity, outlines),
 		);
 	}
 	return issues;
@@ -334,6 +337,41 @@ function oneBasedLevels(entity: Entity, outlines: Outlines): Issue[] {
 	if (Math.max(...levels.map((l) => l.max)) < count) return [];
 	return [
 		issue("one-based-levels", entity, msg("issue_one_based_levels", { count })),
+	];
+}
+
+/**
+ * A feature in a building that names a level the building's `non_existent_levels` skips:
+ * the switcher doesn't list that level, so the level is probably wrong. No fix: which level
+ * was meant is unknown.
+ */
+function nonExistentLevel(
+	graph: Graph,
+	entity: Entity,
+	outlines: Outlines,
+): Issue[] {
+	const levels = explicitLevels(entity.tags);
+	if (levels.length === 0 || entity.type === "relation") return [];
+	const locs = entity.type === "node" ? [entity.loc] : wayLocs(graph, entity);
+	const corners =
+		entity.type === "way" && isClosed(entity) ? locs.slice(0, -1) : locs;
+	if (corners.length === 0) return [];
+	const centre = [0, 1].map(
+		(i) =>
+			corners.reduce((sum, loc) => sum + (loc[i] ?? 0), 0) / corners.length,
+	);
+	const skipped = outlines
+		.at(centre)
+		.filter((o) => o.building && o.nonExistent && o.id !== entity.id)
+		.flatMap((o) => levels.filter((l) => isOnLevel(o.nonExistent ?? [], l)));
+	const level = [...new Set(skipped)].sort((a, b) => a - b).join(";");
+	if (!level) return [];
+	return [
+		issue(
+			"non-existent-level",
+			entity,
+			msg("issue_non_existent_level", { level }),
+		),
 	];
 }
 

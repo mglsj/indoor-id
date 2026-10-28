@@ -67,6 +67,59 @@ test("shows no level list when the data has a single level", async ({
 	await expect(page.getByRole("group", { name: "Levels" })).toBeHidden();
 });
 
+test("names levels from their indoor=level outlines", async ({ page }) => {
+	const named = (id: number, level: string, tags: Record<string, string>) =>
+		room(id, LON, LAT, level).map((e) =>
+			e.type === "way"
+				? { ...e, tags: { indoor: "level", level, ...tags } }
+				: e,
+		);
+	await serveOsm(page, [
+		...named(100, "0", { "level:ref": "EG", name: "Erdgeschoss" }),
+		...named(200, "1", { name: "Untere Verkaufsebene" }),
+		...room(300, LON, LAT, "-1"),
+	]);
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+
+	const levels = page.getByRole("group", { name: "Levels" }).getByRole("radio");
+	await expect(levels).toHaveText(["Unter…", "EG", "-1"]);
+	await expect(page.getByTestId("level")).toHaveText("EG");
+	await page
+		.getByRole("radio", { name: "Level 1: Untere Verkaufsebene · level 1" })
+		.hover();
+	await expect(page.getByText("Untere Verkaufsebene · level 1")).toBeVisible();
+	// The hash keeps the number.
+	await page.getByRole("radio", { name: /^Level 1:/ }).click();
+	await expect.poll(() => hash(page)).toBe(`#19/${LAT}/${LON}/1`);
+});
+
+test("lists the levels of the data in view only, skipping non-existent ones", async ({
+	page,
+}) => {
+	const building = room(400, LON, LAT, "0", 0.0003).map((e) =>
+		e.type === "way"
+			? { ...e, tags: { building: "yes", non_existent_levels: "13" } }
+			: e,
+	);
+	await serveOsm(page, [
+		...building,
+		...room(100, LON, LAT, "12-14"),
+		// Far away: not in view.
+		...room(200, LON + 0.01, LAT, "3"),
+	]);
+	await page.goto(`/#19/${LAT}/${LON}/12`);
+
+	const levels = page.getByRole("group", { name: "Levels" }).getByRole("radio");
+	await expect(levels).toHaveText(["14", "12"]);
+	await page.evaluate(
+		([lon, lat]) => (location.hash = `#19/${lat}/${lon}/12`),
+		[LON + 0.05, LAT],
+	);
+	// No data in view: levels step by one, with no list.
+	await expect(page.getByRole("group", { name: "Levels" })).toBeHidden();
+	await expect(page.getByRole("button", { name: "Level up" })).toBeEnabled();
+});
+
 test("downloads each area only once", async ({ page }) => {
 	const requests = await serveOsm(page, room(100, LON, LAT, "0"));
 	await page.goto(`/#19/${LAT}/${LON}/0`);

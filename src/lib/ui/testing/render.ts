@@ -3,6 +3,7 @@ import type { Component } from "svelte";
 import { render } from "vitest-browser-svelte";
 import type { Editor } from "#lib/state/editor.svelte.ts";
 import WithEditor from "./WithEditor.svelte";
+import WithTooltips from "./WithTooltips.svelte";
 
 /** Renders `component` with `props`, `getEditor()` giving it `editor`. */
 export function renderWithEditor<P extends Record<string, unknown>>(
@@ -17,4 +18,16 @@ export function renderWithEditor<P extends Record<string, unknown>>(
 	}>;
 	// Under `props`: `props` is also a mount option.
 	return render(harness, { props: { editor, component, props } });
+}
+
+/** Renders `component` with `props` inside a tooltip provider, as the app's layout does. */
+export function renderWithTooltips<P extends Record<string, unknown>>(
+	component: Component<P>,
+	props: P,
+) {
+	const harness = WithTooltips as unknown as Component<{
+		component: Component<P>;
+		props: P;
+	}>;
+	return render(harness, { props: { component, props } });
 }

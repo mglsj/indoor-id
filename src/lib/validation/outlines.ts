@@ -5,6 +5,7 @@
  */
 import RBush from "rbush";
 import { featureLevels } from "#lib/levels/feature-levels.ts";
+import { nonExistentLevels } from "#lib/levels/level-names.ts";
 import type { Levels } from "#lib/levels/levels.ts";
 import {
 	type EntityId,
@@ -37,6 +38,8 @@ export interface Outline {
 	readonly extent: Extent;
 	/** Its levels (own tags or parent relations), or null without any. */
 	readonly levels: Levels | null;
+	/** A building's `non_existent_levels`, if readable. */
+	readonly nonExistent?: Levels;
 }
 
 interface Item {
@@ -170,6 +173,7 @@ function itemOf(graph: Graph, way: Way): Item | null {
 	const ring = wayLocs(graph, way);
 	const extent = extentOf(ring);
 	if (!extent || ring.length < 4) return null;
+	const nonExistent = building ? nonExistentLevels(tags) : null;
 	const outline: Outline = {
 		id: way.id,
 		building,
@@ -181,6 +185,7 @@ function itemOf(graph: Graph, way: Way): Item | null {
 					graph.parentRelations(way.id).map((r) => r.tags),
 				)
 			: null,
+		...(nonExistent && { nonExistent }),
 	};
 	return {
 		minX: extent.west,
