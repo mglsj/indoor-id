@@ -8,6 +8,8 @@ import {
 	GeorefError,
 	type LngLat,
 	moveTo,
+	offsetBy,
+	type Pixel,
 	place,
 	positionOf,
 	project,
@@ -260,6 +262,27 @@ describe("rotateAbout", () => {
 		expect(
 			distance(project(rotated, [200, 100]), offset(pin, 0, -5)),
 		).toBeLessThan(0.001);
+	});
+});
+
+describe("offsetBy", () => {
+	it("moves the plan a number of metres east and north, keeping its scale and rotation", () => {
+		const start = place(
+			{ center: RENNES, metresPerPixel: 0.05, bearing: 20 },
+			400,
+			300,
+		);
+		const moved = offsetBy(start, 400, 300, 2.5, -1);
+		const pixels: Pixel[] = [
+			[200, 150],
+			[0, 0],
+			[400, 300],
+		];
+		for (const pixel of pixels) {
+			expect(
+				distance(project(moved, pixel), offset(project(start, pixel), 2.5, -1)),
+			).toBeLessThan(0.001);
+		}
 	});
 });
 

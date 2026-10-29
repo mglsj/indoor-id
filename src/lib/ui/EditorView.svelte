@@ -54,8 +54,14 @@
 		type OperationContext,
 	} from "#lib/edit/operations.ts";
 	import { cutFeature, overlayFeatures } from "#lib/edit/overlay.ts";
+	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
 	import { workerCodec } from "#lib/floorplans/codec.ts";
-	import { groundDistance, type LngLat } from "#lib/floorplans/georef.ts";
+	import {
+		corners,
+		groundDistance,
+		type LngLat,
+		project,
+	} from "#lib/floorplans/georef.ts";
 	import { planDecoders } from "#lib/floorplans/import.ts";
 	import { type Message, msg, t } from "#lib/i18n/messages.ts";
 	import { setBackground } from "#lib/map/background.ts";
@@ -576,6 +582,8 @@
 			tool?.kind === "points" && tool.pending
 				? {
 						nodes: editor.features.nodesNear(area, level),
+						// A building's corners and walls: the sides of what is drawn.
+						segments: editor.features.segmentsNear(area, level),
 						planVertices: floorplans.verticesNear(
 							area,
 							level,
@@ -706,6 +714,30 @@
 
 	/** The side panel, which covers the left of the map while it is open. */
 	let sidePanel = $state<HTMLElement>();
+
+	/** The buildings under the plan in Edit, which it can be assigned to. */
+	const planBuildings = $derived.by(() => {
+		const plan = floorplans.editing;
+		if (!plan) return [];
+		const { width, height } = plan.size;
+		const ring = corners(plan.transform, width, height);
+		const extent = {
+			west: Math.min(...ring.map((c) => c[0])),
+			south: Math.min(...ring.map((c) => c[1])),
+			east: Math.max(...ring.map((c) => c[0])),
+			north: Math.max(...ring.map((c) => c[1])),
+		};
+		return buildingsUnder(
+			editor.graph,
+			editor.features.segmentsNear(extent, level).map((s) => s.way),
+			project(plan.transform, [width / 2, height / 2]),
+		);
+	});
+
+	function planBuildingName(id: string): string | undefined {
+		const entity = editor.graph.entity(id as EntityId);
+		return entity && buildingName(entity.tags, id);
+	}
 
 	/** The part of the map the side panel leaves visible, for placing new floor plans. */
 	function planView(): PlanView | undefined {
@@ -975,6 +1007,8 @@
 				{toolMessage}
 				onclose={closePlanMode}
 				onshowlevel={(shown) => (level = shown)}
+				buildings={planBuildings}
+				buildingName={planBuildingName}
 			/>
 		{/if}
 		<PanelResizer

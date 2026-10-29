@@ -43,6 +43,8 @@ interface PlanFields {
 	readonly visible: boolean;
 	/** Ids of the CAD layers not shown; files from before have none. */
 	readonly hiddenLayers?: readonly string[];
+	/** The OSM building it is of, when assigned. */
+	readonly building?: string;
 }
 
 /** A plan read from a plan file, placed as saved, with its content and the file it is from. */

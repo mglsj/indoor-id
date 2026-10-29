@@ -259,6 +259,7 @@ describe("plan files, version 2: an archive of plans and the files they come fro
 		visible: n === 1,
 		color: "#2563eb",
 		hiddenLayers: ["232R"],
+		building: "w4242",
 	});
 	const archive: PlanArchive = {
 		plans: [
@@ -392,6 +393,15 @@ describe("plan files, version 2: an archive of plans and the files they come fro
 		expect(hidden(undefined)).toBeUndefined();
 		expect(hidden("7R")).toBeUndefined();
 		expect(hidden(["7R", 9])).toBeUndefined();
+	});
+
+	it("keeps the building a plan is of, left out when it isn't a way or relation id", () => {
+		const building = (value: unknown) =>
+			readPlanArchive(manifest({}, { building: value })).plans[0]?.building;
+		expect(building("r12")).toBe("r12");
+		expect(building(undefined)).toBeUndefined();
+		expect(building("n12")).toBeUndefined();
+		expect(building(12)).toBeUndefined();
 	});
 
 	it("refuses an archive that isn't a plan file", () => {

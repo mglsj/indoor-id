@@ -262,6 +262,40 @@ describe("editing a plan", () => {
 		expect(plan.controlPoints).toEqual([]);
 	});
 
+	it("moves the plan in Edit by metres east and north, its control points dropped", () => {
+		const floorplans = new FloorPlans();
+		floorplans.add(image, "plan", view, "0", photo());
+		const before = floorplans.editing?.transform;
+		moveWest(floorplans);
+		const start = floorplans.editing?.transform;
+		if (!before || !start) throw new Error("no plan in Edit");
+		floorplans.offset(3, -2);
+		const plan = floorplans.editing;
+		if (!plan) throw new Error("no plan in Edit");
+		expect(
+			distance(
+				project(plan.transform, [0, 0]),
+				offset(project(start, [0, 0]), 3, -2),
+			),
+		).toBeLessThan(0.001);
+		expect(plan.controlPoints).toEqual([]);
+	});
+
+	it("assigns the plan in Edit to a building, saved by Done", () => {
+		const { store, saved } = memoryStore();
+		const floorplans = new FloorPlans({ store });
+		floorplans.add(image, "plan", view, "0", photo());
+		floorplans.setBuilding("w42");
+		expect(floorplans.editing?.building).toBe("w42");
+		floorplans.done();
+		expect(saved.at(-1)?.building).toBe("w42");
+		const [plan] = floorplans.plans;
+		if (!plan) throw new Error("no plan");
+		floorplans.edit(plan.id);
+		floorplans.setBuilding(null);
+		expect(floorplans.editing).not.toHaveProperty("building");
+	});
+
 	it("opens a new plan in Edit, saved as imported", () => {
 		const { store, saved } = memoryStore();
 		const floorplans = new FloorPlans({ store });

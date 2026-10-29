@@ -40,6 +40,8 @@ export interface StoredPlan {
 	readonly hiddenLayers?: readonly string[];
 	/** `#rrggbb`; plans saved before colours existed have none. */
 	readonly color?: string;
+	/** The OSM building it is of (`w123`, `r45`), when assigned. */
+	readonly building?: string;
 	/** Place in the layer stack, the building outlines included: lowest first. */
 	readonly order: number;
 }
