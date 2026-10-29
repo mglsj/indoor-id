@@ -53,9 +53,7 @@
 <Popover.Root {onOpenChange}>
 	<div class="rounded-md bg-background shadow-md">
 		<Popover.Trigger>
-			{#snippet child({
-				props,
-			})}
+			{#snippet child({ props })}
 				<Button {...props} variant="outline">
 					<Layers data-icon="inline-start" />
 					Background
@@ -90,10 +88,7 @@
 	</Popover.Content>
 </Popover.Root>
 
-{#snippet option(
-	value: string,
-	name: string,
-)}
+{#snippet option(value: string, name: string)}
 	{@const id = `imagery-${value}`}
 	<Field.Field orientation="horizontal">
 		<RadioGroup.Item {value} {id} />

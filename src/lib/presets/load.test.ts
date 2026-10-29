@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { loadPresetIndex } from "./load.ts";
 
-/** Checks the presets generated from iD's schema cover Simple Indoor Tagging. */
-describe("generated presets", async () => {
-	const index = await loadPresetIndex();
+const index = await loadPresetIndex();
 
+/** Checks the presets generated from iD's schema cover Simple Indoor Tagging. */
+describe("generated presets", () => {
 	it.each([
 		[{ indoor: "room" }, "area", "Room"],
 		[

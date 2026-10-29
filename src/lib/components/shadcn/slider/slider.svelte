@@ -26,9 +26,7 @@ get along, so we shut typescript up by casting `value` to `never`.
 	)}
 	{...restProps}
 >
-	{#snippet children({
-		thumbItems,
-	})}
+	{#snippet children({ thumbItems })}
 		<span
 			data-slot="slider-track"
 			data-orientation={orientation}

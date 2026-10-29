@@ -25,9 +25,7 @@
 			)}
 			{...restProps}
 		>
-			{#snippet child({
-				props,
-			})}
+			{#snippet child({ props })}
 				<InputGroup.Input {...props} bind:value bind:ref />
 			{/snippet}
 		</CommandPrimitive.Input>

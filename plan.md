@@ -19,48 +19,48 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 
 ## Status
 
-| Phase | Scope                                      | Status      |
-| ----- | ------------------------------------------ | ----------- |
-| P0    | Scaffold, tooling, map, URL hash           | Done        |
-| P1    | Core data model (no UI)                    | Done        |
-| P2    | Fast read-only viewer                      | Done        |
-| P3    | Presets, validation, upload                | Done        |
-| P4    | Floor plans                                | Done        |
-| P4.1  | Floor plan layers, edit sessions, align UX | Done        |
-| P5.0–2 | Quick fixes, feature editor, fast core    | Done        |
-| R0    | Fixes and fast feedback (review)           | Done        |
-| R1    | Foundations for editing (review)           | Done        |
-| R2    | Floor plan content model (review)          | Done        |
-| P4.2  | Vector and light raster floor plans        | Done        |
-| R3    | Fixes from the October audit               | Done        |
-| W     | Wiki conformance                           | Done        |
-| L     | Level names in the switcher                | Done        |
-| P5.3  | Geometry editing                           | Done        |
-| R4    | Fixes after P5.3 (review)                  | Not started |
-| R5    | Map shell split (review)                   | Not started |
-| P5.4a | Autosave and restore                       | Not started |
-| V     | Viewer mode (V.1–V.3)                      | Not started |
-| 3D    | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
-| P5.4b | Rebase before upload, conflicts            | Not started |
-| P6    | Parity and polish                          | Not started |
+| Phase  | Scope                                      | Status      |
+| ------ | ------------------------------------------ | ----------- |
+| P0     | Scaffold, tooling, map, URL hash           | Done        |
+| P1     | Core data model (no UI)                    | Done        |
+| P2     | Fast read-only viewer                      | Done        |
+| P3     | Presets, validation, upload                | Done        |
+| P4     | Floor plans                                | Done        |
+| P4.1   | Floor plan layers, edit sessions, align UX | Done        |
+| P5.0–2 | Quick fixes, feature editor, fast core     | Done        |
+| R0     | Fixes and fast feedback (review)           | Done        |
+| R1     | Foundations for editing (review)           | Done        |
+| R2     | Floor plan content model (review)          | Done        |
+| P4.2   | Vector and light raster floor plans        | Done        |
+| R3     | Fixes from the October audit               | Done        |
+| W      | Wiki conformance                           | Done        |
+| L      | Level names in the switcher                | Done        |
+| P5.3   | Geometry editing                           | Done        |
+| R4     | Fixes after P5.3 (review)                  | Not started |
+| R5     | Map shell split (review)                   | Not started |
+| P5.4a  | Autosave and restore                       | Not started |
+| V      | Viewer mode (V.1–V.3)                      | Not started |
+| 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
+| P5.4b  | Rebase before upload, conflicts            | Not started |
+| P6     | Parity and polish                          | Not started |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
 
 ## Stack
 
-| Area        | Choice                                                                                          |
-| ----------- | ----------------------------------------------------------------------------------------------- |
-| Tooling     | Bun 1.4 (package manager, scripts), Node 24+, Biome 2.5 (format + lint), GitHub Actions          |
+| Area        | Choice                                                                                                              |
+| ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| Tooling     | Bun 1.4 (package manager, scripts), Node 24+, Biome 2.5 (format + lint), GitHub Actions                             |
 | App         | SvelteKit 3 + `adapter-static`, every route `ssr = false` / `prerender = true`; Svelte 5 runes; TypeScript 6 strict |
-| Map         | MapLibre GL JS 6 (WebGL), imported only via `#lib/map/maplibre.ts`                              |
-| UI          | Tailwind CSS 4, shadcn-svelte components (vega style, on bits-ui 2), `@lucide/svelte`           |
-| Editing     | Custom engine modelled on iD's modes and behaviours, `rbush` spatial index, `@turf/*` v7        |
-| OSM         | `osm-auth` 3 (OAuth 2 PKCE, no secret, no backend); small `fetch` client for the API v0.6      |
-| Presets     | `@openstreetmap/id-tagging-schema` filtered at build time, plus a local indoor overlay; `fuse.js` |
-| Storage     | IndexedDB via `idb` (floor plans, autosaved edits, settings)                                    |
-| Floor plans | `pdfjs-dist` (lazy loaded); MapLibre `image` source with `setWarp("perspective")`               |
-| i18n        | Paraglide (key/value JSON, compatible with Transifex)                                           |
-| Tests       | Vitest (unit), Playwright 1.56.1 (e2e; cloud sessions' Chromium differs, see R4.3)             |
+| Map         | MapLibre GL JS 6 (WebGL), imported only via `#lib/map/maplibre.ts`                                                  |
+| UI          | Tailwind CSS 4, shadcn-svelte components (vega style, on bits-ui 2), `@lucide/svelte`                               |
+| Editing     | Custom engine modelled on iD's modes and behaviours, `rbush` spatial index, `@turf/*` v7                            |
+| OSM         | `osm-auth` 3 (OAuth 2 PKCE, no secret, no backend); small `fetch` client for the API v0.6                           |
+| Presets     | `@openstreetmap/id-tagging-schema` filtered at build time, plus a local indoor overlay; `fuse.js`                   |
+| Storage     | IndexedDB via `idb` (floor plans, autosaved edits, settings)                                                        |
+| Floor plans | `pdfjs-dist` (lazy loaded); MapLibre `image` source with `setWarp("perspective")`                                   |
+| i18n        | Paraglide (key/value JSON, compatible with Transifex)                                                               |
+| Tests       | Vitest (unit), Playwright 1.63.0 (e2e, matches cloud sessions' Chromium)                                            |
 
 Decisions already discussed:
 
@@ -140,11 +140,10 @@ start (about 130 English strings in components wait for P6).
    with, but `modeKind` doesn't depend on `level`: switching level (switcher or hash) tags the
    way with the old level while `snapNode` snaps to the new level's nodes, joining levels by
    accident. Fix: a level change ends the drawing as Escape does. E2E test.
-3. **Tests in cloud sessions.** Playwright 1.56.1 wants `chromium_headless_shell-1194`; cloud
-   containers now ship `/opt/pw-browsers/chromium` (build 1243), so component and e2e tests
-   don't start there and sessions push without them. Launch with an `executablePath` from an
-   environment variable when set (Playwright config and the Vitest browser instance), set by
-   `.claude/hooks/session-start.sh` when `/opt/pw-browsers/chromium` exists. CI unchanged.
+3. ✅ **Tests in cloud sessions.** Playwright 1.56.1 wanted `chromium_headless_shell-1194`;
+   cloud containers now ship build 1243, so component and e2e tests didn't start there.
+   Done 2026-10-29 with the dependency update: Playwright 1.63.0 matches it, and all 149 e2e
+   tests pass in a cloud session (the PDF label checks now wait up to 15 s for glyphs).
 4. **Bench before autosave.** Every tile merge rebases every undo step (`History.merge`), and
    `Editor.editIssues` is a getter calling `graph.changes()`: add a `bun run bench` case with
    500 steps and a tile merge before P5.4a fixes the saved format.
@@ -300,17 +299,17 @@ After 3D. Autosave, P5.4's first step, moved to P5.4a; steps 2 to 4 stay here.
 
 ## Risks
 
-| Risk                                                 | Mitigation                                                  |
-| ---------------------------------------------------- | ----------------------------------------------------------- |
-| Size of the custom editing engine                    | Follow iD's design; mouse first, basic touch                |
-| WebGL needs CORS on imagery tiles (Leaflet didn't)   | Detect failing sources and mark them unavailable            |
-| GPU texture limits (4096 px on many mobiles)         | Downscale or tile floor plans                               |
-| Upstream preset gaps and version churn               | Pin the schema version; local overlay                       |
-| OAuth redirect URIs per domain                       | Separate client ids per deployment in `config.json`         |
-| Biome's Svelte support is still experimental         | Keep `svelte-check` in CI; fall back to Prettier for `.svelte` if formatting breaks markup |
-| Losing 1.x features                                  | Legacy code kept at `cd1e955`; P6 parity checklist          |
-| GPU float32 precision for plans in Web Mercator      | Combine transform and camera in float64 on the CPU, relative to the plan's centre |
-| Refactors (R0–R2) breaking working features          | One refactor per slice, e2e suite green before and after, no behaviour change mixed in |
+| Risk                                               | Mitigation                                                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Size of the custom editing engine                  | Follow iD's design; mouse first, basic touch                                               |
+| WebGL needs CORS on imagery tiles (Leaflet didn't) | Detect failing sources and mark them unavailable                                           |
+| GPU texture limits (4096 px on many mobiles)       | Downscale or tile floor plans                                                              |
+| Upstream preset gaps and version churn             | Pin the schema version; local overlay                                                      |
+| OAuth redirect URIs per domain                     | Separate client ids per deployment in `config.json`                                        |
+| Biome's Svelte support is still experimental       | Keep `svelte-check` in CI; fall back to Prettier for `.svelte` if formatting breaks markup |
+| Losing 1.x features                                | Legacy code kept at `cd1e955`; P6 parity checklist                                         |
+| GPU float32 precision for plans in Web Mercator    | Combine transform and camera in float64 on the CPU, relative to the plan's centre          |
+| Refactors (R0–R2) breaking working features        | One refactor per slice, e2e suite green before and after, no behaviour change mixed in     |
 
 ## Open questions
 

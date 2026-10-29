@@ -219,7 +219,10 @@ test("draws a PDF's text as labels where the PDF has it", async ({ page }) => {
 		height: 30 * scale,
 	};
 	// Dark text (#333 at the plan's opacity, 0.5) where the label is; the page bare beside it.
-	await expect.poll(() => darkest(page, label)).toBeLessThan(170);
+	// The label waits for its glyphs and a software-rendered frame: slow on a busy machine.
+	await expect
+		.poll(() => darkest(page, label), { timeout: 15_000 })
+		.toBeLessThan(170);
 	expect(await darkest(page, { ...label, x: cx + 20 * scale })).toBeGreaterThan(
 		200,
 	);
@@ -242,7 +245,9 @@ test("hides a PDF's CAD layers, its text with them", async ({ page }) => {
 		height: 30 * scale,
 	};
 	await expectPixel(page, frame.x, frame.y, blend([0, 0, 0], 0.5, BACKGROUND));
-	await expect.poll(() => darkest(page, label)).toBeLessThan(170);
+	await expect
+		.poll(() => darkest(page, label), { timeout: 15_000 })
+		.toBeLessThan(170);
 
 	const layers = page.getByRole("group", { name: "Layers" });
 	await expect(layers.getByRole("checkbox")).toHaveCount(2);
@@ -254,7 +259,9 @@ test("hides a PDF's CAD layers, its text with them", async ({ page }) => {
 	await expectPixel(page, frame.x, frame.y, BACKGROUND);
 	await layers.getByRole("button", { name: "Show all" }).click();
 	await expectPixel(page, frame.x, frame.y, blend([0, 0, 0], 0.5, BACKGROUND));
-	await expect.poll(() => darkest(page, label)).toBeLessThan(170);
+	await expect
+		.poll(() => darkest(page, label), { timeout: 15_000 })
+		.toBeLessThan(170);
 });
 
 test("imports several PDF pages as plans, all on the level shown", async ({

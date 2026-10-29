@@ -13,16 +13,16 @@ IndoorID is a client-side web application written in TypeScript with [Svelte 5](
 
 Install dependencies with `bun install`, then:
 
-| Command              | Description                                                                   |
-| -------------------- | ----------------------------------------------------------------------------- |
-| `bun run dev`        | Starts a development server on [http://localhost:5173](http://localhost:5173) |
-| `bun run build`      | Builds the static site into `build/`, ready to be served by any web server    |
-| `bun run preview`    | Serves the production build locally                                           |
-| `bun run check`      | Type-checks TypeScript and Svelte files                                       |
-| `bun run lint`       | Checks formatting and lint rules (Biome)                                      |
-| `bun run format`     | Formats and applies safe lint fixes (Biome)                                   |
-| `bun run test:unit`  | Runs unit tests (Vitest), found next to the code as `*.test.ts`               |
-| `bun run test:e2e`   | Builds the app and runs browser tests (Playwright) from `tests/e2e`           |
+| Command             | Description                                                                   |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `bun run dev`       | Starts a development server on [http://localhost:5173](http://localhost:5173) |
+| `bun run build`     | Builds the static site into `build/`, ready to be served by any web server    |
+| `bun run preview`   | Serves the production build locally                                           |
+| `bun run check`     | Type-checks TypeScript and Svelte files                                       |
+| `bun run lint`      | Checks formatting and lint rules (Biome)                                      |
+| `bun run format`    | Formats and applies safe lint fixes (Biome)                                   |
+| `bun run test:unit` | Runs unit tests (Vitest), found next to the code as `*.test.ts`               |
+| `bun run test:e2e`  | Builds the app and runs browser tests (Playwright) from `tests/e2e`           |
 
 The first time you run browser tests, install Chromium with `bunx playwright install chromium`.
 
@@ -51,24 +51,24 @@ SvelteKit is configured in `vite.config.ts` (SvelteKit 3 no longer reads `svelte
 
 `static/config.json` is read at runtime, so it can be edited in a deployed `build/` folder without rebuilding. It is public: never put secrets in it.
 
-| Key                  | Description                                                                                                                                           |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `editor_name`        | Name of this instance                                                                                                                                 |
-| `osm_api_url`        | OSM API to read and edit: `https://api.openstreetmap.org` (the default), or the [development API](https://master.apis.dev.openstreetmap.org) to test uploads |
+| Key                  | Description                                                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `editor_name`        | Name of this instance                                                                                                                                                           |
+| `osm_api_url`        | OSM API to read and edit: `https://api.openstreetmap.org` (the default), or the [development API](https://master.apis.dev.openstreetmap.org) to test uploads                    |
 | `oauth_url`          | OSM website handling the login and changeset links (`https://www.openstreetmap.org` with the production API; defaults to `osm_api_url`, which is right for the development API) |
-| `oauth_client_id`    | Public client id of an [OAuth 2 application](https://wiki.openstreetmap.org/wiki/OAuth) registered on that OSM instance, without client secret (PKCE) |
-| `imagery_index_url`  | [Editor Layer Index](https://github.com/osmlab/editor-layer-index) listing background imagery (optional, defaults to the osmlab one) |
-| `nominatim_url`      | Nominatim instance used for place search (optional, defaults to `https://nominatim.openstreetmap.org`) |
-| `basemap_style`      | URL of a MapLibre style used as background map                                                                                                        |
-| `data_min_zoom`      | Minimal zoom at which OSM data is downloaded                                                                                                          |
-| `map_initial_zoom`   | Zoom used when the URL has no position                                                                                                                |
-| `map_initial_latlng` | `[lat, lon]` used when the URL has no position                                                                                                        |
+| `oauth_client_id`    | Public client id of an [OAuth 2 application](https://wiki.openstreetmap.org/wiki/OAuth) registered on that OSM instance, without client secret (PKCE)                           |
+| `imagery_index_url`  | [Editor Layer Index](https://github.com/osmlab/editor-layer-index) listing background imagery (optional, defaults to the osmlab one)                                            |
+| `nominatim_url`      | Nominatim instance used for place search (optional, defaults to `https://nominatim.openstreetmap.org`)                                                                          |
+| `basemap_style`      | URL of a MapLibre style used as background map                                                                                                                                  |
+| `data_min_zoom`      | Minimal zoom at which OSM data is downloaded                                                                                                                                    |
+| `map_initial_zoom`   | Zoom used when the URL has no position                                                                                                                                          |
+| `map_initial_latlng` | `[lat, lon]` used when the URL has no position                                                                                                                                  |
 
 ### Logging in
 
 Register an OAuth 2 application on the OSM instance (your user settings, "OAuth 2 applications") with:
 
-- permissions: *Read user preferences* and *Modify the map*;
+- permissions: _Read user preferences_ and _Modify the map_;
 - redirect URI: the editor's URL followed by `auth/callback`, e.g. `http://localhost:5173/auth/callback` for development;
 - confidential application: **unchecked** (IndoorID uses PKCE and has no secret).
 

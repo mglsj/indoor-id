@@ -184,23 +184,25 @@ runs the same commands.
   imported with `?no-inline`, so a test can wait for `maki-toilet.*.svg`). Floor plan fixtures
   live in `tests/e2e/files/` (excluded from Biome); `pixelAt()` takes page coordinates, so add
   the map's offset from `mapLocator(page).boundingBox()`.
-- `@playwright/test` is pinned to 1.56.1 because that version matches the Chromium preinstalled in
-  cloud sessions (`/opt/pw-browsers`). Upgrade both together.
+- `@playwright/test` and `playwright` are pinned to 1.63.0 because that version matches the
+  Chromium preinstalled in cloud sessions (`/opt/pw-browsers`, the global `playwright` package).
+  When cloud sessions move to a newer build, upgrade both pins to the global version
+  (`npm ls -g playwright`).
 
 ## Skills in `.claude/skills`
 
 Installed with a skills manager (`skills-lock.json`); don't edit them by hand.
 
-| Task                                                   | Skill                                                    |
-| ------------------------------------------------------ | -------------------------------------------------------- |
-| Writing or reviewing any `.svelte` / `.svelte.ts` file | `svelte-core-bestpractices`, then `svelte-code-writer`   |
-| Anything MapLibre 6 (APIs, events, worker, imports)    | `maplibre-v6-migration`                                  |
-| Map styling: indoor layers, labels, icons, ordering    | `maplibre-cartography`, `maplibre-fonts-glyphs`          |
-| Sources not rendering, `promoteId`, feature state      | `maplibre-source-wiring`, `maplibre-tile-sources`        |
-| Hosting tiles statically (if ever needed)              | `maplibre-pmtiles-patterns`                              |
+| Task                                                   | Skill                                                     |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| Writing or reviewing any `.svelte` / `.svelte.ts` file | `svelte-core-bestpractices`, then `svelte-code-writer`    |
+| Anything MapLibre 6 (APIs, events, worker, imports)    | `maplibre-v6-migration`                                   |
+| Map styling: indoor layers, labels, icons, ordering    | `maplibre-cartography`, `maplibre-fonts-glyphs`           |
+| Sources not rendering, `promoteId`, feature state      | `maplibre-source-wiring`, `maplibre-tile-sources`         |
+| Hosting tiles statically (if ever needed)              | `maplibre-pmtiles-patterns`                               |
 | UI components (add, compose, style)                    | `shadcn-svelte`, then `tailwind-design-system` for tokens |
-| UI / accessibility review                              | `web-design-guidelines`                                  |
-| Test-first work                                        | `tdd`                                                    |
+| UI / accessibility review                              | `web-design-guidelines`                                   |
+| Test-first work                                        | `tdd`                                                     |
 | Typed graph / tag / preset models                      | `typescript-advanced-types`, `modern-javascript-patterns` |
 
 Not relevant to this app: `maplibre-terrain-rendering`, `maplibre-running-evals`,

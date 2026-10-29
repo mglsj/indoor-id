@@ -100,9 +100,7 @@
 	}
 </script>
 
-{#snippet swatch(
-	color: string,
-)}
+{#snippet swatch(color: string)}
 	<span
 		data-slot="swatch"
 		class="size-4 rounded-full ring-1 ring-foreground/20"

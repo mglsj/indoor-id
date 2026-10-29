@@ -896,9 +896,7 @@
 )}
 	<Tooltip.Root>
 		<Tooltip.Trigger {disabled} {onclick}>
-			{#snippet child({
-				props,
-			})}
+			{#snippet child({ props })}
 				<Button
 					{...props}
 					variant="outline"
@@ -922,9 +920,7 @@
 )}
 	<Tooltip.Root>
 		<Tooltip.Trigger onclick={() => draw(kind)}>
-			{#snippet child({
-				props,
-			})}
+			{#snippet child({ props })}
 				<Button
 					{...props}
 					variant={drawing === kind ? "secondary" : "outline"}
@@ -943,17 +939,12 @@
 	</Tooltip.Root>
 {/snippet}
 
-{#snippet operationButton(
-	operation: Operation,
-	disabled: Message | null,
-)}
+{#snippet operationButton(operation: Operation, disabled: Message | null)}
 	{@const Icon = OPERATION_ICONS[operation.id]}
 	{@const label = t(operation.label)}
 	<Tooltip.Root>
 		<Tooltip.Trigger onclick={() => runOperation(operation)}>
-			{#snippet child({
-				props,
-			})}
+			{#snippet child({ props })}
 				<!-- aria-disabled, not disabled: the tooltip still says why. -->
 				<Button
 					{...props}
