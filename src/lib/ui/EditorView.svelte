@@ -36,6 +36,7 @@
 		isTyping,
 		matches,
 	} from "#lib/edit/keys.ts";
+	import { featuresInLasso, lassoDrag } from "#lib/edit/lasso.ts";
 	import type { MapPoint } from "#lib/edit/mode.ts";
 	import { ModeManager } from "#lib/edit/mode-manager.ts";
 	import { browseMode } from "#lib/edit/modes/browse.ts";
@@ -99,6 +100,7 @@
 	import Inspector from "#lib/ui/Inspector.svelte";
 	import LevelControl from "#lib/ui/LevelControl.svelte";
 	import MapView from "#lib/ui/MapView.svelte";
+	import MultiInspector from "#lib/ui/MultiInspector.svelte";
 	import PanelResizer from "#lib/ui/PanelResizer.svelte";
 	import {
 		clampWidth,
@@ -223,7 +225,7 @@
 
 	/** The drawing tool on (P5.3.4; the split tool, P5.3.5), or null when browsing. */
 	let drawing = $state<"point" | "line" | "area" | "split" | null>(null);
-	/** The split tool's cut line, as drawn so far. */
+	/** The split tool's cut line, or the lasso, as drawn so far. */
 	let cut = $state.raw<readonly Loc[]>([]);
 
 	/** Turns a drawing tool on, or off when it is on already. */
@@ -260,6 +262,18 @@
 		}
 		editor.history.perform(splitAreas(line, targets), msg("undo_split"));
 		editor.select(null);
+	}
+
+	/** Adds what a lasso holds, on the shown level, to the selection (P5.3.6). */
+	function selectInLasso(lasso: readonly Loc[]) {
+		const extent = extentOf(lasso);
+		if (!extent) return;
+		const found = featuresInLasso(
+			editor.graph,
+			lasso,
+			editor.features.nodesNear(extent, level),
+		);
+		if (found.length > 0) editor.select([...editor.selection.ids, ...found]);
 	}
 
 	/** The feature Repeat on levels is asking about, while its dialog is open. */
@@ -443,6 +457,11 @@
 								hitTest: (point) => indoor.hitTest(point),
 								select: (id) => editor.select(id as EntityId | null),
 								toggle: (id) => editor.selection.toggle(id as EntityId),
+								lasso: (at) =>
+									lassoDrag(at.lngLat, {
+										onchange: (line) => (cut = line),
+										onend: selectInLasso,
+									}),
 								pointer: (at) => (lastPointer = at?.lngLat ?? null),
 								hover: (id) => editor.selection.setHover(id as EntityId | null),
 								draggable: (point) => grabAt(point) !== null,
@@ -669,6 +688,19 @@
 	let drawn = $state<number>();
 	/** Floor plan tiles the map draws (for the e2e tests' `data-plan-tiles`). */
 	let planTiles = $state<number>();
+
+	/** The selected features when there are several (P5.3.6), edited together. */
+	const several = $derived.by(() => {
+		if (editor.selection.ids.length < 2) return null;
+		const entities = editor.selection.ids.flatMap((id) => {
+			const entity = editor.graph.entity(id);
+			return entity ? [entity] : [];
+		});
+		return entities.length > 1 ? entities : null;
+	});
+	const panelOpen = $derived(
+		editor.selected !== null || several !== null || planMode,
+	);
 
 	/** The side panel, which covers the left of the map while it is open. */
 	let sidePanel = $state<HTMLElement>();
@@ -911,7 +943,7 @@
 />
 
 <!-- The side panel edits the selected feature, or the floor plans in floor plan mode. -->
-{#if editor.selected || planMode}
+{#if panelOpen}
 	<div
 		bind:this={sidePanel}
 		class="absolute inset-y-0 left-0 z-30"
@@ -927,6 +959,10 @@
 					onshow={show}
 					{level}
 				/>
+			{/key}
+		{:else if several}
+			{#key several.map((e) => e.id).join(",")}
+				<MultiInspector entities={several} />
 			{/key}
 		{:else}
 			<FloorPlansPanel
@@ -951,9 +987,7 @@
 
 <div
 	class="absolute top-4 z-20 flex flex-col items-start gap-2"
-	style:left={editor.selected || planMode
-		? `calc(${shownPanelWidth}px + 1rem)`
-		: "1rem"}
+	style:left={panelOpen ? `calc(${shownPanelWidth}px + 1rem)` : "1rem"}
 >
 	<SearchPlace
 		getView={visibleArea}

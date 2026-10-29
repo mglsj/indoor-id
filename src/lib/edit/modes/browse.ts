@@ -1,7 +1,8 @@
 /**
  * Browsing the map: a click selects the feature under it (or clears the selection), the
  * feature under the pointer is hovered and the cursor shows it can be selected, Escape clears
- * the selection; a Shift+click adds the feature to the selection or takes it out. The edit overlay's vertices and midpoints come first: a click on a vertex
+ * the selection; a Shift+click adds the feature to the selection or takes it out, a Shift+drag
+ * draws a lasso. The edit overlay's vertices and midpoints come first: a click on a vertex
  * selects it, a press on one drags it (`drag`).
  */
 import type { Drag, MapPoint, Mode } from "../mode.ts";
@@ -20,6 +21,8 @@ export interface BrowseOptions {
 	readonly vertexAt?: (point: { x: number; y: number }) => string | null;
 	/** Adds a feature to the selection, or takes it out (Shift+click). */
 	readonly toggle?: (id: string) => void;
+	/** A lasso started by Shift+drag where nothing is dragged (P5.3.6). */
+	readonly lasso?: (at: MapPoint) => Drag | null;
 	/** Where the pointer is on the map (where a paste goes), null once it left. */
 	readonly pointer?: (at: MapPoint | null) => void;
 }
@@ -32,8 +35,16 @@ export function browseMode({
 	draggable,
 	vertexAt,
 	toggle,
+	lasso,
 	pointer,
 }: BrowseOptions): Mode {
+	function click(at: MapPoint) {
+		const id = vertexAt?.(at.point) ?? hitTest(at.point);
+		if (!at.shiftKey || !toggle) select(id);
+		// Shift+click on the empty map keeps the selection.
+		else if (id) toggle(id);
+	}
+
 	return {
 		name: "browse",
 		// Shift+click selects several features: MapLibre's Shift+drag zoom would take the click.
@@ -54,13 +65,22 @@ export function browseMode({
 			hover(null);
 			pointer?.(null);
 		},
-		click(at) {
-			const id = vertexAt?.(at.point) ?? hitTest(at.point);
-			if (!at.shiftKey || !toggle) select(id);
-			// Shift+click on the empty map keeps the selection.
-			else if (id) toggle(id);
+		click,
+		press(at) {
+			const taken = drag?.(at);
+			if (taken) return taken;
+			const drawn = at.shiftKey ? lasso?.(at) : null;
+			if (!drawn) return null;
+			// A press the mode takes has no click after it: released without moving, the lasso
+			// is a Shift+click.
+			return {
+				...drawn,
+				cancel() {
+					drawn.cancel();
+					click(at);
+				},
+			};
 		},
-		press: (at) => drag?.(at) ?? null,
 		key(event) {
 			if (event.key !== "Escape") return false;
 			select(null);

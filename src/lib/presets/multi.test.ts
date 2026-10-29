@@ -3,11 +3,14 @@ import {
 	chipsIn,
 	chipsOver,
 	combineTags,
+	editorPatch,
+	editorTags,
 	isMixed,
+	sharedPreset,
 	tagDiff,
 	withoutChip,
 } from "./multi.ts";
-import type { Field } from "./presets.ts";
+import type { Field, Preset } from "./presets.ts";
 
 describe("combineTags: the tags of several features, as one editor shows them", () => {
 	it("gives one feature's tags as they are, nothing mixed", () => {
@@ -143,5 +146,69 @@ describe("tagDiff", () => {
 			tagDiff({ a: "1", b: "2", c: "3" }, { a: "1", b: "x", d: "4" }),
 		).toEqual({ b: "x", c: undefined, d: "4" });
 		expect(tagDiff({ a: "1" }, { a: "1" })).toEqual({});
+	});
+});
+
+describe("editorTags and editorPatch: the tag editor over several features", () => {
+	const combined = combineTags([
+		{ indoor: "room", level: "0", name: "A" },
+		{ indoor: "room", level: "0", name: "B", ref: "2" },
+	]);
+
+	it("shows mixed keys empty", () => {
+		expect(editorTags(combined)).toEqual({
+			indoor: "room",
+			level: "0",
+			name: "",
+			ref: "",
+		});
+	});
+
+	it("sets, changes and removes keys on every feature, mixed ones left empty untouched", () => {
+		expect(
+			editorPatch(combined, {
+				indoor: "corridor",
+				name: "",
+				ref: "3",
+				wheelchair: "yes",
+			}),
+		).toEqual({
+			indoor: "corridor",
+			level: undefined,
+			ref: "3",
+			wheelchair: "yes",
+		});
+	});
+});
+
+describe("sharedPreset: the type several features are edited as", () => {
+	const preset = (id: string, fields: string[], moreFields: string[]) =>
+		({
+			id,
+			name: id,
+			terms: [],
+			geometry: ["area"],
+			tags: {},
+			fields,
+			moreFields,
+		}) as Preset;
+
+	it("is theirs when they share one", () => {
+		const room = preset("indoor/room", ["name", "ref"], []);
+		expect(sharedPreset([room, room])).toBe(room);
+	});
+
+	it("has the fields every type has, else", () => {
+		const room = preset("indoor/room", ["name", "ref", "level"], ["height"]);
+		const corridor = preset(
+			"indoor/corridor",
+			["name", "level"],
+			["ref", "width"],
+		);
+		expect(sharedPreset([room, corridor])).toMatchObject({
+			name: "Multiple types",
+			fields: ["name", "level"],
+			moreFields: ["ref"],
+		});
 	});
 });

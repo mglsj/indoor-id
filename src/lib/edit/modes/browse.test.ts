@@ -69,6 +69,43 @@ describe("browseMode with Shift+click", () => {
 		expect(mode.gestures).toEqual({ boxZoom: false });
 	});
 
+	it("starts a lasso on Shift+press where nothing is dragged", () => {
+		const lassoed: MapPoint[] = [];
+		const lasso = {
+			cursor: "crosshair",
+			move: () => {},
+			end: () => {},
+			cancel: () => {},
+		};
+		const mode = browseMode({
+			hitTest: () => null,
+			select: () => {},
+			hover: () => {},
+			lasso: (p) => {
+				lassoed.push(p);
+				return lasso;
+			},
+		});
+		expect(mode.press?.(at(10))).toBeNull();
+		expect(mode.press?.({ ...at(10), shiftKey: true })).toMatchObject({
+			cursor: "crosshair",
+		});
+		expect(lassoed).toHaveLength(1);
+	});
+
+	it("takes a Shift+press released without moving as a Shift+click", () => {
+		const toggled: string[] = [];
+		const mode = browseMode({
+			hitTest: () => "w1",
+			select: () => {},
+			hover: () => {},
+			toggle: (id) => toggled.push(id),
+			lasso: () => ({ move: () => {}, end: () => {}, cancel: () => {} }),
+		});
+		mode.press?.({ ...at(10), shiftKey: true })?.cancel();
+		expect(toggled).toEqual(["w1"]);
+	});
+
 	it("tells where the pointer is, and when it left", () => {
 		const pointers: (MapPoint | null)[] = [];
 		const mode = browseMode({

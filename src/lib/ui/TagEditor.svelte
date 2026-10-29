@@ -33,9 +33,21 @@
 		) => Promise<readonly SuggestedValue[]>;
 		/** The OSM wiki's documentation, for each row's ⓘ. */
 		docs?: (reference: Reference) => Promise<TagDocs | null>;
+		/**
+		 * Keys whose values differ between the features edited (multi-selection): in `tags` with
+		 * an empty value, shown as "Multiple values", kept as they are unless a value is typed.
+		 */
+		mixed?: ReadonlySet<string>;
 	}
 
-	let { tags, onchange, suggestKeys, suggestValues, docs }: Props = $props();
+	let {
+		tags,
+		onchange,
+		suggestKeys,
+		suggestValues,
+		docs,
+		mixed = new Set(),
+	}: Props = $props();
 
 	const VIEW_KEY = "indoorid.tag-view";
 	/** List or text, remembered in this browser (as iD). */
@@ -101,7 +113,7 @@
 		...keyField(row),
 		id: `tag-value-${row.id}`,
 		label: "Value",
-		placeholder: undefined,
+		placeholder: mixed.has(row.key) ? "Multiple values" : undefined,
 	});
 	const keyContext: FieldContext = {
 		deprecated: () => [],
@@ -148,6 +160,11 @@
 			});
 			return;
 		}
+		if (row.key && mixed.has(row.key)) {
+			// Each feature has its own value: renaming would lose them.
+			if (field) field.value = row.key;
+			return;
+		}
 		if (row.key) {
 			rows = rows.map((r) => (r.id === row.id ? { ...r, key } : r));
 			onchange(renameTag(tags, row.key, key));
@@ -172,6 +189,8 @@
 			return;
 		}
 		if (value === tags[row.key]) return;
+		// Left empty, a mixed key keeps each feature's value.
+		if (!value && mixed.has(row.key)) return;
 		// An emptied value takes the tag off: the editor keeps no tag without a value.
 		onchange({ ...tags, [row.key]: value });
 	}
@@ -268,7 +287,9 @@
 						<div onkeydowncapture={(event) => onkeydown(event, row, "value")}>
 							<ComboField
 								field={valueField(row)}
-								value={row.key ? tags[row.key] : undefined}
+								value={row.key && !mixed.has(row.key)
+									? tags[row.key]
+									: undefined}
 								context={valueContext(row)}
 								locked={false}
 								raw
