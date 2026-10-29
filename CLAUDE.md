@@ -79,7 +79,8 @@ runs the same commands.
   transforms map plan units; a plan's `source` names the file it came from, stored once by
   file id (a PDF shared by its pages); `georef.ts` transforms fitted in Web Mercator,
   `plan-file.ts` plan files (version 2: a ZIP of `plans.json` and the source files; version 1
-  JSON and 1.x read), `tiling.ts`, `import.ts` raster/SVG/PDF; vector plans (P4.2):
+  JSON and 1.x read), `tiling.ts`, `import.ts` raster/SVG/PDF, `buildings.ts` (the buildings
+  a plan can be assigned to, `FloorPlan.building`); vector plans (P4.2):
   `vector.ts` (`VectorContent`: segments, triangles, texts, CAD layers; `VectorBuilder`),
   `vector-pdf.ts` (pdf.js operator lists, text from `showText`, pure: pass pdf.js's `OPS`; `pdfPageKind` for Auto; a plan's `source.mode` says how it is
   drawn), `svg-path.ts` (pure), `vector-svg.ts` (`DOMParser`), `plan-vertices.ts` (corners to
@@ -115,8 +116,13 @@ runs the same commands.
   `drawPointMode` on `edit/place-point.ts`: door, entrance or point from where it snaps).
   Operations on the selection (P5.3.5): `edit/operations.ts` (`OPERATIONS`: `available`,
   `disabled` reason, `keys`, `run` giving an edit and what to select, run with `performEdit`)
-  on `actions/copy.ts`, `disconnect.ts`, `orthogonalize.ts`, `merge-areas.ts`, `delete.ts`;
-  add a new one to that list, not as a button of its own.
+  on `actions/copy.ts`, `disconnect.ts`, `orthogonalize.ts`, `merge-areas.ts`, `delete.ts`,
+  `split-areas.ts` (with `edit/modes/split.ts`), `repeat-levels.ts` (`ui/RepeatDialog.svelte`),
+  `multipolygon.ts`; add a new one to that list, not as a button of its own. Several features
+  (P5.3.6): Shift+click and `edit/lasso.ts`, edited in `ui/MultiInspector.svelte`; a press on
+  a selected feature moves the selection (`edit/feature-drag.ts`). Spatial checks (P5.3.9) are
+  `validation/spatial.ts`; `BLOCKING_RULES` stop the upload; `Editor.editIssues` leaves out
+  the warnings the downloaded data had (a second `Validator` on `graph.base()`).
 - Messages (R1.7): text shown to users is a `Message` made with `msg("key", {params})` from
   `i18n/messages.ts` and rendered with `t()` in components; errors shown to users are
   `MessageError`s. Add the English to `messages/en.json` (snake_case keys, `{param}`
