@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { OPERATIONS } from "#lib/edit/operations.ts";
 import type { Entity } from "#lib/osm/entity.ts";
 import { node, way } from "#lib/osm/fixtures.ts";
 import type { PresetIndex } from "#lib/presets/presets.ts";
 import { Catalog } from "./catalog.svelte.ts";
-import { addToRelation, fix, moveMember, relationLabel } from "./commands.ts";
+import {
+	addToRelation,
+	fix,
+	moveMember,
+	performEdit,
+	relationLabel,
+} from "./commands.ts";
 import { Editor } from "./editor.svelte.ts";
 
 const NO_STORAGE = { getItem: () => null, setItem: () => {} };
@@ -100,5 +107,25 @@ describe("commands", () => {
 		editor.history.undo();
 		editor.history.undo();
 		expect(editor.graph.entity(created)).toBeUndefined();
+	});
+
+	it("deletes the selection in one step, selecting nothing after", () => {
+		const editor = roomAndDoor();
+		editor.select(["w1", "n1"]);
+		const remove = OPERATIONS.find((o) => o.id === "delete");
+		const result = remove?.run({
+			graph: editor.graph,
+			selected: editor.selection.ids,
+			level: 0,
+			pasteAt: [0, 0],
+			clipboard: null,
+		});
+		if (result?.kind !== "edit") throw new Error("not an edit");
+		performEdit(editor, result);
+		expect(editor.graph.entity("w1")).toBeUndefined();
+		expect(editor.selection.ids).toEqual([]);
+		editor.history.undo();
+		expect(editor.graph.entity("w1")).toBeDefined();
+		expect(editor.graph.entity("n1")).toBeDefined();
 	});
 });

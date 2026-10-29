@@ -10,6 +10,7 @@ import {
 	moveMember as move,
 	removeMembers as remove,
 } from "#lib/actions/members.ts";
+import type { OperationResult } from "#lib/edit/operations.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import { labelFor } from "#lib/map/classify.ts";
 import type {
@@ -121,4 +122,19 @@ export function moveMember(
 		move(relationId, from, to),
 		msg("undo_reorder_members"),
 	);
+}
+
+/** Makes an operation's edit one undo step, then selects what it says. */
+export function performEdit(
+	editor: Editor,
+	result: Extract<OperationResult, { kind: "edit" }>,
+): void {
+	if (editor.history.locked) return;
+	let select: readonly EntityId[] | null = null;
+	editor.history.perform((graph) => {
+		const done = result.edit(graph);
+		select = done.select;
+		return done.graph;
+	}, result.annotation);
+	editor.select(select);
 }

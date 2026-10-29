@@ -35,7 +35,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | R3    | Fixes from the October audit               | Done        |
 | W     | Wiki conformance                           | Done        |
 | L     | Level names in the switcher                | Done        |
-| P5.3  | Geometry editing                           | Slices 1–4 done |
+| P5.3  | Geometry editing                           | Slices 1–4 done, 5 in part |
 | V     | Viewer mode                                | Not started |
 | 3D    | 3D floors                                  | Not started |
 | P5.4  | Autosave and conflicts                     | Not started |
@@ -1226,6 +1226,25 @@ corner becomes it, on a tagged node that node is selected, elsewhere a point on 
 level. A drawing ends selecting the new feature; the Inspector opens on the type list for a new
 feature with only `level` and `area` (iD's new feature). A hint at the bottom says what clicks
 and keys do. Midpoints (slice 4's "vertex at a midpoint") came with slice 3's drag.
+
+Done ✅ (slice 5, first part): `edit/operations.ts`, iD's operations as one list: each says
+whether it applies to the selection (`available`: the toolbar's "Edit selection" group shows
+it), why it can't run (`disabled`, a `Message` the tooltip and a note at the bottom show; the
+button stays focusable with `aria-disabled`), its keys and annotation, and gives an edit to make
+as one step with what to select after (`performEdit` in `state/commands.ts`), or a clipboard.
+Copy (Mod+C) and Paste (Mod+V) on `actions/copy.ts`: a snapshot of the points and ways
+selected with their nodes (vertices and relations left out), pasted with new ids centred on
+the pointer (or the map's centre), the pasted features selected; a copy all on one level
+pasted while another is shown goes on that level. Disconnect (D, `actions/disconnect.ts`): a
+shared vertex gets a copy per way but the first; a way gets its own copy of every node it
+shares. Square the corners (Q, `actions/orthogonalize.ts`, iD's current action: corners within
+13° of square, straight runs put back on their line; refused for a shape that isn't squarish
+or is square already). Merge rooms (C, `actions/merge-areas.ts`, osm-simple3d-editor's: closed
+ways with the same `indoor`, `room`, `level` and `repeat_on` sharing sides; the largest keeps
+its id and gets the others' missing tags). Delete (Delete, Mod+Backspace) on `deleteEntities`.
+Shift+click adds a feature to the selection or takes it out (slice 6's multi-selection;
+MapLibre's Shift+drag zoom is off while browsing). Not yet: split across rooms, repeat on
+levels and clear (the rest of slice 5), a right-click menu, lasso.
 
 Lessons from osm-simple3d-editor's floor plan tools (built 2026-10-26 to 10-28; details in the
 research doc):

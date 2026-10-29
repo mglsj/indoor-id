@@ -113,6 +113,10 @@ runs the same commands.
   `history.preview(action)` and ends with one `commit` (or `cancelPreview`): never `perform`
   on every move. Drawing: `edit/modes/draw.ts` (`drawWayMode` on `edit/draw-way.ts`,
   `drawPointMode` on `edit/place-point.ts`: door, entrance or point from where it snaps).
+  Operations on the selection (P5.3.5): `edit/operations.ts` (`OPERATIONS`: `available`,
+  `disabled` reason, `keys`, `run` giving an edit and what to select, run with `performEdit`)
+  on `actions/copy.ts`, `disconnect.ts`, `orthogonalize.ts`, `merge-areas.ts`, `delete.ts`;
+  add a new one to that list, not as a button of its own.
 - Messages (R1.7): text shown to users is a `Message` made with `msg("key", {params})` from
   `i18n/messages.ts` and rendered with `t()` in components; errors shown to users are
   `MessageError`s. Add the English to `messages/en.json` (snake_case keys, `{param}`

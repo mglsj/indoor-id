@@ -1,13 +1,20 @@
 <script lang="ts">
+	import ClipboardPaste from "@lucide/svelte/icons/clipboard-paste";
+	import Combine from "@lucide/svelte/icons/combine";
+	import Copy from "@lucide/svelte/icons/copy";
 	import FileImage from "@lucide/svelte/icons/file-image";
 	import MapPin from "@lucide/svelte/icons/map-pin";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
 	import Spline from "@lucide/svelte/icons/spline";
+	import Square from "@lucide/svelte/icons/square";
+	import Trash from "@lucide/svelte/icons/trash";
 	import Undo2 from "@lucide/svelte/icons/undo-2";
+	import Unlink from "@lucide/svelte/icons/unlink";
 	import Upload from "@lucide/svelte/icons/upload";
 	import { type Component, untrack } from "svelte";
 	import { innerWidth } from "svelte/reactivity/window";
+	import type { Clipboard } from "#lib/actions/copy.ts";
 	import type { Place } from "#lib/api/nominatim.ts";
 	import type { Bbox } from "#lib/api/osm-api.ts";
 	import { OsmApi } from "#lib/api/osm-api.ts";
@@ -35,6 +42,11 @@
 		floorPlanToolMode,
 	} from "#lib/edit/modes/floorplan.ts";
 	import { type NodeGrab, nodeDrag } from "#lib/edit/node-drag.ts";
+	import {
+		OPERATIONS,
+		type Operation,
+		type OperationContext,
+	} from "#lib/edit/operations.ts";
 	import { overlayFeatures } from "#lib/edit/overlay.ts";
 	import { workerCodec } from "#lib/floorplans/codec.ts";
 	import { groundDistance, type LngLat } from "#lib/floorplans/georef.ts";
@@ -66,6 +78,7 @@
 	import { type Extent, extentsIntersect } from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
+	import { performEdit } from "#lib/state/commands.ts";
 	import { Editor, setEditor } from "#lib/state/editor.svelte.ts";
 	import {
 		FloorPlans,
@@ -220,6 +233,70 @@
 		area: msg("draw_area_hint"),
 	};
 
+	/** What Copy kept, for Paste. */
+	let clipboard = $state.raw<Clipboard | null>(null);
+	/** Where the pointer last was on the map while browsing, where a paste goes. */
+	let lastPointer: LngLat | null = null;
+	/** Why the last operation asked for couldn't run, or what it did, shown for a moment. */
+	let operationNote = $state.raw<Message | null>(null);
+	let noteTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function showNote(note: Message) {
+		operationNote = note;
+		clearTimeout(noteTimer);
+		noteTimer = setTimeout(() => (operationNote = null), 3000);
+	}
+
+	function operationContext(): OperationContext {
+		const center = map?.getCenter();
+		return {
+			graph: editor.graph,
+			selected: editor.selection.ids,
+			level,
+			pasteAt: lastPointer ?? (center ? [center.lng, center.lat] : [0, 0]),
+			clipboard,
+		};
+	}
+
+	/** The operations on the selection (P5.3.5), while browsing. */
+	const operations = $derived.by(() => {
+		if (modeKind !== "browse" || editor.history.locked) return [];
+		const context = operationContext();
+		return OPERATIONS.filter((o) => o.available(context)).map((operation) => ({
+			operation,
+			disabled: operation.disabled(context),
+		}));
+	});
+
+	function runOperation(operation: Operation) {
+		const context = operationContext();
+		const reason = operation.disabled(context);
+		if (reason) {
+			showNote(reason);
+			return;
+		}
+		const result = operation.run(context);
+		if (result.kind === "copy") {
+			clipboard = result.clipboard;
+			const count = result.clipboard.roots.length;
+			const paste = formatCombo("Mod+V", mac);
+			showNote(
+				count > 1
+					? msg("operation_copied_many", { count, paste })
+					: msg("operation_copied", { paste }),
+			);
+		} else performEdit(editor, result);
+	}
+
+	const OPERATION_ICONS: Record<Operation["id"], Component> = {
+		copy: Copy,
+		paste: ClipboardPaste,
+		disconnect: Unlink,
+		square: Square,
+		merge: Combine,
+		delete: Trash,
+	};
+
 	/** What the map's clicks, drags and keys do now (see `edit/modes`). */
 	const modeKind = $derived(
 		planMode
@@ -312,6 +389,8 @@
 							browseMode({
 								hitTest: (point) => indoor.hitTest(point),
 								select: (id) => editor.select(id as EntityId | null),
+								toggle: (id) => editor.selection.toggle(id as EntityId),
+								pointer: (at) => (lastPointer = at?.lngLat ?? null),
 								hover: (id) => editor.selection.setHover(id as EntityId | null),
 								draggable: (point) => grabAt(point) !== null,
 								vertexAt: (point) => {
@@ -623,7 +702,16 @@
 			return;
 		}
 		if (modes?.key(event)) return;
-		if (planMode || !shortcut) return;
+		if (planMode) return;
+		const operation = operations.find(({ operation }) =>
+			operation.keys.some((combo) => matches(event, combo, mac)),
+		)?.operation;
+		if (operation) {
+			event.preventDefault();
+			runOperation(operation);
+			return;
+		}
+		if (!shortcut) return;
 		event.preventDefault();
 		shortcut.run();
 	}
@@ -705,6 +793,39 @@
 			{/snippet}
 		</Tooltip.Trigger>
 		<Tooltip.Content side="bottom">{label} ({key})</Tooltip.Content>
+	</Tooltip.Root>
+{/snippet}
+
+{#snippet operationButton(
+	operation: Operation,
+	disabled: Message | null,
+)}
+	{@const Icon = OPERATION_ICONS[operation.id]}
+	{@const label = t(operation.label)}
+	<Tooltip.Root>
+		<Tooltip.Trigger onclick={() => runOperation(operation)}>
+			{#snippet child({
+				props,
+			})}
+				<!-- aria-disabled, not disabled: the tooltip still says why. -->
+				<Button
+					{...props}
+					variant="outline"
+					size="icon"
+					aria-label={label}
+					aria-disabled={disabled !== null}
+					class={disabled ? "opacity-50" : ""}
+				>
+					<Icon />
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="bottom">
+			{label}
+			({formatCombo(operation.keys[0] ?? "", mac)}){disabled
+				? `: ${t(disabled)}`
+				: ""}
+		</Tooltip.Content>
 	</Tooltip.Root>
 {/snippet}
 
@@ -810,6 +931,15 @@
 				{@render drawButton("area", "Area", "3", Pentagon)}
 			</ButtonGroup.Root>
 		</div>
+		{#if operations.length > 0}
+			<div class="rounded-md bg-background shadow-md">
+				<ButtonGroup.Root aria-label="Edit selection">
+					{#each operations as { operation, disabled } (operation.id)}
+						{@render operationButton(operation, disabled)}
+					{/each}
+				</ButtonGroup.Root>
+			</div>
+		{/if}
 	{/if}
 	<ImageryPicker
 		center={camera && [camera.lon, camera.lat]}
@@ -848,13 +978,23 @@
 	</p>
 {/if}
 
-{#if drawing && !dragHint}
+{#if drawing && !dragHint && !operationNote}
 	<p
 		role="status"
 		data-testid="draw-hint"
 		class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
 	>
 		{t(DRAW_HINTS[drawing])}
+	</p>
+{/if}
+
+{#if operationNote && !dragHint}
+	<p
+		role="status"
+		data-testid="operation-note"
+		class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+	>
+		{t(operationNote)}
 	</p>
 {/if}
 
