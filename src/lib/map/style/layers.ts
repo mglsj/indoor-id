@@ -1,7 +1,7 @@
 /**
  * MapLibre layers drawing the indoor features built by `buildFeatures`. They only read the
- * `@kind`, `@icon`, `@label`, `@restricted` and `@lv` properties, so all tag logic stays in
- * `classify.ts`. Switching level only changes the layers' filters.
+ * `@kind`, `@icon`, `@label`, `@restricted`, `@arrow`, `@door-r17` and `@lv` properties, so
+ * all tag logic stays in `classify.ts`. Switching level only changes the layers' filters.
  */
 import { levelFilter } from "../features.ts";
 import type {
@@ -9,6 +9,7 @@ import type {
 	FilterSpecification,
 	LayerSpecification,
 } from "../maplibre.ts";
+import { ARROW_IMAGE, BOTH_ARROWS_IMAGE } from "./arrows.ts";
 import { INDOOR_COLORS as C } from "./colors.ts";
 
 export const INDOOR_SOURCE = "osm";
@@ -53,6 +54,11 @@ function widthByKind(
 			fallback[stop - 1],
 		] as unknown as ExpressionSpecification;
 	return ["interpolate", ["exponential", 2], ["zoom"], 17, at(1), 22, at(2)];
+}
+
+/** A door's half width in pixels at a zoom `scale` times 17's (0 when unknown). */
+function doorRadius(scale: number): ExpressionSpecification {
+	return ["*", scale, ["to-number", ["coalesce", ["get", "@door-r17"], 0]]];
 }
 
 /** Layers the user can click to select a feature. */
@@ -214,7 +220,16 @@ export function indoorLayers(
 				["in", kind, ["literal", ["door", "passage"]]],
 			]),
 			paint: {
-				"circle-radius": width(1.5, 8),
+				// As wide as the door when its width is known, never smaller than other doors.
+				"circle-radius": [
+					"interpolate",
+					["exponential", 2],
+					["zoom"],
+					17,
+					["max", 1.5, doorRadius(1)],
+					22,
+					["max", 8, doorRadius(32)],
+				],
 				"circle-color": ["match", kind, "door", C.door, C.passage],
 				"circle-stroke-color": [
 					"match",
@@ -224,6 +239,27 @@ export function indoorLayers(
 					C.passageStroke,
 				],
 				"circle-stroke-width": 1,
+			},
+		},
+		{
+			// Which way steps and ramps go up, and escalators and moving walkways move.
+			id: "indoor-arrows",
+			type: "symbol",
+			source: INDOOR_SOURCE,
+			filter: onLevel(["all", isLine, ["has", "@arrow"]]),
+			layout: {
+				"symbol-placement": "line",
+				"symbol-spacing": 40,
+				"icon-image": [
+					"case",
+					["==", ["get", "@arrow"], "both"],
+					BOTH_ARROWS_IMAGE,
+					ARROW_IMAGE,
+				],
+				"icon-rotate": ["case", ["==", ["get", "@arrow"], "backward"], 180, 0],
+				"icon-rotation-alignment": "map",
+				"icon-allow-overlap": true,
+				"icon-ignore-placement": true,
 			},
 		},
 		{

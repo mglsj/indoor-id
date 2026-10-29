@@ -194,3 +194,52 @@ export function iconFor(
 export function labelFor(tags: Tags): string | null {
 	return tags.name ?? tags.ref ?? null;
 }
+
+/** Which way arrows point along a line, if any: steps and ramps up, escalators and walkways. */
+export type ArrowDirection = "forward" | "backward" | "both";
+
+/**
+ * Arrows along a line (P5.3.8): `incline=up` (or a positive slope, `10%`) points the way the
+ * line runs, `down` (negative) against it; `conveying=forward|backward` the way it moves,
+ * `reversible` both ways. `conveying` wins: an escalator's direction is how it moves.
+ */
+export function arrowOf(tags: Tags): ArrowDirection | null {
+	switch (tags.conveying) {
+		case "forward":
+		case "yes":
+			return "forward";
+		case "backward":
+			return "backward";
+		case "reversible":
+			return "both";
+	}
+	const incline = tags.incline?.trim();
+	if (!incline) return null;
+	if (incline === "up") return "forward";
+	if (incline === "down") return "backward";
+	const slope = Number.parseFloat(incline);
+	if (!Number.isFinite(slope) || slope === 0) return null;
+	return slope > 0 ? "forward" : "backward";
+}
+
+/**
+ * A door's width in metres from `width` (`0.9`, `0.9 m`, `90 cm`, `3'`), or null when it can't
+ * be read or isn't between 0.3 and 20 m.
+ */
+export function doorWidth(tags: Tags): number | null {
+	const value = tags.width?.trim();
+	if (!value) return null;
+	const match = /^(\d+(?:\.\d+)?)\s*(m|cm|mm|'|ft)?$/.exec(value);
+	if (!match) return null;
+	const number = Number(match[1]);
+	const unit = match[2] ?? "m";
+	const metres =
+		unit === "cm"
+			? number / 100
+			: unit === "mm"
+				? number / 1000
+				: unit === "'" || unit === "ft"
+					? number * 0.3048
+					: number;
+	return metres >= 0.3 && metres <= 20 ? metres : null;
+}

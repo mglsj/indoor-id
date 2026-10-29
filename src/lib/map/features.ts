@@ -24,7 +24,9 @@ import type { Graph } from "#lib/osm/graph.ts";
 import { hasInterestingTags, type Tags } from "#lib/osm/tags.ts";
 import type { Preset, PresetIndex } from "#lib/presets/presets.ts";
 import {
+	arrowOf,
 	classify,
+	doorWidth,
 	type GeometryType,
 	iconFor,
 	isBuildingOutline,
@@ -95,12 +97,7 @@ export function draftOf(
 		geometry,
 		properties: {
 			...entity.tags,
-			...drawingProperties(
-				entity.tags,
-				geometry.type as GeometryType,
-				icons,
-				preset,
-			),
+			...drawingProperties(entity.tags, geometry, icons, preset),
 		},
 		...levelsOf(graph, entity),
 	};
@@ -154,23 +151,42 @@ export function encodeFeature(
 	};
 }
 
+/** MapLibre's tile size: a zoom level's world is 512 · 2^zoom pixels wide. */
+const WORLD_AT_17 = 512 * 2 ** 17;
+const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6378137;
+
 /**
- * Properties the style uses: `@kind`, and when relevant `@icon`, `@label`, `@restricted`, and
- * `@building` for the building outlines floor plans are placed against.
+ * Properties the style uses: `@kind`, and when relevant `@icon`, `@label`, `@restricted`,
+ * `@building` for the building outlines floor plans are placed against, `@arrow` for lines
+ * with a direction (P5.3.8) and `@door-r17`, a door's half width in pixels at zoom 17.
  */
 function drawingProperties(
 	tags: Tags,
-	geometry: GeometryType,
+	geometry: Geometry,
 	icons: ReadonlySet<string>,
 	preset: Preset | undefined,
 ): Record<string, string> {
-	const props: Record<string, string> = { "@kind": classify(tags, geometry) };
+	const type = geometry.type as GeometryType;
+	const kind = classify(tags, type);
+	const props: Record<string, string> = { "@kind": kind };
 	const icon = iconFor(tags, icons, preset);
 	if (icon) props["@icon"] = icon;
 	const label = labelFor(tags);
 	if (label) props["@label"] = label;
 	if (isRestricted(tags)) props["@restricted"] = "yes";
-	if (isBuildingOutline(tags, geometry)) props["@building"] = "yes";
+	if (isBuildingOutline(tags, type)) props["@building"] = "yes";
+	if (type === "LineString") {
+		const arrow = arrowOf(tags);
+		if (arrow) props["@arrow"] = arrow;
+	}
+	const width = kind === "door" && type === "Point" ? doorWidth(tags) : null;
+	if (width !== null && geometry.type === "Point") {
+		// Web Mercator stretches lengths by 1 / cos(latitude).
+		const lat = ((geometry.coordinates[1] ?? 0) * Math.PI) / 180;
+		const pixels =
+			((width / 2 / Math.cos(lat)) * WORLD_AT_17) / EARTH_CIRCUMFERENCE;
+		props["@door-r17"] = pixels.toFixed(3);
+	}
 	return props;
 }
 

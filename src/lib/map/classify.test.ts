@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classify, iconFor, labelFor } from "./classify.ts";
+import { arrowOf, classify, doorWidth, iconFor, labelFor } from "./classify.ts";
 
 describe("classify", () => {
 	it.each([
@@ -122,5 +122,38 @@ describe("labelFor", () => {
 		expect(labelFor({ name: "Library", ref: "B12" })).toBe("Library");
 		expect(labelFor({ indoor: "room", ref: "B12" })).toBe("B12");
 		expect(labelFor({ indoor: "room" })).toBeNull();
+	});
+});
+
+describe("arrowOf", () => {
+	it("points steps and ramps up the way, escalators the way they move", () => {
+		expect(arrowOf({ highway: "steps", incline: "up" })).toBe("forward");
+		expect(arrowOf({ highway: "steps", incline: "down" })).toBe("backward");
+		expect(arrowOf({ highway: "footway", incline: "-8%" })).toBe("backward");
+		expect(arrowOf({ highway: "footway", incline: "5°" })).toBe("forward");
+		expect(arrowOf({ conveying: "backward", incline: "up" })).toBe("backward");
+		expect(arrowOf({ conveying: "reversible" })).toBe("both");
+	});
+
+	it("has no arrow without a direction", () => {
+		expect(arrowOf({ highway: "steps" })).toBeNull();
+		expect(arrowOf({ incline: "yes" })).toBeNull();
+		expect(arrowOf({ incline: "0%" })).toBeNull();
+	});
+});
+
+describe("doorWidth", () => {
+	it("reads metres, centimetres and feet", () => {
+		expect(doorWidth({ width: "0.9" })).toBe(0.9);
+		expect(doorWidth({ width: "1.2 m" })).toBe(1.2);
+		expect(doorWidth({ width: "90 cm" })).toBe(0.9);
+		expect(doorWidth({ width: "3'" })).toBeCloseTo(0.9144, 6);
+	});
+
+	it("ignores what it can't read, or isn't a door's size", () => {
+		expect(doorWidth({})).toBeNull();
+		expect(doorWidth({ width: "wide" })).toBeNull();
+		expect(doorWidth({ width: "0.1" })).toBeNull();
+		expect(doorWidth({ width: "90" })).toBeNull();
 	});
 });

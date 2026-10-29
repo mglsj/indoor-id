@@ -165,6 +165,30 @@ describe("buildFeatures", () => {
 		expect(props("n5")).not.toHaveProperty("@label");
 	});
 
+	it("gives steps their arrow, and a door its half width in pixels at zoom 17", () => {
+		const steps = feature(
+			[
+				node("n1", {}, [0, 0]),
+				node("n2", {}, [0, 1]),
+				way("w1", ["n1", "n2"], { highway: "steps", incline: "down" }),
+			],
+			"w1",
+		);
+		expect(steps?.properties["@arrow"]).toBe("backward");
+		// 0.9 m on the equator: 0.45 m × 512 · 2^17 px / 40,075,017 m.
+		const door = feature(
+			[node("n1", { door: "yes", width: "0.9" }, [0, 0])],
+			"n1",
+		);
+		expect(Number(door?.properties["@door-r17"])).toBeCloseTo(0.7536, 3);
+		// At 60° north a metre is drawn twice as long.
+		const north = feature(
+			[node("n1", { door: "yes", width: "0.9" }, [0, 60])],
+			"n1",
+		);
+		expect(Number(north?.properties["@door-r17"])).toBeCloseTo(1.507, 3);
+	});
+
 	it("uses the icon of the preset matched for the feature's geometry", () => {
 		const presets = new PresetIndex(
 			[
