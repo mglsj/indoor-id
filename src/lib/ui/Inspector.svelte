@@ -63,9 +63,16 @@
 	const selectedAs = untrack(() => entity);
 	const changed = $derived(entity !== selectedAs);
 
-	/** A new feature without tags starts on its type, as iD's `newFeature`. */
+	/**
+	 * A new feature without tags starts on its type, as iD's `newFeature`: drawn features
+	 * only carry the shown level (and `area=yes` for an area).
+	 */
 	let choosing = $state(
-		untrack(() => isNewId(entity.id) && Object.keys(entity.tags).length === 0),
+		untrack(
+			() =>
+				isNewId(entity.id) &&
+				Object.keys(entity.tags).every((k) => k === "level" || k === "area"),
+		),
 	);
 
 	const geometry = $derived(editor.geometryOf(entity));

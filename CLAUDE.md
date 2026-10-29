@@ -111,7 +111,8 @@ runs the same commands.
   side, plan vertex within 8 px, from `nodesNear`/`segmentsNear`); `edit/node-drag.ts` (drag a
   vertex, point or midpoint; joins with `actions/connect.ts`). A drag shows its moves with
   `history.preview(action)` and ends with one `commit` (or `cancelPreview`): never `perform`
-  on every move.
+  on every move. Drawing: `edit/modes/draw.ts` (`drawWayMode` on `edit/draw-way.ts`,
+  `drawPointMode` on `edit/place-point.ts`: door, entrance or point from where it snaps).
 - Messages (R1.7): text shown to users is a `Message` made with `msg("key", {params})` from
   `i18n/messages.ts` and rendered with `t()` in components; errors shown to users are
   `MessageError`s. Add the English to `messages/en.json` (snake_case keys, `{param}`

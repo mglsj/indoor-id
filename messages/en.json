@@ -13,6 +13,11 @@
 	"undo_add_vertex": "Add a vertex",
 	"undo_connect": "Connect points",
 	"undo_room_per_level": "One room per level",
+	"undo_add_point": "Add a point",
+	"undo_add_door": "Add a door",
+	"undo_add_entrance": "Add an entrance",
+	"undo_add_line": "Add a line",
+	"undo_add_area": "Add an area",
 	"issue_outdated_tags": "Outdated tags: {tags}",
 	"fix_upgrade_tags": "Upgrade to {tags}",
 	"fix_remove_tags": "Remove {tags}",
@@ -65,5 +70,8 @@
 	"upload_too_many_changes": "{count} features changed: a changeset takes at most {max}. Upload part of your edits first.",
 	"upload_not_deleted": "OpenStreetMap kept {count} of the features you deleted, because other data still uses them: {ids}. They are back on the map.",
 	"drag_moves_features": "Moving this point moves {count} features on levels {levels}",
-	"drag_moves_features_no_level": "Moving this point moves {count} features"
+	"drag_moves_features_no_level": "Moving this point moves {count} features",
+	"draw_point_hint": "Click to add a point: on a room's side it becomes a door, on the building's outline an entrance. Escape to stop.",
+	"draw_line_hint": "Click to add corners. Click the last corner or press Enter to finish; Backspace removes the last corner, Escape stops.",
+	"draw_area_hint": "Click to add corners. Click the first or last corner or press Enter to finish; Backspace removes the last corner, Escape stops."
 }
