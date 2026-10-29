@@ -54,6 +54,23 @@ test("a corner of the selected room drags, in one undo step", async ({
 	await expectPixel(page, between.x, between.y, outside, 12);
 });
 
+test("the selected room drags whole, in one undo step", async ({ page }) => {
+	await selectRoom(page);
+	const { x, y } = await mapCenter(page);
+	// Right of the room, until it is moved 200 px right.
+	const right = { x: x + 250, y };
+	const outside = await pixelAt(page, right.x, right.y);
+	const inside = await pixelAt(page, x - 100, y);
+
+	await drag(page, { x: x - 100, y }, { x: x + 100, y });
+	await expect(page.getByTestId("edit-count")).not.toHaveText("0");
+	await expectPixel(page, right.x, right.y, inside, 12);
+
+	await page.getByRole("button", { name: "Undo" }).click();
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+	await expectPixel(page, right.x, right.y, outside, 12);
+});
+
 test("a side's midpoint drags out a new corner", async ({ page }) => {
 	await selectRoom(page);
 	const { x, y } = await mapCenter(page);

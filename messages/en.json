@@ -10,6 +10,8 @@
 	"undo_remove_from_relation": "Remove from relation",
 	"undo_reorder_members": "Reorder members",
 	"undo_move_node": "Move a point",
+	"undo_move_feature": "Move a feature",
+	"undo_move_features": "Move features",
 	"undo_add_vertex": "Add a vertex",
 	"undo_connect": "Connect points",
 	"undo_room_per_level": "One room per level",

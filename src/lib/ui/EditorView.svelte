@@ -30,6 +30,7 @@
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
+	import { featureDrag } from "#lib/edit/feature-drag.ts";
 	import {
 		formatCombo,
 		isForMap,
@@ -426,6 +427,13 @@
 				: null;
 		};
 
+		/** Whether a selected feature is drawn at a screen point (a press there moves it). */
+		const selectedAt = (point: { x: number; y: number }): boolean => {
+			if (editor.history.locked) return false;
+			const hit = indoor.hitTest(point);
+			return hit !== null && editor.selection.has(hit as EntityId);
+		};
+
 		const layers = new FloorPlanLayers(instance, floorplans.tiles);
 		const stopTiles = layers.onTiles((count) => (planTiles = count));
 		const marks = new PlanToolLayer(instance);
@@ -465,6 +473,10 @@
 								hitTest: (point) => indoor.hitTest(point),
 								select: (id) => editor.select(id as EntityId | null),
 								toggle: (id) => editor.selection.toggle(id as EntityId),
+								move: (at) =>
+									selectedAt(at.point)
+										? featureDrag(editor.selection.ids, at, editor.history)
+										: null,
 								lasso: (at) =>
 									lassoDrag(at.lngLat, {
 										onchange: (line) => (cut = line),
@@ -472,7 +484,8 @@
 									}),
 								pointer: (at) => (lastPointer = at?.lngLat ?? null),
 								hover: (id) => editor.selection.setHover(id as EntityId | null),
-								draggable: (point) => grabAt(point) !== null,
+								draggable: (point) =>
+									grabAt(point) !== null || selectedAt(point),
 								vertexAt: (point) => {
 									const grab = overlay.grabAt(point);
 									return grab?.kind === "vertex" ? grab.id : null;

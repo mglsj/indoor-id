@@ -3,7 +3,8 @@
  * feature under the pointer is hovered and the cursor shows it can be selected, Escape clears
  * the selection; a Shift+click adds the feature to the selection or takes it out, a Shift+drag
  * draws a lasso. The edit overlay's vertices and midpoints come first: a click on a vertex
- * selects it, a press on one drags it (`drag`).
+ * selects it, a press on one drags it (`drag`); a press on a selected feature moves the
+ * selection whole (`move`).
  */
 import type { Drag, MapPoint, Mode } from "../mode.ts";
 
@@ -21,6 +22,8 @@ export interface BrowseOptions {
 	readonly vertexAt?: (point: { x: number; y: number }) => string | null;
 	/** Adds a feature to the selection, or takes it out (Shift+click). */
 	readonly toggle?: (id: string) => void;
+	/** Moving the selection whole, pressed on a selected feature (after `drag`). */
+	readonly move?: (at: MapPoint) => Drag | null;
 	/** A lasso started by Shift+drag where nothing is dragged (P5.3.6). */
 	readonly lasso?: (at: MapPoint) => Drag | null;
 	/** Where the pointer is on the map (where a paste goes), null once it left. */
@@ -35,6 +38,7 @@ export function browseMode({
 	draggable,
 	vertexAt,
 	toggle,
+	move,
 	lasso,
 	pointer,
 }: BrowseOptions): Mode {
@@ -69,15 +73,20 @@ export function browseMode({
 		press(at) {
 			const taken = drag?.(at);
 			if (taken) return taken;
-			const drawn = at.shiftKey ? lasso?.(at) : null;
+			const drawn = at.shiftKey ? lasso?.(at) : move?.(at);
 			if (!drawn) return null;
-			// A press the mode takes has no click after it: released without moving, the lasso
-			// is a Shift+click.
+			// A press the mode takes has no click after it: released without moving, it is a
+			// click (Escape after moving is not).
+			let moved = false;
 			return {
 				...drawn,
+				move(to) {
+					moved = true;
+					drawn.move(to);
+				},
 				cancel() {
 					drawn.cancel();
-					click(at);
+					if (!moved) click(at);
 				},
 			};
 		},

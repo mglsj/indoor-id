@@ -106,6 +106,32 @@ describe("browseMode with Shift+click", () => {
 		expect(toggled).toEqual(["w1"]);
 	});
 
+	it("moves the selection on a press the selection takes, a still press being a click", () => {
+		const selected: (string | null)[] = [];
+		const moves: MapPoint[] = [];
+		let cancelled = 0;
+		const mode = browseMode({
+			hitTest: () => "w2",
+			select: (id) => selected.push(id),
+			hover: () => {},
+			move: () => ({
+				move: (p) => moves.push(p),
+				end: () => {},
+				cancel: () => cancelled++,
+			}),
+		});
+		const still = mode.press?.(at(10));
+		still?.cancel();
+		expect(selected).toEqual(["w2"]);
+		// Escape after moving puts things back without selecting.
+		const moved = mode.press?.(at(10));
+		moved?.move(at(20));
+		moved?.cancel();
+		expect(moves).toEqual([at(20)]);
+		expect(cancelled).toBe(2);
+		expect(selected).toEqual(["w2"]);
+	});
+
 	it("tells where the pointer is, and when it left", () => {
 		const pointers: (MapPoint | null)[] = [];
 		const mode = browseMode({
