@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { changeTags } from "#lib/actions/change-tags.ts";
 import { msg } from "#lib/i18n/messages.ts";
-import { node } from "#lib/osm/fixtures.ts";
+import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { Catalog } from "#lib/state/catalog.svelte.ts";
 import type { SyncApi } from "#lib/state/data-sync.svelte.ts";
@@ -91,6 +91,37 @@ describe("SaveDialog", () => {
 			source: "custom imagery",
 		});
 		expect(onuploaded).toHaveBeenCalledOnce();
+	});
+
+	it("waits for a multipolygon left open to be fixed before uploading", async () => {
+		const upload = vi.fn<SyncApi["upload"]>();
+		const editor = await editedBench(upload);
+		editor.history.merge([
+			node("n2", {}, [2.35, 48.85]),
+			node("n3", {}, [2.351, 48.85]),
+			way("w1", ["n2", "n3"]),
+			relation("r1", [{ ref: "w1", role: "outer" }], {
+				type: "multipolygon",
+				building: "yes",
+			}),
+		]);
+		editor.history.perform(
+			changeTags("r1", { type: "multipolygon", building: "school" }),
+			msg("undo_change_tags"),
+		);
+		renderWithEditor(editor, SaveDialog, props(session(true)));
+		await page.getByRole("textbox", { name: "Comment" }).fill("School");
+		await expect
+			.element(page.getByRole("button", { name: "Upload" }))
+			.toBeDisabled();
+		await expect
+			.element(
+				page.getByText(
+					"Fix the errors above to upload: OSM would get them broken.",
+				),
+			)
+			.toBeVisible();
+		expect(upload).not.toHaveBeenCalled();
 	});
 
 	it("can be cancelled while logging in", async () => {

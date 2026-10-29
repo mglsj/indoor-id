@@ -19,6 +19,8 @@ type ParentIndex = ReadonlyMap<EntityId, ReadonlySet<EntityId>>;
 
 /** Server data shared by every graph derived from it, with lazily built parent indexes. */
 class BaseData {
+	/** The graph of this data without local edits, made once (`Graph.base`). */
+	graph?: Graph;
 	#parentWays?: ParentIndex;
 	#parentRelations?: ParentIndex;
 
@@ -221,9 +223,10 @@ export class Graph {
 		);
 	}
 
-	/** The graph of server data, without local edits. */
+	/** The graph of server data, without local edits (the same one for the same data). */
 	base(): Graph {
-		return new Graph(this.#base, NO_EDITS, this.#nextId);
+		this.#base.graph ??= new Graph(this.#base, NO_EDITS, this.#nextId);
+		return this.#base.graph;
 	}
 
 	parentWays(id: NodeId): Way[] {

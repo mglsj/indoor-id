@@ -5,6 +5,7 @@
  * density.
  */
 import type { Map as MapLibreMap } from "../maplibre.ts";
+import { arrowImage } from "./arrows.ts";
 
 const files = import.meta.glob<string>(
 	["./icons/*.{svg,png}", "../../presets/generated/icons/*.svg"],
@@ -31,9 +32,14 @@ const ICON_SIZE = 32;
 /** Makes the map load icons on demand, when a layer first asks for them. */
 export function loadIconsOnDemand(map: MapLibreMap): void {
 	map.setMissingStyleImageResolver(async (id) => {
+		const pixelRatio = window.devicePixelRatio || 1;
+		const arrow = arrowImage(id, pixelRatio);
+		if (arrow) {
+			if (!map.hasImage(id)) map.addImage(id, arrow, { pixelRatio });
+			return;
+		}
 		const url = ICON_URLS.get(id);
 		if (!url) return;
-		const pixelRatio = window.devicePixelRatio || 1;
 		const image = await rasterize(url, Math.round(ICON_SIZE * pixelRatio));
 		if (!map.hasImage(id)) map.addImage(id, image, { pixelRatio });
 	});

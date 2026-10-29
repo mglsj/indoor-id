@@ -27,9 +27,11 @@
 		level: number;
 		/** Switches the map to a level, to show a plan on it. */
 		onshowlevel: (level: number) => void;
+		/** The name of a plan's building, by its OSM id, when it is known. */
+		buildingName?: (id: string) => string | undefined;
 	}
 
-	let { floorplans, level, onshowlevel }: Props = $props();
+	let { floorplans, level, onshowlevel, buildingName }: Props = $props();
 
 	/** The layer list, top first: the map draws the first row on top. */
 	const rows = $derived([...floorplans.layers].reverse());
@@ -276,7 +278,9 @@
 							<span class="block truncate font-medium">{plan.name}</span>
 							{" "}
 							<span class="block truncate text-xs text-muted-foreground"
-								>{sizeLabel(plan)}</span
+								>{plan.building
+									? `${buildingName?.(plan.building) ?? `Building ${plan.building}`} · `
+									: ""}{sizeLabel(plan)}</span
 							>
 						</span>
 					</button>

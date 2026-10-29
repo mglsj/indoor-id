@@ -10,7 +10,7 @@ import {
 	splitSemicolons,
 	type TagPatch,
 } from "./combo.ts";
-import type { Field } from "./presets.ts";
+import type { Field, Preset } from "./presets.ts";
 
 export interface CombinedTags {
 	/** The tags every feature has, with the same value. */
@@ -117,4 +117,58 @@ export function tagDiff(before: Tags, after: Tags): TagPatch {
 		if (before[key] !== after[key]) patch[key] = after[key];
 	}
 	return patch;
+}
+
+/**
+ * The tags the tag editor shows for several features: the shared ones, and each mixed key with
+ * an empty value (shown as "Multiple values").
+ */
+export function editorTags(combined: CombinedTags): Tags {
+	return {
+		...combined.tags,
+		...Object.fromEntries([...combined.mixed.keys()].map((k) => [k, ""])),
+	};
+}
+
+/**
+ * The patch for every feature once the tag editor changed `editorTags(combined)` into `next`:
+ * keys set or changed, and keys removed; a mixed key left empty keeps each feature's value.
+ */
+export function editorPatch(combined: CombinedTags, next: Tags): TagPatch {
+	const before = editorTags(combined);
+	const patch: TagPatch = {};
+	for (const key of new Set([...Object.keys(before), ...Object.keys(next)])) {
+		const value = next[key];
+		if (value === before[key]) continue;
+		if (value === "") continue;
+		patch[key] = value;
+	}
+	return patch;
+}
+
+/**
+ * The type several features are edited as: theirs when they share one, else one with the
+ * fields every type has (iD's shared fields), named "Multiple types".
+ */
+export function sharedPreset(presets: readonly Preset[]): Preset | undefined {
+	const [first, ...rest] = presets;
+	if (!first || rest.every((p) => p.id === first.id)) return first;
+	const all = (p: Preset) => new Set([...p.fields, ...p.moreFields]);
+	const inEvery = (id: string) => rest.every((p) => all(p).has(id));
+	const fields = first.fields.filter(
+		(id) => inEvery(id) && rest.every((p) => p.fields.includes(id)),
+	);
+	const moreFields = [...all(first)].filter(
+		(id) => inEvery(id) && !fields.includes(id),
+	);
+	return {
+		id: "@multiple",
+		name: "Multiple types",
+		terms: [],
+		geometry: [...new Set(presets.flatMap((p) => p.geometry))],
+		tags: {},
+		searchable: false,
+		fields,
+		moreFields,
+	};
 }

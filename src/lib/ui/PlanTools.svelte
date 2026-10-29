@@ -7,6 +7,7 @@
 	import { Checkbox } from "#lib/components/shadcn/checkbox/index.ts";
 	import * as Field from "#lib/components/shadcn/field/index.ts";
 	import { Input } from "#lib/components/shadcn/input/index.ts";
+	import * as RadioGroup from "#lib/components/shadcn/radio-group/index.ts";
 	import { ScrollArea } from "#lib/components/shadcn/scroll-area/index.ts";
 	import { Slider } from "#lib/components/shadcn/slider/index.ts";
 	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
@@ -19,6 +20,7 @@
 	import {
 		type FloorPlans,
 		MIN_POINTS,
+		type PlanBuilding,
 		type Tool,
 	} from "#lib/state/floorplans.svelte.ts";
 
@@ -26,9 +28,29 @@
 		floorplans: FloorPlans;
 		/** Why the alignment tool ignored the last map click, if it did. */
 		toolMessage?: Message | null;
+		/** The buildings under the plan in Edit, the one around its centre first. */
+		buildings?: readonly PlanBuilding[];
 	}
 
-	let { floorplans, toolMessage = null }: Props = $props();
+	let { floorplans, toolMessage = null, buildings = [] }: Props = $props();
+
+	let east = $state<number>(0);
+	let north = $state<number>(0);
+
+	function offset(event: SubmitEvent) {
+		event.preventDefault();
+		if (Number.isFinite(east) && Number.isFinite(north)) {
+			floorplans.offset(east ?? 0, north ?? 0);
+		}
+	}
+
+	/** The buildings to pick from: those under the plan, and the one assigned if elsewhere. */
+	const buildingChoices = $derived.by(() => {
+		const assigned = floorplans.editing?.building;
+		return assigned && !buildings.some((b) => b.id === assigned)
+			? [...buildings, { id: assigned, name: `Building ${assigned}` }]
+			: buildings;
+	});
 
 	let distance = $state<number>();
 	let layerQuery = $state("");
@@ -127,7 +149,7 @@
 		switch (tool?.kind) {
 			case "points":
 				return tool.pending
-					? "Now click where that spot is on the map. Clicks near an OSM node snap to it."
+					? "Now click where that spot is on the map. Clicks near an OSM node or side, such as a building's corner or wall, snap to it."
 					: "Click a spot on the plan, such as a corner, then where it is on the map.";
 			case "measure":
 				return tool.points.length < 2
@@ -191,6 +213,32 @@
 				The plan only shows on this level, like 0 or -1.
 			</Field.Description>
 		</Field.Field>
+
+		{#if buildingChoices.length > 0}
+			<Field.Set>
+				<Field.Legend variant="label">Building</Field.Legend>
+				<RadioGroup.Root
+					value={plan.building ?? ""}
+					onValueChange={(value) => floorplans.setBuilding(value || null)}
+				>
+					{#each [
+						{ id: "", name: "None" },
+						...buildingChoices,
+					] as choice (choice.id)}
+						{@const radioId = `plan-building-${choice.id || "none"}`}
+						<Field.Field orientation="horizontal">
+							<RadioGroup.Item value={choice.id} id={radioId} />
+							<Field.Label for={radioId} class="font-normal">
+								{choice.name}
+							</Field.Label>
+						</Field.Field>
+					{/each}
+				</RadioGroup.Root>
+				<Field.Description>
+					The building the plan is of, named in the plan list.
+				</Field.Description>
+			</Field.Set>
+		{/if}
 
 		<Field.Field>
 			<Field.Label for="plan-opacity">Opacity</Field.Label>
@@ -344,6 +392,36 @@
 					its control points go.
 				</Field.Description>
 			</Field.Set>
+
+			<form class="flex flex-col gap-2" onsubmit={offset}>
+				<Field.Set>
+					<Field.Legend variant="label">Move by</Field.Legend>
+					<div class="grid grid-cols-[1fr_1fr_auto] items-end gap-3">
+						<Field.Field>
+							<Field.Label for="plan-east">East (m)</Field.Label>
+							<Input
+								id="plan-east"
+								type="number"
+								step="any"
+								bind:value={east}
+							/>
+						</Field.Field>
+						<Field.Field>
+							<Field.Label for="plan-north">North (m)</Field.Label>
+							<Input
+								id="plan-north"
+								type="number"
+								step="any"
+								bind:value={north}
+							/>
+						</Field.Field>
+						<Button type="submit" variant="outline" size="sm">Move</Button>
+					</div>
+					<Field.Description>
+						Negative values move it west or south.
+					</Field.Description>
+				</Field.Set>
+			</form>
 		{/if}
 
 		<Field.Field>

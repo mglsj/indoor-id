@@ -45,6 +45,14 @@ describe("indoorLayers", () => {
 		expect(validateStyleMin(style)).toEqual([]);
 	});
 
+	it("draws arrows along lines with a direction", () => {
+		const steps = { "@kind": "path", "@lv": ";0;", highway: "steps" };
+		expect(drawnBy(0, "LineString", steps)).toEqual(["indoor-lines"]);
+		expect(drawnBy(0, "LineString", { ...steps, "@arrow": "forward" })).toEqual(
+			["indoor-lines", "indoor-arrows"],
+		);
+	});
+
 	it("fills and outlines rooms, and labels them when they have a name or ref", () => {
 		const room = { "@kind": "room", "@lv": ";0;" };
 		expect(drawnBy(0, "Polygon", room)).toEqual([

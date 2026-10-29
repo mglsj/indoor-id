@@ -1461,3 +1461,43 @@ test("asks before removing a plan", async ({ page }) => {
 	await expect(planRows(page)).toHaveCount(0);
 	await expectPixel(page, cx, cy, BACKGROUND);
 });
+
+test("assigns a plan to the building under it, and moves it by metres", async ({
+	page,
+}) => {
+	await serveOsm(page, mall());
+	await importPlan(page, "plan.png");
+	await expect(page.getByTestId("load-status")).toBeHidden();
+
+	const building = page.getByRole("group", { name: "Building" });
+	await building.getByRole("radio", { name: "Mall" }).check();
+
+	const longitude = page.getByRole("spinbutton", { name: "Longitude" });
+	const latitude = page.getByRole("spinbutton", { name: "Latitude" });
+	const before = [
+		Number(await longitude.inputValue()),
+		Number(await latitude.inputValue()),
+	] as const;
+	await page.getByRole("spinbutton", { name: "East (m)" }).fill("10");
+	await page.getByRole("spinbutton", { name: "North (m)" }).fill("-5");
+	await page.getByRole("button", { name: "Move", exact: true }).click();
+	// 10 m east and 5 m south of where it was, at Rennes' latitude.
+	const metresPerDegree = 111_320;
+	await expect
+		.poll(async () => {
+			const lon = Number(await longitude.inputValue());
+			const lat = Number(await latitude.inputValue());
+			return [
+				Math.round(
+					(lon - before[0]) *
+						metresPerDegree *
+						Math.cos((before[1] * Math.PI) / 180),
+				),
+				Math.round((lat - before[1]) * metresPerDegree),
+			];
+		})
+		.toEqual([10, -5]);
+
+	await page.getByRole("button", { name: "Done" }).click();
+	await expect(planRows(page).first()).toContainText("Mall ·");
+});

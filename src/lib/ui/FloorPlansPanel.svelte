@@ -7,7 +7,11 @@
 	import { Separator } from "#lib/components/shadcn/separator/index.ts";
 	import type { PlanDecoders } from "#lib/floorplans/import.ts";
 	import { type Message, t } from "#lib/i18n/messages.ts";
-	import type { FloorPlans, View } from "#lib/state/floorplans.svelte.ts";
+	import type {
+		FloorPlans,
+		PlanBuilding,
+		View,
+	} from "#lib/state/floorplans.svelte.ts";
 	import PlanFiles from "#lib/ui/PlanFiles.svelte";
 	import PlanList from "#lib/ui/PlanList.svelte";
 	import PlanTools from "#lib/ui/PlanTools.svelte";
@@ -26,6 +30,10 @@
 		onclose: () => void;
 		/** Switches the map to a level, to show a plan on it. */
 		onshowlevel: (level: number) => void;
+		/** The buildings under the plan in Edit, the one around its centre first. */
+		buildings?: readonly PlanBuilding[];
+		/** The name of a plan's building, by its OSM id, when it is known. */
+		buildingName?: (id: string) => string | undefined;
 	}
 
 	let {
@@ -36,6 +44,8 @@
 		toolMessage = null,
 		onclose,
 		onshowlevel,
+		buildings = [],
+		buildingName,
 	}: Props = $props();
 </script>
 
@@ -66,8 +76,8 @@
 					<Alert.Description>{t(floorplans.storageError)}</Alert.Description>
 				</Alert.Root>
 			{/if}
-			<PlanList {floorplans} {level} {onshowlevel} />
-			<PlanTools {floorplans} {toolMessage} />
+			<PlanList {floorplans} {level} {onshowlevel} {buildingName} />
+			<PlanTools {floorplans} {toolMessage} {buildings} />
 		</div>
 	</ScrollArea>
 </aside>

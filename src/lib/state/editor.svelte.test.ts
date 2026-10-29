@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { OPERATIONS } from "#lib/edit/operations.ts";
+import { msg } from "#lib/i18n/messages.ts";
 import type { Entity } from "#lib/osm/entity.ts";
-import { node, way } from "#lib/osm/fixtures.ts";
+import { node, relation, way } from "#lib/osm/fixtures.ts";
 import type { PresetIndex } from "#lib/presets/presets.ts";
 import { Catalog } from "./catalog.svelte.ts";
-import { addToRelation, fix, moveMember, relationLabel } from "./commands.ts";
+import {
+	addToRelation,
+	fix,
+	moveMember,
+	performEdit,
+	relationLabel,
+} from "./commands.ts";
 import { Editor } from "./editor.svelte.ts";
 
 const NO_STORAGE = { getItem: () => null, setItem: () => {} };
@@ -77,6 +85,54 @@ describe("Editor", () => {
 	});
 });
 
+describe("Editor: issues of the edits", () => {
+	it("leaves out the warnings the downloaded data already had", () => {
+		const editor = editorWith([
+			node("n1", { door: "yes" }),
+			node("n2", { door: "yes" }, [0.001, 0]),
+		]);
+		editor.history.setTags("n1", { door: "yes", name: "Front" });
+		// A new point with the same problem is the edit's.
+		editor.history.perform(
+			(g) => g.replace(node("n-1", { door: "yes" }, [0.002, 0])),
+			msg("undo_change_tags"),
+		);
+		expect(editor.issuesOf("n1").map((i) => i.rule)).toEqual([
+			"door-not-on-wall",
+		]);
+		expect(editor.editIssues.map((i) => i.entityId)).toEqual(["n-1"]);
+	});
+
+	it("checks the multipolygon a way edited is in", () => {
+		const editor = editorWith([
+			node("n1", {}, [0, 0]),
+			node("n2", {}, [0.0001, 0]),
+			node("n3", {}, [0.0001, 0.0001]),
+			way("w1", ["n1", "n2", "n3", "n1"]),
+			relation("r1", [{ ref: "w1", role: "outer" }], {
+				type: "multipolygon",
+				building: "yes",
+			}),
+		]);
+		editor.history.perform(
+			(g) => g.replace(way("w1", ["n1", "n2", "n3"])),
+			msg("undo_change_tags"),
+		);
+		expect(editor.editIssues.map((i) => i.id)).toEqual([
+			"open-multipolygon:r1",
+		]);
+	});
+
+	it("keeps an issue the edit made on a downloaded feature", () => {
+		const editor = editorWith([node("n1", { amenity: "bench" })]);
+		editor.history.perform(
+			(g) => g.replace(node("n1", { amenity: "bench", name: " " })),
+			msg("undo_change_tags"),
+		);
+		expect(editor.editIssues.map((i) => i.rule)).toEqual(["empty-tag"]);
+	});
+});
+
 describe("commands", () => {
 	const roomAndDoor = () =>
 		editorWith([
@@ -100,5 +156,25 @@ describe("commands", () => {
 		editor.history.undo();
 		editor.history.undo();
 		expect(editor.graph.entity(created)).toBeUndefined();
+	});
+
+	it("deletes the selection in one step, selecting nothing after", () => {
+		const editor = roomAndDoor();
+		editor.select(["w1", "n1"]);
+		const remove = OPERATIONS.find((o) => o.id === "delete");
+		const result = remove?.run({
+			graph: editor.graph,
+			selected: editor.selection.ids,
+			level: 0,
+			pasteAt: [0, 0],
+			clipboard: null,
+		});
+		if (result?.kind !== "edit") throw new Error("not an edit");
+		performEdit(editor, result);
+		expect(editor.graph.entity("w1")).toBeUndefined();
+		expect(editor.selection.ids).toEqual([]);
+		editor.history.undo();
+		expect(editor.graph.entity("w1")).toBeDefined();
+		expect(editor.graph.entity("n1")).toBeDefined();
 	});
 });

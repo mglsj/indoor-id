@@ -51,6 +51,101 @@ describe("browseMode", () => {
 	});
 });
 
+describe("browseMode with Shift+click", () => {
+	it("adds what is clicked to the selection, or takes it out, and keeps it on the empty map", () => {
+		const toggled: string[] = [];
+		const selected: (string | null)[] = [];
+		const mode = browseMode({
+			hitTest: (point) => (point.x > 50 ? "w1" : null),
+			select: (id) => selected.push(id),
+			hover: () => {},
+			toggle: (id) => toggled.push(id),
+		});
+		mode.click?.({ ...at(60), shiftKey: true });
+		mode.click?.({ ...at(10), shiftKey: true });
+		expect(toggled).toEqual(["w1"]);
+		expect(selected).toEqual([]);
+		// MapLibre's Shift+drag zoom is off: it would take the click.
+		expect(mode.gestures).toEqual({ boxZoom: false });
+	});
+
+	it("starts a lasso on Shift+press where nothing is dragged", () => {
+		const lassoed: MapPoint[] = [];
+		const lasso = {
+			cursor: "crosshair",
+			move: () => {},
+			end: () => {},
+			cancel: () => {},
+		};
+		const mode = browseMode({
+			hitTest: () => null,
+			select: () => {},
+			hover: () => {},
+			lasso: (p) => {
+				lassoed.push(p);
+				return lasso;
+			},
+		});
+		expect(mode.press?.(at(10))).toBeNull();
+		expect(mode.press?.({ ...at(10), shiftKey: true })).toMatchObject({
+			cursor: "crosshair",
+		});
+		expect(lassoed).toHaveLength(1);
+	});
+
+	it("takes a Shift+press released without moving as a Shift+click", () => {
+		const toggled: string[] = [];
+		const mode = browseMode({
+			hitTest: () => "w1",
+			select: () => {},
+			hover: () => {},
+			toggle: (id) => toggled.push(id),
+			lasso: () => ({ move: () => {}, end: () => {}, cancel: () => {} }),
+		});
+		mode.press?.({ ...at(10), shiftKey: true })?.cancel();
+		expect(toggled).toEqual(["w1"]);
+	});
+
+	it("moves the selection on a press the selection takes, a still press being a click", () => {
+		const selected: (string | null)[] = [];
+		const moves: MapPoint[] = [];
+		let cancelled = 0;
+		const mode = browseMode({
+			hitTest: () => "w2",
+			select: (id) => selected.push(id),
+			hover: () => {},
+			move: () => ({
+				move: (p) => moves.push(p),
+				end: () => {},
+				cancel: () => cancelled++,
+			}),
+		});
+		const still = mode.press?.(at(10));
+		still?.cancel();
+		expect(selected).toEqual(["w2"]);
+		// Escape after moving puts things back without selecting.
+		const moved = mode.press?.(at(10));
+		moved?.move(at(20));
+		moved?.cancel();
+		expect(moves).toEqual([at(20)]);
+		expect(cancelled).toBe(2);
+		expect(selected).toEqual(["w2"]);
+	});
+
+	it("tells where the pointer is, and when it left", () => {
+		const pointers: (MapPoint | null)[] = [];
+		const mode = browseMode({
+			hitTest: () => null,
+			select: () => {},
+			hover: () => {},
+			pointer: (p) => pointers.push(p),
+		});
+		mode.hover?.(at(10));
+		mode.leave?.();
+		expect(pointers).toEqual([at(10), null]);
+	});
+});
+
 describe("browseMode with the edit overlay", () => {
 	/** A vertex n1 at x = 60, inside the room. */
 	function overlay() {

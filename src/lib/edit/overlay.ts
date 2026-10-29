@@ -38,10 +38,30 @@ export interface MemberProperties {
 	readonly "@id": WayId;
 }
 
+/** A line being drawn: a split's cut (P5.3.5) or a lasso (P5.3.6), until it is finished. */
+export interface CutProperties {
+	readonly "@role": "cut";
+	readonly "@id": "cut";
+}
+
 export type OverlayProperties =
 	| VertexProperties
 	| MidpointProperties
-	| MemberProperties;
+	| MemberProperties
+	| CutProperties;
+
+/** A cut line or a lasso being drawn, as an overlay feature (none under two points). */
+export function cutFeature(cut: readonly Loc[]): OverlayFeature[] {
+	return cut.length < 2
+		? []
+		: [
+				{
+					type: "Feature",
+					geometry: { type: "LineString", coordinates: cut.map((p) => [...p]) },
+					properties: { "@role": "cut", "@id": "cut" },
+				},
+			];
+}
 
 export type OverlayFeature = Feature<Point | LineString, OverlayProperties>;
 

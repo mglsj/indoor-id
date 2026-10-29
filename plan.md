@@ -35,7 +35,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | R3    | Fixes from the October audit               | Done        |
 | W     | Wiki conformance                           | Done        |
 | L     | Level names in the switcher                | Done        |
-| P5.3  | Geometry editing                           | Slices 1–4 done |
+| P5.3  | Geometry editing                           | Done        |
 | V     | Viewer mode                                | Not started |
 | 3D    | 3D floors                                  | Not started |
 | P5.4  | Autosave and conflicts                     | Not started |
@@ -348,7 +348,7 @@ user are marked ✔; the rest follow from them.
    clicking a row switches the level; inline rename saved by Done, dropped by Cancel.
 6. ✅ PDF pages. E2E: importing pages 1 and 2 of `plan.pdf` adds two plans, both on level 0.
 
-### P5: Feature editor, fast core, geometry editing — P5.0 to P5.2 done, P5.3 started
+### P5: Feature editor, fast core, geometry editing — P5.0 to P5.3 done
 
 Order agreed with the user: quick performance fixes, then the iD-style feature editor, then
 the fast core (needed before anything is dragged), then geometry editing. Decisions agreed
@@ -1159,7 +1159,7 @@ doesn't disappear but falls back to stepping by one without a list, since the ed
 to start mapping a building (V can hide it). `non_existent_levels` is read on building
 outlines only, not on `building:part`.
 
-### P5.3: Geometry editing — L — slices 1–4 done
+### P5.3: Geometry editing — L — done
 
 On R1's modes, drag, selection and geometry, and R3's pointer events. Follow iD's layering
 (see "Research and audit"): behaviours (hover, select, drag, draw, lasso, paste) that modes
@@ -1208,7 +1208,7 @@ undo or upload meanwhile wins, downloads keep it) rather than a separate drag so
 made an edit reach the map in 3–5 ms. While a shared vertex is dragged a hint says how many
 features on which levels move ("moves 2 features on levels 0;1"). Browse mode takes the
 overlay: the cursor shows what can be dragged (the way stays hovered), a click on a vertex
-selects it. Not yet: dragging a way or an area whole.
+selects it. Dragging a way or an area whole came with the leftovers (below).
 
 Done ✅ (slice 4): a Draw group in the toolbar (Point, Line, Area; keys 1, 2, 3 as iD) turns on
 `edit/modes/draw.ts`. `drawWayMode` on `edit/draw-way.ts` (`WayDrawing`): each click adds a
@@ -1226,6 +1226,88 @@ corner becomes it, on a tagged node that node is selected, elsewhere a point on 
 level. A drawing ends selecting the new feature; the Inspector opens on the type list for a new
 feature with only `level` and `area` (iD's new feature). A hint at the bottom says what clicks
 and keys do. Midpoints (slice 4's "vertex at a midpoint") came with slice 3's drag.
+
+Done ✅ (slice 5, first part): `edit/operations.ts`, iD's operations as one list: each says
+whether it applies to the selection (`available`: the toolbar's "Edit selection" group shows
+it), why it can't run (`disabled`, a `Message` the tooltip and a note at the bottom show; the
+button stays focusable with `aria-disabled`), its keys and annotation, and gives an edit to make
+as one step with what to select after (`performEdit` in `state/commands.ts`), or a clipboard.
+Copy (Mod+C) and Paste (Mod+V) on `actions/copy.ts`: a snapshot of the points and ways
+selected with their nodes (vertices and relations left out), pasted with new ids centred on
+the pointer (or the map's centre), the pasted features selected; a copy all on one level
+pasted while another is shown goes on that level. Disconnect (D, `actions/disconnect.ts`): a
+shared vertex gets a copy per way but the first; a way gets its own copy of every node it
+shares. Square the corners (Q, `actions/orthogonalize.ts`, iD's current action: corners within
+13° of square, straight runs put back on their line; refused for a shape that isn't squarish
+or is square already). Merge rooms (C, `actions/merge-areas.ts`, osm-simple3d-editor's: closed
+ways with the same `indoor`, `room`, `level` and `repeat_on` sharing sides; the largest keeps
+its id and gets the others' missing tags). Delete (Delete, Mod+Backspace) on `deleteEntities`.
+Shift+click adds a feature to the selection or takes it out (slice 6's multi-selection;
+MapLibre's Shift+drag zoom is off while browsing). Not yet: split across rooms, repeat on
+levels and clear (the rest of slice 5), a right-click menu, lasso.
+
+Done ✅ (slice 5, the rest): Split across rooms (the Split tool, X; `actions/split-areas.ts`,
+`edit/modes/split.ts`): a line drawn click by click (Enter or a click on its last point
+finishes, Backspace takes a point back) cuts every room, area and corridor it crosses by more
+than 0.5 m; crossings within 5 cm of a corner use it, new nodes go into indoor neighbours
+only (building outlines untouched); the largest piece keeps the id and history, the others
+copy its tags and its relation memberships. Repeat on levels (R, `actions/repeat-levels.ts`,
+`ui/RepeatDialog.svelte`): a checkbox per level, those already holding an identical copy
+checked (unchecking deletes it), and the three methods (copies sharing nodes at the same
+position, `repeat_on`, `level=a;b`), one undo step. Clear is Delete: `deleteEntities` takes
+a room's unused nodes and the upload deletes them `if-unused`, which is what osm-simple3d-
+editor's Clear does. Not done: a right-click menu (the toolbar group and the shortcuts cover
+the operations).
+
+Done ✅ (slice 6): Shift+click and a Shift+drag lasso (`edit/lasso.ts`: the points and ways
+whose nodes are all inside, on the shown level; a still Shift+press is a Shift+click) select
+several features; `ui/MultiInspector.svelte` lists them (select one, deselect one, hover
+highlights it on the map), shows the fields of their shared preset (`sharedPreset`; "Multiple
+types" when they differ) and the shared tags, a key whose values differ shown empty with
+"Multiple values" (`editorTags`, `editorPatch`: left alone unless typed in). Not done: the
+read-only hover preview, which opened and closed the side panel as the pointer crossed
+features.
+
+Done ✅ (slice 7): Make a multipolygon (Shift+C, `actions/multipolygon.ts`): closed ways
+become members of a new `type=multipolygon` relation, or are added to a selected one; a ring
+inside an odd number of others is `inner`; the outer ways' tags move to a new relation when
+they all have the same ones; a hole drawn with only `level`/`area` loses them. Refused with a
+reason for open ways, two relations, or a way already in another multipolygon. Member editing
+on the map is the Members section (P3) and the overlay's member lines (slice 1).
+
+Done ✅ (slice 8): door widths (`doorWidth`: `width` in m, cm, mm or feet, 0.3 to 20 m) size
+the door circle with the zoom; `arrowOf` gives one-way arrows along lines for `incline`
+(up, down, a slope) and `conveying` (which wins: escalators and moving walkways), drawn by the
+`indoor-arrows` symbol layer (`map/style/arrows.ts` images, turned for backward).
+
+Done ✅ (slice 9): `validation/spatial.ts`: empty keys or values (an error, fixed by removing
+them), a feature on levels its building's `building:levels`/`min_level`/`max_level` doesn't
+have, a room on a level without an `indoor=level` outline when the building has them for
+other levels, corners within 20 cm of another indoor way's or a building's side without
+joining it (iD's `almost_junction`, fixed by joining), rooms and corridors crossing on the
+same level (`crossing_ways` with levels as ranges), rooms a few degrees off square
+(`unsquare_way`, fixed by squaring), nodes 5 cm apart (`close_nodes`, fixed by merging), and
+indoor footways joined to nothing (`disconnected_way`). Multipolygons left open are an error
+that the save dialog waits on (`BLOCKING_RULES`). The save dialog lists the issues of the
+edits leaving out the warnings the downloaded data already had (iD's base and head caches:
+a second `Validator` on `graph.base()`, the same graph for the same data), and checks the
+multipolygons of edited ways. "Door not on a wall" and "walls and rooms not sharing nodes"
+were already P3's `door-not-on-wall` and are now also `almost-joined`; the area index is
+`Outlines` (P3). Not done: checking in idle time, as the per-entity cache keeps checks to what
+an edit touched.
+
+Done ✅ (slice 10): control points snap to the sides of what is drawn (a building's walls)
+as well as to nodes; "Move by" moves the plan in Edit a number of metres east and north
+(`offsetBy`); a plan can be assigned to a building under it (`floorplans/buildings.ts`, the
+one around its centre first), saved, exported (`building` in plan files) and named in the
+plan list.
+
+Done ✅ (leftovers): a press on a selected feature drags the selection whole
+(`edit/feature-drag.ts`, one undo step; a still press stays a click). The upload cases below
+are tested in `osm/osmchange.test.ts` (and the existing ordering tests): pieces of a room drawn
+and split in the session are only created, a deleted member leaves its relation in a
+modification sent before the deletion, a node merged away is deleted `if-unused`, and an open
+multipolygon is refused before upload.
 
 Lessons from osm-simple3d-editor's floor plan tools (built 2026-10-26 to 10-28; details in the
 research doc):

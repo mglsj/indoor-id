@@ -1,13 +1,24 @@
 <script lang="ts">
+	import ClipboardPaste from "@lucide/svelte/icons/clipboard-paste";
+	import Combine from "@lucide/svelte/icons/combine";
+	import Copy from "@lucide/svelte/icons/copy";
 	import FileImage from "@lucide/svelte/icons/file-image";
+	import Layers2 from "@lucide/svelte/icons/layers-2";
 	import MapPin from "@lucide/svelte/icons/map-pin";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
+	import Scissors from "@lucide/svelte/icons/scissors";
 	import Spline from "@lucide/svelte/icons/spline";
+	import Square from "@lucide/svelte/icons/square";
+	import SquaresSubtract from "@lucide/svelte/icons/squares-subtract";
+	import Trash from "@lucide/svelte/icons/trash";
 	import Undo2 from "@lucide/svelte/icons/undo-2";
+	import Unlink from "@lucide/svelte/icons/unlink";
 	import Upload from "@lucide/svelte/icons/upload";
 	import { type Component, untrack } from "svelte";
 	import { innerWidth } from "svelte/reactivity/window";
+	import type { Clipboard } from "#lib/actions/copy.ts";
+	import { splitAreas, splitTargets } from "#lib/actions/split-areas.ts";
 	import type { Place } from "#lib/api/nominatim.ts";
 	import type { Bbox } from "#lib/api/osm-api.ts";
 	import { OsmApi } from "#lib/api/osm-api.ts";
@@ -19,6 +30,7 @@
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
+	import { featureDrag } from "#lib/edit/feature-drag.ts";
 	import {
 		formatCombo,
 		isForMap,
@@ -26,6 +38,7 @@
 		isTyping,
 		matches,
 	} from "#lib/edit/keys.ts";
+	import { featuresInLasso, lassoDrag } from "#lib/edit/lasso.ts";
 	import type { MapPoint } from "#lib/edit/mode.ts";
 	import { ModeManager } from "#lib/edit/mode-manager.ts";
 	import { browseMode } from "#lib/edit/modes/browse.ts";
@@ -34,10 +47,22 @@
 		floorPlanMode,
 		floorPlanToolMode,
 	} from "#lib/edit/modes/floorplan.ts";
+	import { splitMode } from "#lib/edit/modes/split.ts";
 	import { type NodeGrab, nodeDrag } from "#lib/edit/node-drag.ts";
-	import { overlayFeatures } from "#lib/edit/overlay.ts";
+	import {
+		OPERATIONS,
+		type Operation,
+		type OperationContext,
+	} from "#lib/edit/operations.ts";
+	import { cutFeature, overlayFeatures } from "#lib/edit/overlay.ts";
+	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
 	import { workerCodec } from "#lib/floorplans/codec.ts";
-	import { groundDistance, type LngLat } from "#lib/floorplans/georef.ts";
+	import {
+		corners,
+		groundDistance,
+		type LngLat,
+		project,
+	} from "#lib/floorplans/georef.ts";
 	import { planDecoders } from "#lib/floorplans/import.ts";
 	import { type Message, msg, t } from "#lib/i18n/messages.ts";
 	import { setBackground } from "#lib/map/background.ts";
@@ -62,10 +87,15 @@
 		type Map as MapLibreMap,
 	} from "#lib/map/maplibre.ts";
 	import { areaAround, type SnapTarget, snapAt } from "#lib/map/snap.ts";
-	import type { EntityId, Loc, NodeId } from "#lib/osm/entity.ts";
-	import { type Extent, extentsIntersect } from "#lib/osm/geometry.ts";
+	import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
+	import {
+		type Extent,
+		extentOf,
+		extentsIntersect,
+	} from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
+	import { performEdit } from "#lib/state/commands.ts";
 	import { Editor, setEditor } from "#lib/state/editor.svelte.ts";
 	import {
 		FloorPlans,
@@ -78,6 +108,7 @@
 	import Inspector from "#lib/ui/Inspector.svelte";
 	import LevelControl from "#lib/ui/LevelControl.svelte";
 	import MapView from "#lib/ui/MapView.svelte";
+	import MultiInspector from "#lib/ui/MultiInspector.svelte";
 	import PanelResizer from "#lib/ui/PanelResizer.svelte";
 	import {
 		clampWidth,
@@ -85,6 +116,7 @@
 		rememberWidth,
 		widthBounds,
 	} from "#lib/ui/panel-width.ts";
+	import RepeatDialog from "#lib/ui/RepeatDialog.svelte";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
 	import SearchPlace from "#lib/ui/SearchPlace.svelte";
 	import UnsavedPlanDialog from "#lib/ui/UnsavedPlanDialog.svelte";
@@ -199,11 +231,13 @@
 		if (map) void setBackground(map, entry);
 	}
 
-	/** The drawing tool on (P5.3.4), or null when browsing. */
-	let drawing = $state<"point" | "line" | "area" | null>(null);
+	/** The drawing tool on (P5.3.4; the split tool, P5.3.5), or null when browsing. */
+	let drawing = $state<"point" | "line" | "area" | "split" | null>(null);
+	/** The split tool's cut line, or the lasso, as drawn so far. */
+	let cut = $state.raw<readonly Loc[]>([]);
 
 	/** Turns a drawing tool on, or off when it is on already. */
-	function draw(kind: "point" | "line" | "area") {
+	function draw(kind: "point" | "line" | "area" | "split") {
 		drawing = drawing === kind ? null : kind;
 		if (drawing) editor.select(null);
 	}
@@ -218,6 +252,117 @@
 		point: msg("draw_point_hint"),
 		line: msg("draw_line_hint"),
 		area: msg("draw_area_hint"),
+		split: msg("split_hint"),
+	};
+
+	/** Cuts the rooms, corridors and areas on the shown level the line crosses, in one step. */
+	function split(line: readonly Loc[] | null) {
+		drawing = null;
+		const extent = line && extentOf(line);
+		if (!line || !extent) return;
+		const candidates = [
+			...new Set(editor.features.segmentsNear(extent, level).map((s) => s.way)),
+		];
+		const targets = splitTargets(editor.graph, line, candidates);
+		if (targets.length === 0) {
+			showNote(msg("split_nothing"));
+			return;
+		}
+		editor.history.perform(splitAreas(line, targets), msg("undo_split"));
+		editor.select(null);
+	}
+
+	/** Adds what a lasso holds, on the shown level, to the selection (P5.3.6). */
+	function selectInLasso(lasso: readonly Loc[]) {
+		const extent = extentOf(lasso);
+		if (!extent) return;
+		const found = featuresInLasso(
+			editor.graph,
+			lasso,
+			editor.features.nodesNear(extent, level),
+		);
+		if (found.length > 0) editor.select([...editor.selection.ids, ...found]);
+	}
+
+	/** The feature Repeat on levels is asking about, while its dialog is open. */
+	let repeating = $state<NodeId | WayId | null>(null);
+
+	/** The drawn nodes on a level around the feature being repeated. */
+	function nodesAround(id: EntityId) {
+		return (onLevel: number) => {
+			const extent = entityExtent(editor.graph, id);
+			return extent ? editor.features.nodesNear(extent, onLevel) : [];
+		};
+	}
+
+	/** What Copy kept, for Paste. */
+	let clipboard = $state.raw<Clipboard | null>(null);
+	/** Where the pointer last was on the map while browsing, where a paste goes. */
+	let lastPointer: LngLat | null = null;
+	/** Why the last operation asked for couldn't run, or what it did, shown for a moment. */
+	let operationNote = $state.raw<Message | null>(null);
+	let noteTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function showNote(note: Message) {
+		operationNote = note;
+		clearTimeout(noteTimer);
+		noteTimer = setTimeout(() => (operationNote = null), 3000);
+	}
+
+	function operationContext(): OperationContext {
+		const center = map?.getCenter();
+		return {
+			graph: editor.graph,
+			selected: editor.selection.ids,
+			level,
+			pasteAt: lastPointer ?? (center ? [center.lng, center.lat] : [0, 0]),
+			clipboard,
+		};
+	}
+
+	/** The operations on the selection (P5.3.5), while browsing. */
+	const operations = $derived.by(() => {
+		if (modeKind !== "browse" || editor.history.locked) return [];
+		const context = operationContext();
+		return OPERATIONS.filter((o) => o.available(context)).map((operation) => ({
+			operation,
+			disabled: operation.disabled(context),
+		}));
+	});
+
+	function runOperation(operation: Operation) {
+		const context = operationContext();
+		const reason = operation.disabled(context);
+		if (reason) {
+			showNote(reason);
+			return;
+		}
+		const result = operation.run(context);
+		if (result.kind === "repeat") {
+			repeating = result.id;
+			return;
+		}
+		if (result.kind === "copy") {
+			clipboard = result.clipboard;
+			const count = result.clipboard.roots.length;
+			const paste = formatCombo("Mod+V", mac);
+			showNote(
+				count > 1
+					? msg("operation_copied_many", { count, paste })
+					: msg("operation_copied", { paste }),
+			);
+		} else performEdit(editor, result);
+	}
+
+	const OPERATION_ICONS: Record<Operation["id"], Component> = {
+		copy: Copy,
+		repeat: Layers2,
+		paste: ClipboardPaste,
+		disconnect: Unlink,
+		square: Square,
+		merge: Combine,
+		multipolygon: SquaresSubtract,
+		delete: Trash,
 	};
 
 	/** What the map's clicks, drags and keys do now (see `edit/modes`). */
@@ -249,15 +394,23 @@
 			overlay.setData(
 				planMode
 					? { type: "FeatureCollection", features: [] }
-					: overlayFeatures(editor.graph, {
-							selected: editor.selection.ids,
-							hover: editor.selection.hover,
-							zoom: camera?.zoom ?? 0,
-							nodesInView: () => {
-								const extent = visibleExtent();
-								return extent ? editor.features.nodesNear(extent, level) : [];
-							},
-						}),
+					: {
+							type: "FeatureCollection",
+							features: [
+								...overlayFeatures(editor.graph, {
+									selected: editor.selection.ids,
+									hover: editor.selection.hover,
+									zoom: camera?.zoom ?? 0,
+									nodesInView: () => {
+										const extent = visibleExtent();
+										return extent
+											? editor.features.nodesNear(extent, level)
+											: [];
+									},
+								}).features,
+								...cutFeature(cut),
+							],
+						},
 			),
 		);
 		/** What a press at a screen point drags: an overlay vertex or midpoint, the selected point. */
@@ -272,6 +425,13 @@
 				indoor.hitTest(point) === selected.id
 				? { kind: "vertex", id: selected.id }
 				: null;
+		};
+
+		/** Whether a selected feature is drawn at a screen point (a press there moves it). */
+		const selectedAt = (point: { x: number; y: number }): boolean => {
+			if (editor.history.locked) return false;
+			const hit = indoor.hitTest(point);
+			return hit !== null && editor.selection.has(hit as EntityId);
 		};
 
 		const layers = new FloorPlanLayers(instance, floorplans.tiles);
@@ -312,8 +472,20 @@
 							browseMode({
 								hitTest: (point) => indoor.hitTest(point),
 								select: (id) => editor.select(id as EntityId | null),
+								toggle: (id) => editor.selection.toggle(id as EntityId),
+								move: (at) =>
+									selectedAt(at.point)
+										? featureDrag(editor.selection.ids, at, editor.history)
+										: null,
+								lasso: (at) =>
+									lassoDrag(at.lngLat, {
+										onchange: (line) => (cut = line),
+										onend: selectInLasso,
+									}),
+								pointer: (at) => (lastPointer = at?.lngLat ?? null),
 								hover: (id) => editor.selection.setHover(id as EntityId | null),
-								draggable: (point) => grabAt(point) !== null,
+								draggable: (point) =>
+									grabAt(point) !== null || selectedAt(point),
 								vertexAt: (point) => {
 									const grab = overlay.grabAt(point);
 									return grab?.kind === "vertex" ? grab.id : null;
@@ -350,6 +522,18 @@
 								level,
 								snap: snapNode,
 								onfinish: drawingEnded,
+							}),
+						);
+						break;
+					case "draw-split":
+						manager.setMode(
+							splitMode({
+								snap: (at) => {
+									const target = snapNode(at, new Set());
+									return target ? target.loc : null;
+								},
+								onchange: (line) => (cut = line),
+								onfinish: split,
 							}),
 						);
 						break;
@@ -411,6 +595,8 @@
 			tool?.kind === "points" && tool.pending
 				? {
 						nodes: editor.features.nodesNear(area, level),
+						// A building's corners and walls: the sides of what is drawn.
+						segments: editor.features.segmentsNear(area, level),
 						planVertices: floorplans.verticesNear(
 							area,
 							level,
@@ -526,8 +712,45 @@
 	/** Floor plan tiles the map draws (for the e2e tests' `data-plan-tiles`). */
 	let planTiles = $state<number>();
 
+	/** The selected features when there are several (P5.3.6), edited together. */
+	const several = $derived.by(() => {
+		if (editor.selection.ids.length < 2) return null;
+		const entities = editor.selection.ids.flatMap((id) => {
+			const entity = editor.graph.entity(id);
+			return entity ? [entity] : [];
+		});
+		return entities.length > 1 ? entities : null;
+	});
+	const panelOpen = $derived(
+		editor.selected !== null || several !== null || planMode,
+	);
+
 	/** The side panel, which covers the left of the map while it is open. */
 	let sidePanel = $state<HTMLElement>();
+
+	/** The buildings under the plan in Edit, which it can be assigned to. */
+	const planBuildings = $derived.by(() => {
+		const plan = floorplans.editing;
+		if (!plan) return [];
+		const { width, height } = plan.size;
+		const ring = corners(plan.transform, width, height);
+		const extent = {
+			west: Math.min(...ring.map((c) => c[0])),
+			south: Math.min(...ring.map((c) => c[1])),
+			east: Math.max(...ring.map((c) => c[0])),
+			north: Math.max(...ring.map((c) => c[1])),
+		};
+		return buildingsUnder(
+			editor.graph,
+			editor.features.segmentsNear(extent, level).map((s) => s.way),
+			project(plan.transform, [width / 2, height / 2]),
+		);
+	});
+
+	function planBuildingName(id: string): string | undefined {
+		const entity = editor.graph.entity(id as EntityId);
+		return entity && buildingName(entity.tags, id);
+	}
 
 	/** The part of the map the side panel leaves visible, for placing new floor plans. */
 	function planView(): PlanView | undefined {
@@ -605,6 +828,7 @@
 		{ combo: "1", run: () => draw("point") },
 		{ combo: "2", run: () => draw("line") },
 		{ combo: "3", run: () => draw("area") },
+		{ combo: "X", run: () => draw("split") },
 		{ combo: "Mod+Z", run: () => editor.history.undo() },
 		{ combo: "Mod+Shift+Z", run: () => editor.history.redo() },
 		{ combo: "Mod+Y", run: () => editor.history.redo() },
@@ -623,7 +847,16 @@
 			return;
 		}
 		if (modes?.key(event)) return;
-		if (planMode || !shortcut) return;
+		if (planMode) return;
+		const operation = operations.find(({ operation }) =>
+			operation.keys.some((combo) => matches(event, combo, mac)),
+		)?.operation;
+		if (operation) {
+			event.preventDefault();
+			runOperation(operation);
+			return;
+		}
+		if (!shortcut) return;
 		event.preventDefault();
 		shortcut.run();
 	}
@@ -682,7 +915,7 @@
 {/snippet}
 
 {#snippet drawButton(
-	kind: "point" | "line" | "area",
+	kind: "point" | "line" | "area" | "split",
 	label: string,
 	key: string,
 	Icon: Component,
@@ -696,7 +929,9 @@
 					{...props}
 					variant={drawing === kind ? "secondary" : "outline"}
 					size="icon"
-					aria-label={`Draw ${label.toLowerCase()}`}
+					aria-label={kind === "split"
+						? "Split rooms"
+						: `Draw ${label.toLowerCase()}`}
 					aria-pressed={drawing === kind}
 					disabled={editor.history.locked}
 				>
@@ -705,6 +940,39 @@
 			{/snippet}
 		</Tooltip.Trigger>
 		<Tooltip.Content side="bottom">{label} ({key})</Tooltip.Content>
+	</Tooltip.Root>
+{/snippet}
+
+{#snippet operationButton(
+	operation: Operation,
+	disabled: Message | null,
+)}
+	{@const Icon = OPERATION_ICONS[operation.id]}
+	{@const label = t(operation.label)}
+	<Tooltip.Root>
+		<Tooltip.Trigger onclick={() => runOperation(operation)}>
+			{#snippet child({
+				props,
+			})}
+				<!-- aria-disabled, not disabled: the tooltip still says why. -->
+				<Button
+					{...props}
+					variant="outline"
+					size="icon"
+					aria-label={label}
+					aria-disabled={disabled !== null}
+					class={disabled ? "opacity-50" : ""}
+				>
+					<Icon />
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="bottom">
+			{label}
+			({formatCombo(operation.keys[0] ?? "", mac)}){disabled
+				? `: ${t(disabled)}`
+				: ""}
+		</Tooltip.Content>
 	</Tooltip.Root>
 {/snippet}
 
@@ -722,7 +990,7 @@
 />
 
 <!-- The side panel edits the selected feature, or the floor plans in floor plan mode. -->
-{#if editor.selected || planMode}
+{#if panelOpen}
 	<div
 		bind:this={sidePanel}
 		class="absolute inset-y-0 left-0 z-30"
@@ -739,6 +1007,10 @@
 					{level}
 				/>
 			{/key}
+		{:else if several}
+			{#key several.map((e) => e.id).join(",")}
+				<MultiInspector entities={several} />
+			{/key}
 		{:else}
 			<FloorPlansPanel
 				{floorplans}
@@ -748,6 +1020,8 @@
 				{toolMessage}
 				onclose={closePlanMode}
 				onshowlevel={(shown) => (level = shown)}
+				buildings={planBuildings}
+				buildingName={planBuildingName}
 			/>
 		{/if}
 		<PanelResizer
@@ -762,9 +1036,7 @@
 
 <div
 	class="absolute top-4 z-20 flex flex-col items-start gap-2"
-	style:left={editor.selected || planMode
-		? `calc(${shownPanelWidth}px + 1rem)`
-		: "1rem"}
+	style:left={panelOpen ? `calc(${shownPanelWidth}px + 1rem)` : "1rem"}
 >
 	<SearchPlace
 		getView={visibleArea}
@@ -808,8 +1080,18 @@
 				{@render drawButton("point", "Point", "1", MapPin)}
 				{@render drawButton("line", "Line", "2", Spline)}
 				{@render drawButton("area", "Area", "3", Pentagon)}
+				{@render drawButton("split", "Split", "X", Scissors)}
 			</ButtonGroup.Root>
 		</div>
+		{#if operations.length > 0}
+			<div class="rounded-md bg-background shadow-md">
+				<ButtonGroup.Root aria-label="Edit selection">
+					{#each operations as { operation, disabled } (operation.id)}
+						{@render operationButton(operation, disabled)}
+					{/each}
+				</ButtonGroup.Root>
+			</div>
+		{/if}
 	{/if}
 	<ImageryPicker
 		center={camera && [camera.lon, camera.lat]}
@@ -848,13 +1130,23 @@
 	</p>
 {/if}
 
-{#if drawing && !dragHint}
+{#if drawing && !dragHint && !operationNote}
 	<p
 		role="status"
 		data-testid="draw-hint"
 		class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
 	>
 		{t(DRAW_HINTS[drawing])}
+	</p>
+{/if}
+
+{#if operationNote && !dragHint}
+	<p
+		role="status"
+		data-testid="operation-note"
+		class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+	>
+		{t(operationNote)}
 	</p>
 {/if}
 
@@ -880,3 +1172,13 @@
 {/if}
 
 <UnsavedPlanDialog {floorplans} />
+
+{#if repeating}
+	<RepeatDialog
+		id={repeating}
+		{level}
+		levels={levelsInView}
+		near={nodesAround(repeating)}
+		onclose={() => (repeating = null)}
+	/>
+{/if}

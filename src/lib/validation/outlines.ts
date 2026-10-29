@@ -40,6 +40,8 @@ export interface Outline {
 	readonly levels: Levels | null;
 	/** A building's `non_existent_levels`, if readable. */
 	readonly nonExistent?: Levels;
+	/** A building's levels (`building:levels`, `min_level`/`max_level`…), if it says. */
+	readonly buildingLevels?: Levels;
 }
 
 interface Item {
@@ -174,6 +176,11 @@ function itemOf(graph: Graph, way: Way): Item | null {
 	const extent = extentOf(ring);
 	if (!extent || ring.length < 4) return null;
 	const nonExistent = building ? nonExistentLevels(tags) : null;
+	// A building's own `level` says where it is drawn, not which levels it has.
+	const buildingLevels =
+		building && tags.level === undefined && tags.repeat_on === undefined
+			? featureLevels(tags)
+			: null;
 	const outline: Outline = {
 		id: way.id,
 		building,
@@ -186,6 +193,7 @@ function itemOf(graph: Graph, way: Way): Item | null {
 				)
 			: null,
 		...(nonExistent && { nonExistent }),
+		...(buildingLevels && { buildingLevels }),
 	};
 	return {
 		minX: extent.west,

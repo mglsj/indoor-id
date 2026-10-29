@@ -73,6 +73,8 @@ export interface ArchivedPlan {
 	readonly color?: string;
 	/** Ids of the CAD layers not shown; files from before have none. */
 	readonly hiddenLayers?: readonly string[];
+	/** The OSM building it is of (`w123`, `r45`), when assigned. */
+	readonly building?: string;
 }
 
 export interface PlanArchive {
@@ -220,8 +222,14 @@ function readArchivedPlan(value: unknown): ArchivedPlan {
 		value.hiddenLayers.every((id) => typeof id === "string")
 			? { hiddenLayers: value.hiddenLayers as string[] }
 			: {}),
+		...(typeof value.building === "string" && OSM_ID.test(value.building)
+			? { building: value.building }
+			: {}),
 	};
 }
+
+/** A way's or a relation's id, as a plan's building. */
+const OSM_ID = /^[wr]-?\d+$/;
 
 function sourceOf(value: unknown): PlanSource {
 	if (!isRecord(value) || typeof value.file !== "string") throw invalid();

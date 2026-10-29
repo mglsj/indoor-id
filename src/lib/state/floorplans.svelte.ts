@@ -22,6 +22,7 @@ import {
 	GeorefError,
 	type LngLat,
 	moveTo,
+	offsetBy,
 	type Pixel,
 	type PlanPosition,
 	place,
@@ -65,7 +66,12 @@ export interface FloorPlan {
 	readonly color: string;
 	/** Ids of the CAD layers (`VectorContent.layers`) not shown. */
 	readonly hiddenLayers: readonly string[];
+	/** The OSM building (way or relation id) the plan is of, when assigned. */
+	readonly building?: string;
 }
+
+/** An OSM building a plan can be assigned to (`FloorPlan.building`). */
+export type { PlanBuilding } from "#lib/floorplans/buildings.ts";
 
 /** The building outlines' place in the stack: how many plans are under them. */
 export interface BuildingsLayer {
@@ -725,6 +731,22 @@ export class FloorPlans {
 	commitPlacement(id: string): void {
 		const plan = this.editing;
 		if (plan?.id === id) this.#place(plan, plan.transform);
+	}
+
+	/** Moves the plan in Edit `east` and `north` metres (negative: west, south). */
+	offset(east: number, north: number): void {
+		const plan = this.editing;
+		if (!plan || (east === 0 && north === 0)) return;
+		const { width, height } = plan.size;
+		this.#place(plan, offsetBy(plan.transform, width, height, east, north));
+	}
+
+	/** Assigns the plan in Edit to an OSM building, by its id, or to none. */
+	setBuilding(building: string | null): void {
+		const plan = this.editing;
+		if (!plan) return;
+		const { building: _old, ...rest } = plan;
+		this.#replace(building ? { ...rest, building } : rest);
 	}
 
 	/** Moves, turns or scales the plan in Edit to a position typed in numbers. */

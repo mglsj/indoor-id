@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { connectNodes } from "#lib/actions/connect.ts";
+import { deleteEntities } from "#lib/actions/delete.ts";
+import { splitAreas } from "#lib/actions/split-areas.ts";
 import { node, relation, way } from "./fixtures.ts";
 import { Graph } from "./graph.ts";
 import { applyDiffResult, buildOsmChange } from "./osmchange.ts";
@@ -207,5 +210,76 @@ describe("applyDiffResult", () => {
 	it("fails when the server didn't acknowledge every change", () => {
 		const partial = result.replace('<node old_id="3"/>', "");
 		expect(() => applyDiffResult(edited, partial)).toThrow("n3");
+	});
+});
+
+/** Bugs osm-simple3d-editor hit uploading floor plan edits (see plan.md, P5.3). */
+describe("buildOsmChange: floor plan edits", () => {
+	const M = 1e-5;
+
+	it("creates the pieces of a room drawn and split in the session, nothing else", () => {
+		const drawn = Graph.fromEntities([]).update((g) =>
+			[
+				node("n-1", {}, [0, 0]),
+				node("n-2", {}, [4 * M, 0]),
+				node("n-3", {}, [4 * M, 4 * M]),
+				node("n-4", {}, [0, 4 * M]),
+				way("w-1", ["n-1", "n-2", "n-3", "n-4", "n-1"], {
+					indoor: "room",
+					level: "0",
+				}),
+			].reduce((graph, e) => graph.replace(e), g),
+		);
+		const split = splitAreas(
+			[
+				[2 * M, -M],
+				[2 * M, 5 * M],
+			],
+			["w-1"],
+		)(drawn);
+		const change = buildOsmChange(split, 1);
+		expect(change).not.toContain("<modify>");
+		expect(change).not.toContain("<delete");
+		expect(change.match(/<way id="-\d+"/g)).toHaveLength(2);
+	});
+
+	it("takes a deleted member out of its relation, before deleting it", () => {
+		const graph = Graph.fromEntities([
+			node("n1", {}, [0, 0]),
+			node("n2", {}, [M, 0]),
+			node("n3", {}, [M, M]),
+			way("w1", ["n1", "n2", "n3", "n1"], { indoor: "room", level: "0" }),
+			way("w2", ["n1", "n3"], { indoor: "wall", level: "0" }),
+			relation(
+				"r1",
+				[
+					{ ref: "w1", role: "" },
+					{ ref: "w2", role: "" },
+				],
+				{ type: "level", level: "0" },
+			),
+		]);
+		const change = buildOsmChange(deleteEntities(["w2"])(graph), 1);
+		expect(change).toContain(
+			'<relation id="1" changeset="1" version="1"><member type="way" ref="1" role=""/>',
+		);
+		expect(change.indexOf("<modify>")).toBeLessThan(change.indexOf("<delete"));
+		expect(change).toContain('<way id="2" changeset="1" version="1"/>');
+	});
+
+	it("deletes a node merged into another, if no one else uses it", () => {
+		const graph = Graph.fromEntities([
+			node("n1", {}, [0, 0]),
+			node("n2", {}, [M, 0]),
+			node("n3", {}, [M, M]),
+			node("n4", {}, [M + 1e-8, M]),
+			way("w1", ["n1", "n2", "n3", "n1"], { indoor: "room" }),
+			way("w2", ["n4", "n2"], { indoor: "wall" }),
+		]);
+		const change = buildOsmChange(connectNodes("n4", "n3")(graph), 1);
+		expect(change).toContain(
+			'<delete if-unused="true"><node id="4" changeset="1" version="1"/></delete>',
+		);
+		expect(change).toContain('<nd ref="3"/><nd ref="2"/>');
 	});
 });

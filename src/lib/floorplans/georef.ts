@@ -160,6 +160,28 @@ export function translateTo(
 	return { kind: transform.kind, matrix: multiply(shift, transform.matrix) };
 }
 
+/**
+ * Moves the plan `east` and `north` metres on the ground (negative: west, south), unscaled and
+ * unrotated: Mercator metres are ground metres divided by the cosine of the latitude.
+ */
+export function offsetBy(
+	transform: Transform,
+	width: number,
+	height: number,
+	east: number,
+	north: number,
+): Transform {
+	const centre: Pixel = [width / 2, height / 2];
+	const at = project(transform, centre);
+	const k = 1 / Math.cos((at[1] * Math.PI) / 180);
+	const [x, y] = toMercator(at);
+	return translateTo(
+		transform,
+		centre,
+		fromMercator([x + east * k, y + north * k]),
+	);
+}
+
 export interface CornerDragOptions {
 	/** Change the proportions: the plan stretches along its own edges, without turning. */
 	readonly freeAspect?: boolean;

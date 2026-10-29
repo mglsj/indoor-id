@@ -20,6 +20,7 @@ import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
 import type { Tags } from "#lib/osm/tags.ts";
 import { Outlines } from "./outlines.ts";
+import { spatialIssues } from "./spatial.ts";
 import { describeTags, type UpgradeRule, upgradeTags } from "./upgrades.ts";
 
 export type IssueRule =
@@ -38,7 +39,21 @@ export type IssueRule =
 	| "entrance-inside"
 	| "one-based-levels"
 	| "non-existent-level"
-	| "room-on-several-levels";
+	| "room-on-several-levels"
+	| "empty-tag"
+	| "level-outside-building"
+	| "no-level-outline"
+	| "almost-joined"
+	| "crossing-rooms"
+	| "unsquare-room"
+	| "close-nodes"
+	| "disconnected-path"
+	| "open-multipolygon";
+
+/** Rules whose issues the upload refuses: the server would take broken data. */
+export const BLOCKING_RULES: ReadonlySet<IssueRule> = new Set([
+	"open-multipolygon",
+]);
 
 export interface Issue {
 	/** Stable id, `rule:entity`. */
@@ -81,6 +96,8 @@ export function validate(
 			...missingLevel(graph, entity, outlines),
 			...oneBasedLevels(entity, outlines),
 			...nonExistentLevel(graph, entity, outlines),
+			...spatialIssues(graph, entity, outlines),
+			...openMultipolygon(graph, entity),
 		);
 	}
 	return issues;
@@ -553,4 +570,31 @@ function listLevels(value: string): number[] | null {
 
 function only(tags: Tags, keep: (key: string) => boolean): Tags {
 	return Object.fromEntries(Object.entries(tags).filter(([k]) => keep(k)));
+}
+
+/**
+ * A multipolygon whose ways don't close into rings: every end of a way that isn't closed must
+ * meet the end of another member way. Only judged when all its ways are downloaded.
+ */
+function openMultipolygon(graph: Graph, entity: Entity): Issue[] {
+	if (entity.type !== "relation" || entity.tags.type !== "multipolygon")
+		return [];
+	const ends = new Map<string, number>();
+	for (const member of entity.members) {
+		if (member.ref[0] !== "w") continue;
+		const way = graph.entity(member.ref);
+		if (way?.type !== "way") return [];
+		if (isClosed(way)) continue;
+		for (const end of [way.nodes[0], way.nodes.at(-1)]) {
+			if (end) ends.set(end, (ends.get(end) ?? 0) + 1);
+		}
+	}
+	return [...ends.values()].some((n) => n % 2 === 1)
+		? [
+				{
+					...issue("open-multipolygon", entity, msg("issue_open_multipolygon")),
+					severity: "error",
+				},
+			]
+		: [];
 }
