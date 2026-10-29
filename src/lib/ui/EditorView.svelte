@@ -10,6 +10,7 @@
 	import Scissors from "@lucide/svelte/icons/scissors";
 	import Spline from "@lucide/svelte/icons/spline";
 	import Square from "@lucide/svelte/icons/square";
+	import SquaresSubtract from "@lucide/svelte/icons/squares-subtract";
 	import Trash from "@lucide/svelte/icons/trash";
 	import Undo2 from "@lucide/svelte/icons/undo-2";
 	import Unlink from "@lucide/svelte/icons/unlink";
@@ -353,6 +354,7 @@
 		disconnect: Unlink,
 		square: Square,
 		merge: Combine,
+		multipolygon: SquaresSubtract,
 		delete: Trash,
 	};
 

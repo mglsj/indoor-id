@@ -67,7 +67,12 @@ describe("OPERATIONS", () => {
 		]);
 		expect(offered(context(["n7"]))).toEqual(["copy", "repeat", "delete"]);
 		expect(offered(context(["n2"]))).toEqual(["copy", "disconnect", "delete"]);
-		expect(offered(context(["w1", "w2"]))).toEqual(["copy", "merge", "delete"]);
+		expect(offered(context(["w1", "w2"]))).toEqual([
+			"copy",
+			"merge",
+			"multipolygon",
+			"delete",
+		]);
 		const clipboard = copyEntities(graph(), ["n7"]);
 		expect(offered(context([], { clipboard }))).toEqual(["paste"]);
 	});

@@ -14,6 +14,10 @@ import { deleteEntities } from "#lib/actions/delete.ts";
 import { canDisconnect, disconnect } from "#lib/actions/disconnect.ts";
 import { mergeAreas, mergeRefusal } from "#lib/actions/merge-areas.ts";
 import {
+	makeMultipolygon,
+	multipolygonRefusal,
+} from "#lib/actions/multipolygon.ts";
+import {
 	orthogonalize,
 	orthogonalizeRefusal,
 } from "#lib/actions/orthogonalize.ts";
@@ -53,6 +57,7 @@ export interface Operation {
 		| "disconnect"
 		| "square"
 		| "merge"
+		| "multipolygon"
 		| "repeat"
 		| "copy"
 		| "paste";
@@ -191,6 +196,38 @@ const mergeOperation: Operation = {
 	}),
 };
 
+const MULTIPOLYGON_REFUSALS = {
+	not_rings: msg("operation_multipolygon_not_rings"),
+	several_relations: msg("operation_multipolygon_several_relations"),
+	in_other_multipolygon: msg("operation_multipolygon_in_other"),
+} as const;
+
+const multipolygonOperation: Operation = {
+	id: "multipolygon",
+	label: msg("operation_multipolygon"),
+	keys: ["Shift+C"],
+	available: ({ graph, selected }) =>
+		selected.length > 1 &&
+		selected.every((id) => {
+			const type = graph.entity(id)?.type;
+			return type === "way" || type === "relation";
+		}),
+	disabled: ({ graph, selected }) => {
+		const refusal = multipolygonRefusal(graph, selected);
+		return refusal ? MULTIPOLYGON_REFUSALS[refusal] : null;
+	},
+	run: ({ selected }) => ({
+		kind: "edit",
+		edit: (graph) => {
+			const made = makeMultipolygon(graph, selected);
+			return made
+				? { graph: made.graph, select: [made.relation] }
+				: { graph, select: selected };
+		},
+		annotation: msg("undo_multipolygon"),
+	}),
+};
+
 const repeatOperation: Operation = {
 	id: "repeat",
 	label: msg("operation_repeat"),
@@ -260,6 +297,7 @@ export const OPERATIONS: readonly Operation[] = [
 	disconnectOperation,
 	squareOperation,
 	mergeOperation,
+	multipolygonOperation,
 	repeatOperation,
 	deleteOperation,
 ];

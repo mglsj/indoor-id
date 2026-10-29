@@ -119,3 +119,29 @@ test("Repeat on levels puts a copy of the room on the level checked", async ({
 	// A new way and its four nodes.
 	await expect(page.getByTestId("edit-count")).toHaveText("5");
 });
+
+test("a room and an area drawn inside it make a room with a hole", async ({
+	page,
+}) => {
+	await serveOsm(page, room(100, LON, LAT, "0"));
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	await mapDrawn(page);
+	const { x, y } = await mapCenter(page);
+	// An area drawn in the room stays selected, its type not picked yet.
+	await page.getByRole("button", { name: "Draw area" }).click();
+	await page.mouse.click(x - 30, y - 30);
+	await page.mouse.click(x + 30, y - 30);
+	await page.mouse.click(x + 30, y + 30);
+	await page.mouse.click(x - 30, y - 30);
+	await expect(page.getByTestId("edit-count")).toHaveText("4");
+	await page.keyboard.down("Shift");
+	await page.mouse.click(x + 100, y + 100);
+	await page.keyboard.up("Shift");
+	await page.keyboard.press("Shift+C");
+	// And the relation, the room's tags moved to it.
+	await expect(page.getByTestId("edit-count")).toHaveText("6");
+	await expect(
+		inspector(page).root.getByRole("button", { name: /^Members \(2\)$/ }),
+	).toBeVisible();
+});
