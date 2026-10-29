@@ -115,7 +115,11 @@ describe("SaveDialog", () => {
 			.element(page.getByRole("button", { name: "Upload" }))
 			.toBeDisabled();
 		await expect
-			.element(page.getByText("Fix the errors above to upload"))
+			.element(
+				page.getByText(
+					"Fix the errors above to upload: OSM would get them broken.",
+				),
+			)
 			.toBeVisible();
 		expect(upload).not.toHaveBeenCalled();
 	});
