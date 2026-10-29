@@ -3,6 +3,8 @@
 IndoorID, an indoor OpenStreetMap editor: a rewrite of OsmInEdit (React + Leaflet, 2019) as a client-only
 SvelteKit + MapLibre app. OSM is the only backend. The roadmap, decisions and phase status live in
 [plan.md](plan.md): read it before starting a phase and update its status when a phase lands.
+Finished phases, with what was measured and decided, are in [docs/history.md](docs/history.md):
+move a phase's notes there once it is done.
 
 ## Commands
 
@@ -128,7 +130,7 @@ runs the same commands.
   `MessageError`s. Add the English to `messages/en.json` (snake_case keys, `{param}`
   placeholders), then `bun run messages` (it also runs on install) to update the typed
   `i18n/generated/en.ts`.
-- Planned modules (see plan.md): `persist/autosave`. Pure modules (`osm`, `levels`,
+- Planned modules (see plan.md): `persist/autosave` (P5.4a). Pure modules (`osm`, `levels`,
   `actions`, `presets`, `validation`, `floorplans/georef`, `floorplans/plan-file`,
   `floorplans/tiling`) must not touch the DOM or Svelte.
 
