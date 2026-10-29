@@ -4,7 +4,11 @@ import { node, way } from "#lib/osm/fixtures.ts";
 import { toMercator } from "#lib/osm/geometry.ts";
 import type { Graph as GraphType } from "#lib/osm/graph.ts";
 import { Graph } from "#lib/osm/graph.ts";
-import { orthogonalize, orthogonalizeRefusal } from "./orthogonalize.ts";
+import {
+	isUnsquare,
+	orthogonalize,
+	orthogonalizeRefusal,
+} from "./orthogonalize.ts";
 
 /** A closed way through these positions (degrees, tiny so Mercator is nearly flat). */
 function shape(...locs: Loc[]) {
@@ -65,5 +69,30 @@ describe("orthogonalize", () => {
 			way("w2", ["n1", "n2"]),
 		]);
 		expect(orthogonalizeRefusal(line, "w2")).toBe("not_area");
+	});
+});
+
+describe("isUnsquare", () => {
+	const M = 1e-5;
+	it("finds a shape a few degrees off square", () => {
+		// The east side leans 2° (tan 2° ≈ 0.035).
+		const g = shape([0, 0], [10 * M, 0], [10.35 * M, 10 * M], [0, 10 * M]);
+		expect(isUnsquare(g, "w1")).toBe(true);
+	});
+
+	it("leaves square shapes, and shapes far from square", () => {
+		expect(
+			isUnsquare(
+				shape([0, 0], [10 * M, 0], [10 * M, 10 * M], [0, 10 * M]),
+				"w1",
+			),
+		).toBe(false);
+		// 20° off.
+		expect(
+			isUnsquare(
+				shape([0, 0], [10 * M, 0], [13.6 * M, 10 * M], [0, 10 * M]),
+				"w1",
+			),
+		).toBe(false);
 	});
 });

@@ -20,6 +20,7 @@ import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
 import type { Tags } from "#lib/osm/tags.ts";
 import { Outlines } from "./outlines.ts";
+import { spatialIssues } from "./spatial.ts";
 import { describeTags, type UpgradeRule, upgradeTags } from "./upgrades.ts";
 
 export type IssueRule =
@@ -38,7 +39,15 @@ export type IssueRule =
 	| "entrance-inside"
 	| "one-based-levels"
 	| "non-existent-level"
-	| "room-on-several-levels";
+	| "room-on-several-levels"
+	| "empty-tag"
+	| "level-outside-building"
+	| "no-level-outline"
+	| "almost-joined"
+	| "crossing-rooms"
+	| "unsquare-room"
+	| "close-nodes"
+	| "disconnected-path";
 
 export interface Issue {
 	/** Stable id, `rule:entity`. */
@@ -81,6 +90,7 @@ export function validate(
 			...missingLevel(graph, entity, outlines),
 			...oneBasedLevels(entity, outlines),
 			...nonExistentLevel(graph, entity, outlines),
+			...spatialIssues(graph, entity, outlines),
 		);
 	}
 	return issues;

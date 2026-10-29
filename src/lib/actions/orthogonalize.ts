@@ -37,6 +37,36 @@ export function orthogonalizeRefusal(
 		: null;
 }
 
+/**
+ * iD's `unsquare_way` check: a closed way whose corners are all within `degrees` of square (or
+ * of straight), some of them not square. Such a shape was meant to be square.
+ */
+export function isUnsquare(graph: Graph, id: WayId, degrees = 5): boolean {
+	const way = graph.entity(id);
+	if (way?.type !== "way" || !isClosed(way) || way.nodes.length < 5)
+		return false;
+	const nodes = way.nodes.slice(0, -1);
+	const points = nodes.map((n) => graph.entity(n));
+	if (points.some((n) => n?.type !== "node")) return false;
+	const ring = points.map((n) =>
+		toMercator((n as { loc: readonly number[] }).loc),
+	);
+	const nearSquare = Math.cos(Math.PI / 2 - (degrees * Math.PI) / 180);
+	const nearStraight = Math.cos((degrees * Math.PI) / 180);
+	let corners = 0;
+	let unsquare = false;
+	for (let i = 0; i < ring.length; i++) {
+		const c = cosAt(ring, i);
+		if (Math.abs(c) < nearSquare) {
+			corners++;
+			if (Math.abs(c) >= SQUARE) unsquare = true;
+		} else if (c > -nearStraight) {
+			return false;
+		}
+	}
+	return corners >= 3 && unsquare;
+}
+
 export function orthogonalize(id: WayId): Action {
 	return (graph: Graph) => {
 		const way = getEntity(graph, id, "way");

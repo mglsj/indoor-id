@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { OPERATIONS } from "#lib/edit/operations.ts";
+import { msg } from "#lib/i18n/messages.ts";
 import type { Entity } from "#lib/osm/entity.ts";
 import { node, way } from "#lib/osm/fixtures.ts";
 import type { PresetIndex } from "#lib/presets/presets.ts";
@@ -81,6 +82,34 @@ describe("Editor", () => {
 		fix(editor, outdated);
 		expect(editor.issuesOf("n2")).toEqual([]);
 		expect(editor.history.editCount).toBe(1);
+	});
+});
+
+describe("Editor: issues of the edits", () => {
+	it("leaves out the warnings the downloaded data already had", () => {
+		const editor = editorWith([
+			node("n1", { door: "yes" }),
+			node("n2", { door: "yes" }, [0.001, 0]),
+		]);
+		editor.history.setTags("n1", { door: "yes", name: "Front" });
+		// A new point with the same problem is the edit's.
+		editor.history.perform(
+			(g) => g.replace(node("n-1", { door: "yes" }, [0.002, 0])),
+			msg("undo_change_tags"),
+		);
+		expect(editor.issuesOf("n1").map((i) => i.rule)).toEqual([
+			"door-not-on-wall",
+		]);
+		expect(editor.editIssues.map((i) => i.entityId)).toEqual(["n-1"]);
+	});
+
+	it("keeps an issue the edit made on a downloaded feature", () => {
+		const editor = editorWith([node("n1", { amenity: "bench" })]);
+		editor.history.perform(
+			(g) => g.replace(node("n1", { amenity: "bench", name: " " })),
+			msg("undo_change_tags"),
+		);
+		expect(editor.editIssues.map((i) => i.rule)).toEqual(["empty-tag"]);
 	});
 });
 

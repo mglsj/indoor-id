@@ -14,12 +14,12 @@ const SCHEMA: UpgradeRule[] = [
 ];
 const RULES = [...SCHEMA, ...LOCAL_UPGRADES];
 
-/** A room way around four untagged nodes, with the given tags. */
+/** A room way around three untagged nodes, with the given tags. */
 function roomWith(tags: Record<string, string>): Entity[] {
 	return [
-		node("n1"),
-		node("n2"),
-		node("n3"),
+		node("n1", {}, [0, 0]),
+		node("n2", {}, [0.0001, 0]),
+		node("n3", {}, [0, 0.0001]),
 		way("w1", ["n1", "n2", "n3", "n1"], tags),
 	];
 }
@@ -223,7 +223,7 @@ describe("validate: doors", () => {
 it("only checks the entities asked for", () => {
 	const graph = Graph.fromEntities([
 		...roomWith({ indoor: "room", room: "stairs" }),
-		node("n9", { door: "yes" }),
+		node("n9", { door: "yes" }, [1, 1]),
 	]);
 	expect(validate(graph, ["n9"], RULES).map((i) => i.entityId)).toEqual(["n9"]);
 	expect(validate(graph, ["w404"], RULES)).toEqual([]);
@@ -318,12 +318,14 @@ describe("validate: indoor tagging (osm-simple3d-editor's checks)", () => {
 		const [issue, ...rest] = issuesOf(
 			[
 				node("n1"),
-				node("n2"),
+				node("n2", {}, [0.0001, 0]),
+				node("n3", {}, [0.0002, 0]),
 				way("w1", ["n1", "n2"], {
 					highway: "footway",
 					tunnel: "building_passage",
 					level: "0",
 				}),
+				way("w2", ["n2", "n3"], { highway: "footway" }),
 			],
 			"w1",
 		);

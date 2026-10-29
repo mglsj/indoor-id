@@ -50,6 +50,8 @@ export class Editor {
 	);
 
 	readonly #validator = new Validator();
+	/** The same checks on the downloaded data, to tell the issues an edit made. */
+	readonly #baseValidator = new Validator();
 
 	constructor({ api, minZoom, catalog, schedule }: EditorOptions) {
 		this.catalog = catalog instanceof Catalog ? catalog : new Catalog(catalog);
@@ -93,14 +95,31 @@ export class Editor {
 		return this.#validator.issues(this.graph, [id], this.catalog.upgrades);
 	}
 
-	/** Problems of the entities edited since the last upload. */
+	/**
+	 * Problems of the entities edited since the last upload, leaving out those the downloaded
+	 * data already had (iD's base and head issues): a fix to one tag doesn't ask to fix the
+	 * rest of the building.
+	 */
 	get editIssues(): Issue[] {
 		const { created, modified } = this.graph.changes();
-		return this.#validator.issues(
+		const { upgrades } = this.catalog;
+		const head = this.#validator.issues(
 			this.graph,
 			[...created, ...modified].map((e) => e.id),
-			this.catalog.upgrades,
+			upgrades,
 		);
+		if (modified.length === 0) return head;
+		const before = new Set(
+			this.#baseValidator
+				.issues(
+					this.graph.base(),
+					modified.map((e) => e.id),
+					upgrades,
+				)
+				.map((i) => i.id),
+		);
+		// Errors stay: the upload would carry them.
+		return head.filter((i) => i.severity === "error" || !before.has(i.id));
 	}
 }
 
