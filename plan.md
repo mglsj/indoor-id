@@ -37,7 +37,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | L      | Level names in the switcher                | Done        |
 | P5.3   | Geometry editing                           | Done        |
 | R4     | Fixes after P5.3 (review)                  | Done        |
-| R5     | Map shell split (review)                   | Not started |
+| R5     | Map shell split (review)                   | Done        |
 | P5.4a  | Autosave and restore                       | Not started |
 | V      | Viewer mode (V.1–V.3)                      | Not started |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
@@ -162,7 +162,7 @@ start (about 130 English strings in components wait for P6).
    over the base (which its saved format needs anyway) so a merge touches the base once, and
    rebase lazily if graphs per step stay.
 
-### R5: Map shell split — M
+### R5: Map shell split — M — done
 
 `EditorView.svelte` is 1,184 lines (twice what R1 meant to leave): services, plan mode,
 drawing, operations, mode wiring, snapping, hash, keys, panel and toolbar. Move the map, its
@@ -173,6 +173,15 @@ Save dialog on top. `snap`, `snapNode` and `projectLoc` move to `map/snap.ts` wi
 passed in. A pure move: no behaviour change, e2e green before and after. `Editor` needs no
 split for V: `DataSync` takes any `SyncApi`, so an Overpass client with `loadMap` and a history
 kept locked is enough.
+
+Done ✅: `ui/MapShell.svelte` owns `MapView`, the `IndoorMap` (features, level, selection,
+hover, `data-drawn`), the level and its switcher with `levelsInView`, the URL hash both ways,
+background imagery (`onbackground` tells the editor for `imagery_used`), place search and the
+download status; it binds out `level`, `map`, `camera` and `indoor`, takes `left` (the side
+panel's width) and has `controls`, `tools` and `children` snippets. `map/view.ts` holds
+`visibleExtent`, `projectLoc` and `unprojectPoint`. `snap` and `snapNode` stay in `EditorView`:
+they read the editor's features and the floor plans, which V doesn't have. `EditorView` went
+from 1,183 to 1,047 lines; no behaviour change, the same unit and e2e tests pass.
 
 ### P5.4a: Autosave and restore — M
 

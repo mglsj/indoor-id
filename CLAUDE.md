@@ -52,7 +52,9 @@ runs the same commands.
   (`EditHistory`), `selection`, `sync` (`DataSync`), `catalog` (presets, upgrades, web
   services); components read it with `getEditor()`, never as a prop; UI edits are functions in
   `state/commands.ts`; issues come from `validation/validator.ts`, cached per entity), and
-  `ui/EditorView.svelte` (the page's map UI). Change how a tag is drawn in `classify.ts`, not
+  `ui/MapShell.svelte` (R5: the map with its indoor layers, level switcher, URL hash, imagery,
+  search and load status, for any page) under `ui/EditorView.svelte` (the editor's modes,
+  toolbar, side panel and dialogs; `map/view.ts` for the view extent and projections). Change how a tag is drawn in `classify.ts`, not
   in the style.
 - Tagging and upload (P3): `presets/` (`PresetIndex`: match, search, fields, `listFor`,
   `changePreset`; `RecentPresets`; `field-list.ts`: shown and addable fields, remove, revert; `combo.ts`, `choice.ts`, `text.ts`, `localized.ts`, `address.ts`, `access.ts`, `wiki.ts`: field values and references),
