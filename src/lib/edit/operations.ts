@@ -2,7 +2,7 @@
  * Operations on the selection (P5.3.5), after iD's `operations/`: each says whether it applies
  * to what is selected (the toolbar shows it), why it can't run when it can't (the tooltip says
  * so), its shortcut and what it does. Running one gives an edit to make as one undo step, with
- * what to select after, or a new clipboard. Pure: the editor runs them (`runOperation`).
+ * what to select after, or a new clipboard. Pure: the editor runs them (`performEdit`).
  */
 import {
 	type Clipboard,
@@ -17,6 +17,7 @@ import {
 	orthogonalize,
 	orthogonalizeRefusal,
 } from "#lib/actions/orthogonalize.ts";
+import { canRepeat } from "#lib/actions/repeat-levels.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
@@ -42,10 +43,19 @@ export type OperationResult =
 			};
 			readonly annotation: Message;
 	  }
-	| { readonly kind: "copy"; readonly clipboard: Clipboard };
+	| { readonly kind: "copy"; readonly clipboard: Clipboard }
+	/** Repeat on levels asks which levels first (`ui/RepeatDialog.svelte`). */
+	| { readonly kind: "repeat"; readonly id: NodeId | WayId };
 
 export interface Operation {
-	readonly id: "delete" | "disconnect" | "square" | "merge" | "copy" | "paste";
+	readonly id:
+		| "delete"
+		| "disconnect"
+		| "square"
+		| "merge"
+		| "repeat"
+		| "copy"
+		| "paste";
 	readonly label: Message;
 	/** Shortcuts, the first one shown. */
 	readonly keys: readonly string[];
@@ -181,6 +191,29 @@ const mergeOperation: Operation = {
 	}),
 };
 
+const repeatOperation: Operation = {
+	id: "repeat",
+	label: msg("operation_repeat"),
+	keys: ["R"],
+	available: ({ graph, selected }) => {
+		const id = singleNodeOrWay(graph, selected);
+		return (
+			id !== null &&
+			(id.startsWith("w") || graph.parentWays(id as NodeId).length === 0)
+		);
+	},
+	disabled: ({ graph, selected, level }) => {
+		const id = singleNodeOrWay(graph, selected);
+		return id && canRepeat(graph, id, level)
+			? null
+			: msg("operation_repeat_not_on_level", { level });
+	},
+	run: ({ graph, selected }) => ({
+		kind: "repeat",
+		id: singleNodeOrWay(graph, selected) as NodeId | WayId,
+	}),
+};
+
 const copyOperation: Operation = {
 	id: "copy",
 	label: msg("operation_copy"),
@@ -227,5 +260,6 @@ export const OPERATIONS: readonly Operation[] = [
 	disconnectOperation,
 	squareOperation,
 	mergeOperation,
+	repeatOperation,
 	deleteOperation,
 ];

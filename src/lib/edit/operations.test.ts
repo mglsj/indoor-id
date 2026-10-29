@@ -62,9 +62,10 @@ describe("OPERATIONS", () => {
 			"copy",
 			"disconnect",
 			"square",
+			"repeat",
 			"delete",
 		]);
-		expect(offered(context(["n7"]))).toEqual(["copy", "delete"]);
+		expect(offered(context(["n7"]))).toEqual(["copy", "repeat", "delete"]);
 		expect(offered(context(["n2"]))).toEqual(["copy", "disconnect", "delete"]);
 		expect(offered(context(["w1", "w2"]))).toEqual(["copy", "merge", "delete"]);
 		const clipboard = copyEntities(graph(), ["n7"]);
@@ -82,6 +83,13 @@ describe("OPERATIONS", () => {
 			msg("operation_merge_not_areas"),
 		);
 		expect(operation("disconnect").disabled(context(["w1"]))).toBeNull();
+		expect(operation("repeat").disabled(context(["w1"], { level: 1 }))).toEqual(
+			msg("operation_repeat_not_on_level", { level: 1 }),
+		);
+		expect(operation("repeat").run(context(["w1"]))).toEqual({
+			kind: "repeat",
+			id: "w1",
+		});
 	});
 
 	it("deletes the selection, selecting nothing after", () => {

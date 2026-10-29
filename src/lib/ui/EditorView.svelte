@@ -3,9 +3,11 @@
 	import Combine from "@lucide/svelte/icons/combine";
 	import Copy from "@lucide/svelte/icons/copy";
 	import FileImage from "@lucide/svelte/icons/file-image";
+	import Layers2 from "@lucide/svelte/icons/layers-2";
 	import MapPin from "@lucide/svelte/icons/map-pin";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
+	import Scissors from "@lucide/svelte/icons/scissors";
 	import Spline from "@lucide/svelte/icons/spline";
 	import Square from "@lucide/svelte/icons/square";
 	import Trash from "@lucide/svelte/icons/trash";
@@ -15,6 +17,7 @@
 	import { type Component, untrack } from "svelte";
 	import { innerWidth } from "svelte/reactivity/window";
 	import type { Clipboard } from "#lib/actions/copy.ts";
+	import { splitAreas, splitTargets } from "#lib/actions/split-areas.ts";
 	import type { Place } from "#lib/api/nominatim.ts";
 	import type { Bbox } from "#lib/api/osm-api.ts";
 	import { OsmApi } from "#lib/api/osm-api.ts";
@@ -41,13 +44,14 @@
 		floorPlanMode,
 		floorPlanToolMode,
 	} from "#lib/edit/modes/floorplan.ts";
+	import { splitMode } from "#lib/edit/modes/split.ts";
 	import { type NodeGrab, nodeDrag } from "#lib/edit/node-drag.ts";
 	import {
 		OPERATIONS,
 		type Operation,
 		type OperationContext,
 	} from "#lib/edit/operations.ts";
-	import { overlayFeatures } from "#lib/edit/overlay.ts";
+	import { cutFeature, overlayFeatures } from "#lib/edit/overlay.ts";
 	import { workerCodec } from "#lib/floorplans/codec.ts";
 	import { groundDistance, type LngLat } from "#lib/floorplans/georef.ts";
 	import { planDecoders } from "#lib/floorplans/import.ts";
@@ -74,8 +78,12 @@
 		type Map as MapLibreMap,
 	} from "#lib/map/maplibre.ts";
 	import { areaAround, type SnapTarget, snapAt } from "#lib/map/snap.ts";
-	import type { EntityId, Loc, NodeId } from "#lib/osm/entity.ts";
-	import { type Extent, extentsIntersect } from "#lib/osm/geometry.ts";
+	import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
+	import {
+		type Extent,
+		extentOf,
+		extentsIntersect,
+	} from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
 	import { performEdit } from "#lib/state/commands.ts";
@@ -98,6 +106,7 @@
 		rememberWidth,
 		widthBounds,
 	} from "#lib/ui/panel-width.ts";
+	import RepeatDialog from "#lib/ui/RepeatDialog.svelte";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
 	import SearchPlace from "#lib/ui/SearchPlace.svelte";
 	import UnsavedPlanDialog from "#lib/ui/UnsavedPlanDialog.svelte";
@@ -212,11 +221,13 @@
 		if (map) void setBackground(map, entry);
 	}
 
-	/** The drawing tool on (P5.3.4), or null when browsing. */
-	let drawing = $state<"point" | "line" | "area" | null>(null);
+	/** The drawing tool on (P5.3.4; the split tool, P5.3.5), or null when browsing. */
+	let drawing = $state<"point" | "line" | "area" | "split" | null>(null);
+	/** The split tool's cut line, as drawn so far. */
+	let cut = $state.raw<readonly Loc[]>([]);
 
 	/** Turns a drawing tool on, or off when it is on already. */
-	function draw(kind: "point" | "line" | "area") {
+	function draw(kind: "point" | "line" | "area" | "split") {
 		drawing = drawing === kind ? null : kind;
 		if (drawing) editor.select(null);
 	}
@@ -231,7 +242,36 @@
 		point: msg("draw_point_hint"),
 		line: msg("draw_line_hint"),
 		area: msg("draw_area_hint"),
+		split: msg("split_hint"),
 	};
+
+	/** Cuts the rooms, corridors and areas on the shown level the line crosses, in one step. */
+	function split(line: readonly Loc[] | null) {
+		drawing = null;
+		const extent = line && extentOf(line);
+		if (!line || !extent) return;
+		const candidates = [
+			...new Set(editor.features.segmentsNear(extent, level).map((s) => s.way)),
+		];
+		const targets = splitTargets(editor.graph, line, candidates);
+		if (targets.length === 0) {
+			showNote(msg("split_nothing"));
+			return;
+		}
+		editor.history.perform(splitAreas(line, targets), msg("undo_split"));
+		editor.select(null);
+	}
+
+	/** The feature Repeat on levels is asking about, while its dialog is open. */
+	let repeating = $state<NodeId | WayId | null>(null);
+
+	/** The drawn nodes on a level around the feature being repeated. */
+	function nodesAround(id: EntityId) {
+		return (onLevel: number) => {
+			const extent = entityExtent(editor.graph, id);
+			return extent ? editor.features.nodesNear(extent, onLevel) : [];
+		};
+	}
 
 	/** What Copy kept, for Paste. */
 	let clipboard = $state.raw<Clipboard | null>(null);
@@ -276,6 +316,10 @@
 			return;
 		}
 		const result = operation.run(context);
+		if (result.kind === "repeat") {
+			repeating = result.id;
+			return;
+		}
 		if (result.kind === "copy") {
 			clipboard = result.clipboard;
 			const count = result.clipboard.roots.length;
@@ -290,6 +334,7 @@
 
 	const OPERATION_ICONS: Record<Operation["id"], Component> = {
 		copy: Copy,
+		repeat: Layers2,
 		paste: ClipboardPaste,
 		disconnect: Unlink,
 		square: Square,
@@ -326,15 +371,23 @@
 			overlay.setData(
 				planMode
 					? { type: "FeatureCollection", features: [] }
-					: overlayFeatures(editor.graph, {
-							selected: editor.selection.ids,
-							hover: editor.selection.hover,
-							zoom: camera?.zoom ?? 0,
-							nodesInView: () => {
-								const extent = visibleExtent();
-								return extent ? editor.features.nodesNear(extent, level) : [];
-							},
-						}),
+					: {
+							type: "FeatureCollection",
+							features: [
+								...overlayFeatures(editor.graph, {
+									selected: editor.selection.ids,
+									hover: editor.selection.hover,
+									zoom: camera?.zoom ?? 0,
+									nodesInView: () => {
+										const extent = visibleExtent();
+										return extent
+											? editor.features.nodesNear(extent, level)
+											: [];
+									},
+								}).features,
+								...cutFeature(cut),
+							],
+						},
 			),
 		);
 		/** What a press at a screen point drags: an overlay vertex or midpoint, the selected point. */
@@ -429,6 +482,18 @@
 								level,
 								snap: snapNode,
 								onfinish: drawingEnded,
+							}),
+						);
+						break;
+					case "draw-split":
+						manager.setMode(
+							splitMode({
+								snap: (at) => {
+									const target = snapNode(at, new Set());
+									return target ? target.loc : null;
+								},
+								onchange: (line) => (cut = line),
+								onfinish: split,
 							}),
 						);
 						break;
@@ -684,6 +749,7 @@
 		{ combo: "1", run: () => draw("point") },
 		{ combo: "2", run: () => draw("line") },
 		{ combo: "3", run: () => draw("area") },
+		{ combo: "X", run: () => draw("split") },
 		{ combo: "Mod+Z", run: () => editor.history.undo() },
 		{ combo: "Mod+Shift+Z", run: () => editor.history.redo() },
 		{ combo: "Mod+Y", run: () => editor.history.redo() },
@@ -770,7 +836,7 @@
 {/snippet}
 
 {#snippet drawButton(
-	kind: "point" | "line" | "area",
+	kind: "point" | "line" | "area" | "split",
 	label: string,
 	key: string,
 	Icon: Component,
@@ -784,7 +850,9 @@
 					{...props}
 					variant={drawing === kind ? "secondary" : "outline"}
 					size="icon"
-					aria-label={`Draw ${label.toLowerCase()}`}
+					aria-label={kind === "split"
+						? "Split rooms"
+						: `Draw ${label.toLowerCase()}`}
 					aria-pressed={drawing === kind}
 					disabled={editor.history.locked}
 				>
@@ -929,6 +997,7 @@
 				{@render drawButton("point", "Point", "1", MapPin)}
 				{@render drawButton("line", "Line", "2", Spline)}
 				{@render drawButton("area", "Area", "3", Pentagon)}
+				{@render drawButton("split", "Split", "X", Scissors)}
 			</ButtonGroup.Root>
 		</div>
 		{#if operations.length > 0}
@@ -1020,3 +1089,13 @@
 {/if}
 
 <UnsavedPlanDialog {floorplans} />
+
+{#if repeating}
+	<RepeatDialog
+		id={repeating}
+		{level}
+		levels={levelsInView}
+		near={nodesAround(repeating)}
+		onclose={() => (repeating = null)}
+	/>
+{/if}

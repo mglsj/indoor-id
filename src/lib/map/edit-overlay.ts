@@ -14,6 +14,7 @@ const SOURCE = "edit-overlay";
 export const VERTEX_LAYER = `${SOURCE}-vertices`;
 export const MIDPOINT_LAYER = `${SOURCE}-midpoints`;
 const MEMBER_LAYER = `${SOURCE}-members`;
+const CUT_LAYER = `${SOURCE}-cut`;
 
 /** How far from a vertex or midpoint a press still grabs it, in pixels. */
 const GRAB_TOLERANCE = 6;
@@ -101,7 +102,7 @@ export class EditOverlay {
 	remove(): void {
 		this.#removed = true;
 		if (!this.#ready) return;
-		for (const id of [VERTEX_LAYER, MIDPOINT_LAYER, MEMBER_LAYER]) {
+		for (const id of [VERTEX_LAYER, MIDPOINT_LAYER, MEMBER_LAYER, CUT_LAYER]) {
 			if (this.#map.getLayer(id)) this.#map.removeLayer(id);
 		}
 		if (this.#map.getSource(SOURCE)) this.#map.removeSource(SOURCE);
@@ -124,6 +125,20 @@ export class EditOverlay {
 					"line-color": C.selection,
 					"line-width": 1.5,
 					"line-dasharray": [3, 2],
+				},
+			},
+			edit,
+		);
+		map.addLayer(
+			{
+				id: CUT_LAYER,
+				type: "line",
+				source: SOURCE,
+				filter: role("cut"),
+				paint: {
+					"line-color": C.text,
+					"line-width": 2,
+					"line-dasharray": [2, 2],
 				},
 			},
 			edit,

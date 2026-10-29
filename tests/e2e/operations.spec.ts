@@ -1,5 +1,6 @@
 import {
 	camera,
+	clickMap,
 	expect,
 	inspector,
 	LAT,
@@ -74,4 +75,47 @@ test("an operation that can't run says why", async ({ page }) => {
 		"Its corners are square already",
 	);
 	await expect(page.getByTestId("edit-count")).toHaveText("0");
+});
+
+test("the split tool cuts a room in two along the line drawn", async ({
+	page,
+}) => {
+	await serveOsm(page, room(100, LON, LAT, "0"));
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	await mapDrawn(page);
+	const { x, y } = await mapCenter(page);
+	await page.getByRole("button", { name: "Split rooms" }).click();
+	await expect(page.getByTestId("draw-hint")).toBeVisible();
+	// Across the room from west to east, the room being 298 px wide.
+	await page.mouse.click(x - 200, y);
+	await page.mouse.click(x + 200, y);
+	await page.keyboard.press("Enter");
+	// Two new nodes, the room changed and a new way.
+	await expect(page.getByTestId("edit-count")).toHaveText("4");
+	await expect(page.getByTestId("draw-hint")).toBeHidden();
+	await page.getByRole("button", { name: "Undo" }).click();
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+});
+
+test("Repeat on levels puts a copy of the room on the level checked", async ({
+	page,
+}) => {
+	// Rooms on levels 0 and 1, so both are in view; the one on level 1 elsewhere.
+	await serveOsm(page, [
+		...room(100, LON, LAT, "0"),
+		...room(200, LON + 0.001, LAT, "1"),
+	]);
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	await mapDrawn(page);
+	await clickMap(page);
+	await expect(inspector(page).root).toBeVisible();
+	await page.keyboard.press("r");
+	const dialog = page.getByRole("dialog", { name: "Repeat on levels" });
+	await dialog.getByRole("checkbox", { name: /^Level 1/ }).check();
+	await dialog.getByRole("button", { name: "Apply" }).click();
+	await expect(dialog).toBeHidden();
+	// A new way and its four nodes.
+	await expect(page.getByTestId("edit-count")).toHaveText("5");
 });

@@ -25,6 +25,8 @@
 	"undo_merge": "Merge rooms",
 	"undo_paste": "Paste a feature",
 	"undo_paste_many": "Paste {count} features",
+	"undo_split": "Split rooms",
+	"undo_repeat_levels": "Repeat on levels",
 	"operation_copy": "Copy",
 	"operation_copy_nothing": "Only points and ways can be copied: not vertices or relations",
 	"operation_copied": "Copied: paste it with {paste}",
@@ -39,6 +41,8 @@
 	"operation_merge_not_areas": "Only areas can be merged, and none in a relation",
 	"operation_merge_different_tags": "Rooms are merged only when they have the same type and levels",
 	"operation_merge_not_adjacent": "These rooms don't share sides that join them into one",
+	"operation_repeat": "Repeat on levels",
+	"operation_repeat_not_on_level": "Only a point or a way on level {level}, the level shown, can be repeated on other levels",
 	"operation_delete": "Delete",
 	"issue_outdated_tags": "Outdated tags: {tags}",
 	"fix_upgrade_tags": "Upgrade to {tags}",
@@ -95,5 +99,7 @@
 	"drag_moves_features_no_level": "Moving this point moves {count} features",
 	"draw_point_hint": "Click to add a point: on a room's side it becomes a door, on the building's outline an entrance. Escape to stop.",
 	"draw_line_hint": "Click to add corners. Click the last corner or press Enter to finish; Backspace removes the last corner, Escape stops.",
-	"draw_area_hint": "Click to add corners. Click the first or last corner or press Enter to finish; Backspace removes the last corner, Escape stops."
+	"draw_area_hint": "Click to add corners. Click the first or last corner or press Enter to finish; Backspace removes the last corner, Escape stops.",
+	"split_hint": "Click to draw a line across the rooms to split. Click the last point again or press Enter to split; Backspace removes the last point, Escape stops.",
+	"split_nothing": "The line doesn't cross a room, corridor or area on this level for more than 0.5 m"
 }
