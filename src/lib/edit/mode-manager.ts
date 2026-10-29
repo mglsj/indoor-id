@@ -84,6 +84,12 @@ export class ModeManager {
 		return this.#mode.key?.(event) ?? false;
 	}
 
+	/** Ends the mode's work as Escape would (a drag still going is cancelled). */
+	finish(): void {
+		this.#cancelDrag();
+		this.#mode.finish?.();
+	}
+
 	remove(): void {
 		this.setMode(IDLE);
 		this.#map.off("click", this.#onClick);

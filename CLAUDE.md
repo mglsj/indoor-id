@@ -114,7 +114,8 @@ runs the same commands.
   side, plan vertex within 8 px, from `nodesNear`/`segmentsNear`); `edit/node-drag.ts` (drag a
   vertex, point or midpoint; joins with `actions/connect.ts`). A drag shows its moves with
   `history.preview(action)` and ends with one `commit` (or `cancelPreview`): never `perform`
-  on every move. Drawing: `edit/modes/draw.ts` (`drawWayMode` on `edit/draw-way.ts`,
+  on every move. Undo and redo are refused while a preview is shown (a drawing takes Mod+Z
+  itself), and a level change calls `ModeManager.finish()`. Drawing: `edit/modes/draw.ts` (`drawWayMode` on `edit/draw-way.ts`,
   `drawPointMode` on `edit/place-point.ts`: door, entrance or point from where it snaps).
   Operations on the selection (P5.3.5): `edit/operations.ts` (`OPERATIONS`: `available`,
   `disabled` reason, `keys`, `run` giving an edit and what to select, run with `performEdit`)

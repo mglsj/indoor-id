@@ -36,7 +36,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | W      | Wiki conformance                           | Done        |
 | L      | Level names in the switcher                | Done        |
 | P5.3   | Geometry editing                           | Done        |
-| R4     | Fixes after P5.3 (review)                  | Not started |
+| R4     | Fixes after P5.3 (review)                  | Done        |
 | R5     | Map shell split (review)                   | Not started |
 | P5.4a  | Autosave and restore                       | Not started |
 | V      | Viewer mode (V.1–V.3)                      | Not started |
@@ -123,7 +123,7 @@ floor in one session, and a crash or reload loses it all), then V, 3D, the rest 
 Each slice still agrees its test seams first. New UI text in V and 3D uses `msg()` from the
 start (about 130 English strings in components wait for P6).
 
-### R4: Fixes after P5.3 — S
+### R4: Fixes after P5.3 — S — done
 
 1. **Undo, redo and Save during a drawing or drag.** The draw mode's `key()` takes only Enter,
    Escape, Backspace and Delete, so Mod+Z reaches `SHORTCUTS` in `EditorView.svelte` and undoes
@@ -136,10 +136,19 @@ start (about 130 English strings in components wait for P6).
    mode (in draw mode it takes the last corner back, as iD) or is refused; Undo, Redo and Save
    end the mode first. Unit test on `EditHistory`, e2e: draw, Mod+Z, finish, assert the
    osmChange.
+   Done ✅: `EditHistory` refuses undo and redo while a preview is shown (`canUndo` and
+   `canRedo` are false, so the buttons are disabled); in a line or area drawing Mod+Z takes the
+   last corner back and stops the drawing once none is left, redo keys do nothing; Save is
+   disabled while a preview is shown, and `lock()` drops a preview before an upload. Also
+   fixed on the way: a tag edit during a preview (`setTags`, `patchTags`, `amend`) left the
+   preview set, so the next download put the dropped drag back.
 2. **Level change mid-drawing.** `drawWayMode` and `drawPointMode` keep the level they started
    with, but `modeKind` doesn't depend on `level`: switching level (switcher or hash) tags the
    way with the old level while `snapNode` snaps to the new level's nodes, joining levels by
    accident. Fix: a level change ends the drawing as Escape does. E2E test.
+   Done ✅: `Mode.finish()` (through `ModeManager.finish()`), called when the shown level
+   changes: a line or area with enough corners is kept on the level it was drawn on, else
+   dropped; the point tool stops.
 3. ✅ **Tests in cloud sessions.** Playwright 1.56.1 wanted `chromium_headless_shell-1194`;
    cloud containers now ship build 1243, so component and e2e tests didn't start there.
    Done 2026-10-29 with the dependency update: Playwright 1.63.0 matches it, and all 149 e2e
@@ -147,6 +156,11 @@ start (about 130 English strings in components wait for P6).
 4. **Bench before autosave.** Every tile merge rebases every undo step (`History.merge`), and
    `Editor.editIssues` is a getter calling `graph.changes()`: add a `bun run bench` case with
    500 steps and a tile merge before P5.4a fixes the saved format.
+   Done ✅ (Bun, 10,000-room area): merging a 250-room tile takes 20 ms under 500 steps and
+   790 ms under 10,000 (each step's graph is rebased); `changes()` after 10,000 edits takes
+   10 ms. A long session hitches on every download: P5.4a should keep steps as differences
+   over the base (which its saved format needs anyway) so a merge touches the base once, and
+   rebase lazily if graphs per step stay.
 
 ### R5: Map shell split — M
 
@@ -167,6 +181,8 @@ Before V and 3D (decided ✔). From P5.4's first step:
 - History saved to IndexedDB as per-step differences with their selection and labels, the base
   versions of edited entities and `nextId`; a restore prompt on start; the `beforeunload`
   guard stays.
+- Steps as differences over the base, so a downloaded tile is merged into the base once
+  instead of rebasing every step's graph (R4.4: 790 ms per tile under 10,000 steps).
 - Steps record the selection, so undo and redo select again as iD does (today undo leaves the
   selection on deleted entities).
 - The open changeset id remembered, so a retry after a lost upload response checks it first

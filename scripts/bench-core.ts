@@ -5,7 +5,9 @@
  *
  * Targets (P5.2): a tag edit to map update under 16 ms, deleting 1,000 rooms under 150 ms,
  * a snap lookup under 1 ms, the first full build no slower than before. R1.12: one more edit
- * after 10,000 local edits (each its own undo step) under a frame, 16 ms.
+ * after 10,000 local edits (each its own undo step) under a frame, 16 ms. R4.4: a downloaded
+ * tile merged under 500 and 10,000 undo steps (every step is rebased onto the new data), and
+ * the full `changes()` scan the Save dialog's issues run, before P5.4a fixes the saved history.
  */
 import { changeTags } from "#lib/actions/change-tags.ts";
 import { deleteEntities } from "#lib/actions/delete.ts";
@@ -51,6 +53,34 @@ function syntheticArea(): Entity[] {
 				},
 			});
 		}
+	}
+	return entities;
+}
+
+/** A downloaded tile: `rooms` rooms east of the area, with ids after `first`. */
+function tile(first: number, rooms: number): Entity[] {
+	const entities: Entity[] = [];
+	let id = first;
+	for (let i = 0; i < rooms; i++) {
+		const x = 2.4 + (first / 5 + i) * SIZE;
+		const nodes = [0, 1, 2].map((k): NodeId => {
+			const node = `n${id++}` as NodeId;
+			entities.push({
+				type: "node",
+				id: node,
+				version: 1,
+				tags: {},
+				loc: [x + k * SIZE * 0.3, 48.85 + (k % 2) * SIZE * 0.5],
+			});
+			return node;
+		});
+		entities.push({
+			type: "way",
+			id: `w${id++}` as WayId,
+			version: 1,
+			nodes: [...nodes, nodes[0] as NodeId],
+			tags: { indoor: "room", level: "0" },
+		});
 	}
 	return entities;
 }
@@ -212,6 +242,36 @@ report(
 		shown = new Map(next);
 	}),
 	"< 16 ms",
+);
+
+// R4.4: merging a downloaded tile (250 rooms) rebases every undo step onto it.
+let nextTile = 10_000_000;
+const freshTile = () => {
+	const entities = tile(nextTile, 250);
+	nextTile += 10_000;
+	return entities;
+};
+const short = new History<string>(graph);
+for (const way of ways.slice(0, 500)) {
+	short.perform(
+		changeTags(way.id, { ...way.tags, name: `${way.tags.name} edited` }),
+		"Change tags",
+	);
+}
+report(
+	"Merge a tile under 500 steps",
+	time(10, () => short.merge(freshTile())),
+	"for reference",
+);
+report(
+	"Merge a tile under 10,000 steps",
+	time(5, () => history.merge(freshTile())),
+	"for reference",
+);
+report(
+	"changes() after 10,000 edits",
+	time(10, () => history.graph.changes()),
+	"Save dialog issues, for reference",
 );
 
 console.log(`${entities.length} entities, ${ways.length} rooms\n`);

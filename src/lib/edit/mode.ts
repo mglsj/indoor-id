@@ -50,4 +50,6 @@ export interface Mode {
 	leave?(): void;
 	/** A key pressed while the map's shortcuts apply; true when handled. */
 	key?(event: KeyboardEvent): boolean;
+	/** Ends the mode's work as Escape would, from outside (the shown level changed). */
+	finish?(): void;
 }
