@@ -282,14 +282,41 @@ describe("EditHistory.preview: a drag shown live, one undo step on release", () 
 		expect(history.graph.entity("n1")).toMatchObject({ loc: [1, 48.85] });
 	});
 
-	it("drops the preview when another edit or an undo comes first", () => {
+	it("drops the preview when another edit comes first", () => {
 		const history = benches();
-		history.setTags("n2", { amenity: "bench", name: "B" });
 		history.preview(move(1));
-		history.undo();
+		history.setTags("n2", { amenity: "bench", name: "B" });
 		expect(history.previewing).toBe(false);
 		expect(history.graph.entity("n1")).toMatchObject({ loc: [2.35, 48.85] });
-		expect(history.graph.entity("n2")?.tags.name).toBeUndefined();
+		expect(history.graph.entity("n2")?.tags.name).toBe("B");
+	});
+
+	it("refuses undo and redo while a preview is shown: the drag or drawing still uses that step", () => {
+		const history = benches();
+		history.setTags("n2", { amenity: "bench", name: "B" });
+		history.setTags("n2", { amenity: "bench", name: "C" });
+		history.undo();
+		history.preview(move(1));
+		expect(history.canUndo).toBe(false);
+		expect(history.canRedo).toBe(false);
+		history.undo();
+		history.redo();
+		expect(history.previewing).toBe(true);
+		expect(history.graph.entity("n2")?.tags.name).toBe("B");
+		expect(history.graph.entity("n1")).toMatchObject({ loc: [1, 48.85] });
+
+		history.cancelPreview();
+		expect(history.canUndo).toBe(true);
+		expect(history.canRedo).toBe(true);
+	});
+
+	it("drops the preview when an upload starts: the upload sends the last step", () => {
+		const history = benches();
+		history.preview(move(1));
+		history.lock();
+		expect(history.previewing).toBe(false);
+		expect(history.graph.entity("n1")).toMatchObject({ loc: [2.35, 48.85] });
+		expect(history.editCount).toBe(0);
 	});
 
 	it("shows nothing and makes no step while uploading", () => {

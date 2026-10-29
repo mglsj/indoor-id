@@ -2,7 +2,8 @@
  * Drawing modes (P5.3.4). `drawWayMode`: clicks add corners to a line or an area
  * (`WayDrawing`), the pointer drags the last side along, Enter or a click on the last corner
  * (or an area's first) finishes, Backspace takes the last corner back, Escape finishes when
- * there are enough corners and stops otherwise. `drawPointMode`: one click places a point
+ * there are enough corners and stops otherwise; Mod+Z takes the last corner back too (and stops
+ * once none is left), as the history's undo waits until the drawing ends. `drawPointMode`: one click places a point
  * whose role comes from where it snaps (`placePoint`). Both show what they draw through
  * `EditHistory.preview`, end in one undo step, and hand the new feature to `onfinish`.
  */
@@ -12,6 +13,7 @@ import type { SnapTarget } from "#lib/map/snap.ts";
 import type { EntityId, NodeId } from "#lib/osm/entity.ts";
 import type { Action } from "#lib/osm/history.ts";
 import { type DrawKind, WayDrawing } from "../draw-way.ts";
+import { isMac, matches } from "../keys.ts";
 import type { MapPoint, Mode } from "../mode.ts";
 import type { DragHistory } from "../node-drag.ts";
 import { placePoint } from "../place-point.ts";
@@ -51,6 +53,7 @@ export function drawWayMode(
 		side.a.id !== drawing.cursorId &&
 		side.b.id !== drawing.cursorId;
 	const snapped = (at: MapPoint) => snap(at, cursor, keepSide);
+	const mac = isMac();
 	const finish = () => {
 		if (ended) return;
 		ended = true;
@@ -82,6 +85,14 @@ export function drawWayMode(
 			else history.preview(drawing.action(target?.loc ?? at.lngLat));
 		},
 		key(event) {
+			if (matches(event, "Mod+Z", mac)) {
+				if (drawing.undoLast()) history.preview(drawing.action());
+				else finish();
+				return true;
+			}
+			// Redo waits for the drawing to end, as undo does.
+			if (matches(event, "Mod+Shift+Z", mac) || matches(event, "Mod+Y", mac))
+				return true;
 			switch (event.key) {
 				case "Enter":
 				case "Escape":
@@ -96,6 +107,7 @@ export function drawWayMode(
 					return false;
 			}
 		},
+		finish,
 		exit() {
 			// Left for another mode (the toolbar, floor plan mode): nothing is kept.
 			if (!ended) {
@@ -132,5 +144,6 @@ export function drawPointMode({
 			onfinish(null);
 			return true;
 		},
+		finish: () => onfinish(null),
 	};
 }

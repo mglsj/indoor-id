@@ -151,6 +151,53 @@ test("a line is finished with Enter, and Escape stops a drawing too short", asyn
 	await expect(page.getByTestId("edit-count")).toHaveText("3");
 });
 
+test("Mod+Z while drawing takes the last corner back, not the step before", async ({
+	page,
+}) => {
+	await serveOsm(page, []);
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	await page.keyboard.press("2");
+	await page.mouse.click(x - 100, y);
+	await page.mouse.click(x + 100, y);
+	await page.keyboard.press("Enter");
+	await expect(page.getByTestId("edit-count")).toHaveText("3");
+
+	// A second line: Mod+Z drops its last corner, and the first line stays.
+	// (The type list has the focus: the toolbar's button, not the key.)
+	await page.getByRole("button", { name: "Draw line" }).click();
+	await page.mouse.click(x - 100, y + 100);
+	await page.mouse.click(x + 100, y + 100);
+	await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+	await expect(page.getByRole("button", { name: /^Save/ })).toBeDisabled();
+	await page.keyboard.press("ControlOrMeta+z");
+	await page.mouse.click(x, y + 150);
+	await page.keyboard.press("Enter");
+	// The first line's 3, then the second line and its two corners (not three).
+	await expect(page.getByTestId("edit-count")).toHaveText("6");
+	await expect(page.getByRole("button", { name: /^Save/ })).toBeEnabled();
+
+	await page.getByRole("button", { name: "Undo" }).click();
+	await expect(page.getByTestId("edit-count")).toHaveText("3");
+});
+
+test("changing level ends a drawing, kept on the level it was drawn on", async ({
+	page,
+}) => {
+	await serveOsm(page, []);
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	await page.keyboard.press("2");
+	await page.mouse.click(x - 100, y);
+	await page.mouse.click(x + 100, y);
+	await page.getByRole("button", { name: "Level up" }).click();
+	await expect(page.getByTestId("level")).toHaveAttribute("data-level", "1");
+	await expect(page.getByTestId("draw-hint")).toBeHidden();
+	await expect(page.getByTestId("edit-count")).toHaveText("3");
+});
+
 test("a point on a room's side becomes a door", async ({ page }) => {
 	await serveOsm(page, room(100, LON, LAT, "0"));
 	await page.goto(`/#19/${LAT}/${LON}/0`);

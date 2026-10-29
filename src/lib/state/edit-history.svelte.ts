@@ -34,7 +34,7 @@ export class EditHistory {
 	 */
 	#typing: string | null = null;
 	/** The action a drag shows on the map, not a step yet (see `preview`). */
-	#preview: Action | null = null;
+	#preview = $state.raw<Action | null>(null);
 
 	constructor(base: Graph) {
 		this.#history = new History<Message>(base);
@@ -44,9 +44,11 @@ export class EditHistory {
 
 	/**
 	 * Refuses edits, undo and redo until `unlock`: an upload sends the graph as it was, and
-	 * starts again from the server's answer.
+	 * starts again from the server's answer. A preview still shown is dropped first: the upload
+	 * sends the last step, never a drag or drawing in progress.
 	 */
 	lock(): void {
+		this.cancelPreview();
 		this.locked = true;
 	}
 
@@ -54,14 +56,15 @@ export class EditHistory {
 		this.locked = false;
 	}
 
+	/** False while a preview is shown: the drag or drawing is built on the last step. */
 	get canUndo(): boolean {
 		void this.graph; // re-evaluate when the graph changes
-		return this.#history.canUndo;
+		return this.#preview === null && this.#history.canUndo;
 	}
 
 	get canRedo(): boolean {
 		void this.graph;
-		return this.#history.canRedo;
+		return this.#preview === null && this.#history.canRedo;
 	}
 
 	/** Applies an action as an undo step, labelled for the user. */
@@ -72,17 +75,16 @@ export class EditHistory {
 		this.#edited(this.#history.perform(action, annotation));
 	}
 
+	/** Steps back; refused while a preview is shown (the mode showing it takes Mod+Z). */
 	undo(): void {
-		if (this.locked) return;
-		this.#endPreview();
+		if (this.locked || this.#preview) return;
 		this.#typing = null;
 		this.#history.undo();
 		this.#edited(this.#history.graph);
 	}
 
 	redo(): void {
-		if (this.locked) return;
-		this.#endPreview();
+		if (this.locked || this.#preview) return;
 		this.#typing = null;
 		this.#history.redo();
 		this.#edited(this.#history.graph);
@@ -188,6 +190,7 @@ export class EditHistory {
 
 	/** Applies a tag change, folded into the last step while the same features are typed in. */
 	#apply(action: Action, features: string, live: boolean): void {
+		this.#endPreview();
 		this.#edited(
 			this.#typing === features
 				? this.#history.replace(action, CHANGE_TAGS)
@@ -207,6 +210,7 @@ export class EditHistory {
 		const entity = this.graph.entity(id);
 		const tags = entity && patch(entity.tags);
 		if (!tags) return;
+		this.#endPreview();
 		this.#edited(this.#history.replace(changeTags(id, tags), CHANGE_TAGS));
 	}
 

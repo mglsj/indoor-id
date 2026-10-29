@@ -571,6 +571,13 @@
 		};
 	});
 
+	// A drawing ends when the shown level changes, as with Escape: its corners snapped to the
+	// level it started on, and it is tagged with that level.
+	$effect(() => {
+		void level;
+		untrack(() => modes?.finish());
+	});
+
 	/** Message from the alignment tool about the last click. */
 	let toolMessage = $state.raw<Message | null>(null);
 	/** Where the pointer is on the map, while the measure line follows it. */
@@ -1052,9 +1059,10 @@
 					!editor.history.canRedo,
 					() => editor.history.redo(),
 				)}
+				<!-- Not while a drawing or drag is shown: the upload sends finished steps only. -->
 				<Button
 					variant="outline"
-					disabled={editor.history.editCount === 0}
+					disabled={editor.history.editCount === 0 || editor.history.previewing}
 					onclick={() => (saving = true)}
 				>
 					<Upload data-icon="inline-start" />

@@ -16,6 +16,15 @@ const at = (lon: number, lat: number): MapPoint => ({
 	altKey: false,
 });
 const key = (k: string) => ({ key: k }) as KeyboardEvent;
+/** Ctrl+Z, or ⌘Z on a Mac (the tests may run on either). */
+const undoKey = (shift = false) =>
+	({
+		key: "z",
+		ctrlKey: !/Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? ""),
+		metaKey: /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? ""),
+		shiftKey: shift,
+		altKey: false,
+	}) as KeyboardEvent;
 
 /** A room on level 0. */
 const graph = () =>
@@ -92,6 +101,54 @@ describe("drawWayMode", () => {
 		const area = history.graph.entity(finished[0] ?? "w0");
 		expect(area).toMatchObject({ tags: { area: "yes", level: "1" } });
 		expect(area?.type === "way" && area.nodes.at(-1)).toBe(corner?.id);
+	});
+
+	it("takes the last corner back with Mod+Z, and stops once none is left", () => {
+		const { history, finished, options } = setup(() => null);
+		history.setTags("n1", { entrance: "yes" });
+		const mode = drawWayMode("line", options);
+		mode.click?.(at(5, 5));
+		mode.click?.(at(6, 5));
+		expect(mode.key?.(undoKey())).toBe(true);
+		mode.key?.(key("Enter"));
+		// One corner left: too short for a line, so Enter stopped it, and nothing was undone.
+		expect(finished).toEqual([null]);
+		expect(history.graph.entity("n1")?.tags).toEqual({ entrance: "yes" });
+	});
+
+	it("stops with Mod+Z when no corner is left, the step before kept", () => {
+		const { history, finished, options } = setup();
+		history.setTags("n1", { entrance: "yes" });
+		const mode = drawWayMode("area", options);
+		mode.click?.(at(5, 5));
+		mode.key?.(undoKey());
+		expect(finished).toEqual([]);
+		mode.key?.(undoKey());
+		expect(finished).toEqual([null]);
+		expect(history.previewing).toBe(false);
+		expect(history.graph.entity("n1")?.tags).toEqual({ entrance: "yes" });
+	});
+
+	it("takes redo without doing anything while drawing", () => {
+		const { history, options } = setup();
+		history.setTags("n1", { entrance: "yes" });
+		history.undo();
+		const mode = drawWayMode("line", options);
+		mode.click?.(at(5, 5));
+		expect(mode.key?.(undoKey(true))).toBe(true);
+		expect(history.graph.entity("n1")?.tags).toEqual({});
+	});
+
+	it("finishes as Escape does when told to (the shown level changed)", () => {
+		const { history, finished, options } = setup();
+		const mode = drawWayMode("line", options);
+		mode.click?.(at(5, 5));
+		mode.click?.(at(6, 5));
+		mode.hover?.(at(7, 7));
+		mode.finish?.();
+		const way = history.graph.entity(finished[0] ?? "w0");
+		expect(way?.type === "way" && way.nodes).toHaveLength(2);
+		expect(history.previewing).toBe(false);
 	});
 
 	it("keeps nothing when left for another mode", () => {
