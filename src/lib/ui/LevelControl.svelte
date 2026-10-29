@@ -59,9 +59,7 @@
 				if (target !== undefined) level = target;
 			}}
 		>
-			{#snippet child({
-				props,
-			})}
+			{#snippet child({ props })}
 				<Button
 					{...props}
 					variant="outline"
@@ -84,9 +82,7 @@
 >
 	{@render stepButton("Level up", ChevronUp, upTarget)}
 	<ButtonGroup.Text class="justify-center px-1 tabular-nums">
-		{#snippet child({
-			props,
-		})}
+		{#snippet child({ props })}
 			<output
 				{...props}
 				aria-label="Current level"
@@ -109,9 +105,7 @@
 			{#each descending as entry (entry.level)}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
-						{#snippet child({
-							props,
-						})}
+						{#snippet child({ props })}
 							<ToggleGroup.Item
 								{...props}
 								value={String(entry.level)}

@@ -24,10 +24,7 @@
 	bind:indeterminate
 	{...restProps}
 >
-	{#snippet children({
-		checked,
-		indeterminate,
-	})}
+	{#snippet children({ checked, indeterminate })}
 		<div
 			data-slot="checkbox-indicator"
 			class="[&>svg]:size-3.5 grid place-content-center text-current transition-none"

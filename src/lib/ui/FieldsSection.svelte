@@ -204,9 +204,7 @@
 {#if !readonly && list.addable.length > 0}
 	<Popover.Root bind:open={adding}>
 		<Popover.Trigger>
-			{#snippet child({
-				props,
-			})}
+			{#snippet child({ props })}
 				<Button
 					{...props}
 					variant="outline"
