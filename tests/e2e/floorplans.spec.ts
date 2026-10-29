@@ -1135,6 +1135,9 @@ test("clears the control points, leaving the plan where they put it", async ({
 test("draws each plan's frame in its own colour, which can be changed", async ({
 	page,
 }) => {
+	// Two plans, a reload and a screenshot per colour poll: under load (4 workers in
+	// SwiftShader) a screenshot can take 5 s and the test about 36 s of the default 30.
+	test.slow();
 	await importPlan(page, "plan.png");
 	const plan = await importedPlanBox(page);
 	await page
@@ -1155,10 +1158,14 @@ test("draws each plan's frame in its own colour, which can be changed", async ({
 	// Each left edge is drawn in its plan's colour, and not the other's.
 	const y = plan.cy + 40;
 	await expect
-		.poll(() => colorPixels(page, plan.left - 4, y, 8, first))
+		.poll(() => colorPixels(page, plan.left - 4, y, 8, first), {
+			timeout: 15_000,
+		})
 		.toBeGreaterThan(0);
 	await expect
-		.poll(() => colorPixels(page, plan.left + 116, y, 8, second))
+		.poll(() => colorPixels(page, plan.left + 116, y, 8, second), {
+			timeout: 15_000,
+		})
 		.toBeGreaterThan(0);
 	expect(await colorPixels(page, plan.left - 4, y, 8, second)).toBe(0);
 
@@ -1180,7 +1187,9 @@ test("draws each plan's frame in its own colour, which can be changed", async ({
 	const picked = await planColor(page, 1);
 	expect(hex(picked)).toBe(other.value);
 	await expect
-		.poll(() => colorPixels(page, plan.left - 4, y, 8, picked))
+		.poll(() => colorPixels(page, plan.left - 4, y, 8, picked), {
+			timeout: 15_000,
+		})
 		.toBeGreaterThan(0);
 	await untilSaved(page, () =>
 		page.getByRole("button", { name: "Done" }).click(),
@@ -1191,10 +1200,14 @@ test("draws each plan's frame in its own colour, which can be changed", async ({
 	expect(hex(await planColor(page, 1))).toBe(other.value);
 	// The second plan stayed where it was moved.
 	await expect
-		.poll(() => colorPixels(page, plan.left + 116, y, 8, second))
+		.poll(() => colorPixels(page, plan.left + 116, y, 8, second), {
+			timeout: 15_000,
+		})
 		.toBeGreaterThan(0);
 	await expect
-		.poll(() => colorPixels(page, plan.left - 4, y, 8, picked))
+		.poll(() => colorPixels(page, plan.left - 4, y, 8, picked), {
+			timeout: 15_000,
+		})
 		.toBeGreaterThan(0);
 });
 
