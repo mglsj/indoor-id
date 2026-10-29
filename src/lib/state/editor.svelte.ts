@@ -103,19 +103,20 @@ export class Editor {
 	get editIssues(): Issue[] {
 		const { created, modified } = this.graph.changes();
 		const { upgrades } = this.catalog;
-		const head = this.#validator.issues(
-			this.graph,
-			[...created, ...modified].map((e) => e.id),
-			upgrades,
-		);
-		if (modified.length === 0) return head;
+		const changed = new Set([...created, ...modified].map((e) => e.id));
+		// A way edited can break the multipolygon it is in.
+		for (const id of [...changed]) {
+			for (const relation of this.graph.parentRelations(id)) {
+				changed.add(relation.id);
+			}
+		}
+		const head = this.#validator.issues(this.graph, changed, upgrades);
+		// New entities (negative ids) have no downloaded issues.
+		const downloaded = [...changed].filter((id) => !id.includes("-"));
+		if (downloaded.length === 0) return head;
 		const before = new Set(
 			this.#baseValidator
-				.issues(
-					this.graph.base(),
-					modified.map((e) => e.id),
-					upgrades,
-				)
+				.issues(this.graph.base(), downloaded, upgrades)
 				.map((i) => i.id),
 		);
 		// Errors stay: the upload would carry them.

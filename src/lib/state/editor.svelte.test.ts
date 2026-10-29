@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { OPERATIONS } from "#lib/edit/operations.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import type { Entity } from "#lib/osm/entity.ts";
-import { node, way } from "#lib/osm/fixtures.ts";
+import { node, relation, way } from "#lib/osm/fixtures.ts";
 import type { PresetIndex } from "#lib/presets/presets.ts";
 import { Catalog } from "./catalog.svelte.ts";
 import {
@@ -101,6 +101,26 @@ describe("Editor: issues of the edits", () => {
 			"door-not-on-wall",
 		]);
 		expect(editor.editIssues.map((i) => i.entityId)).toEqual(["n-1"]);
+	});
+
+	it("checks the multipolygon a way edited is in", () => {
+		const editor = editorWith([
+			node("n1", {}, [0, 0]),
+			node("n2", {}, [0.0001, 0]),
+			node("n3", {}, [0.0001, 0.0001]),
+			way("w1", ["n1", "n2", "n3", "n1"]),
+			relation("r1", [{ ref: "w1", role: "outer" }], {
+				type: "multipolygon",
+				building: "yes",
+			}),
+		]);
+		editor.history.perform(
+			(g) => g.replace(way("w1", ["n1", "n2", "n3"])),
+			msg("undo_change_tags"),
+		);
+		expect(editor.editIssues.map((i) => i.id)).toEqual([
+			"open-multipolygon:r1",
+		]);
 	});
 
 	it("keeps an issue the edit made on a downloaded feature", () => {

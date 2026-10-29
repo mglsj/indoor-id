@@ -88,6 +88,7 @@
 	"fix_square": "Square the corners",
 	"issue_close_nodes": "Two points of this way are almost on top of each other.",
 	"fix_merge_nodes": "Merge them",
+	"issue_open_multipolygon": "This multipolygon's ways don't close into rings: OSM would get a broken area. Join the ends of its ways, or remove the stray one, before uploading.",
 	"issue_disconnected_path": "This path isn't joined to any other path, door or entrance: routing can't reach it.",
 	"plan_tool_click_plan_first": "Click a spot on the plan first.",
 	"plan_tool_measure_on_plan": "Click on the plan to measure.",

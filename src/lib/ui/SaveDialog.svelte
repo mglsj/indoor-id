@@ -14,6 +14,7 @@
 	import { msg, t } from "#lib/i18n/messages.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
 	import type { Session } from "#lib/state/session.svelte.ts";
+	import { BLOCKING_RULES } from "#lib/validation/validate.ts";
 
 	interface Props {
 		session: Session;
@@ -51,6 +52,8 @@
 	>({ kind: "form" });
 
 	const issues = $derived(editor.editIssues);
+	/** Issues the upload waits on: the server would take the data broken. */
+	const blocking = $derived(issues.filter((i) => BLOCKING_RULES.has(i.rule)));
 	const busy = $derived(
 		phase.kind === "uploading" || phase.kind === "signing-in",
 	);
@@ -237,6 +240,15 @@
 					</Field.Description>
 				</Field.Group>
 
+				{#if blocking.length > 0}
+					<Alert.Root variant="destructive">
+						<CircleAlert />
+						<Alert.Description>
+							Fix the errors above to upload: OSM would get them broken.
+						</Alert.Description>
+					</Alert.Root>
+				{/if}
+
 				{#if tooMany}
 					<Alert.Root variant="destructive">
 						<CircleAlert />
@@ -261,7 +273,10 @@
 					</Button>
 					<Button
 						type="submit"
-						disabled={busy || !session.configured || tooMany !== null}
+						disabled={busy ||
+							!session.configured ||
+							tooMany !== null ||
+							blocking.length > 0}
 					>
 						{#if phase.kind === "signing-in"}
 							<Spinner data-icon="inline-start" />

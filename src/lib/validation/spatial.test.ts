@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Entity, NodeId, WayId } from "#lib/osm/entity.ts";
-import { node, way } from "#lib/osm/fixtures.ts";
+import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import type { Tags } from "#lib/osm/tags.ts";
-import { validate } from "./validate.ts";
+import { BLOCKING_RULES, validate } from "./validate.ts";
 
 /** 1e-5 degrees, about 1.1 m at the equator. */
 const M = 0.00001;
@@ -283,5 +283,36 @@ describe("disconnected paths", () => {
 			way("w2", ["n2", "n3"], { highway: "corridor" }),
 		];
 		expect(rulesOf(joined, "w1")).not.toContain("disconnected-path");
+	});
+});
+
+describe("open multipolygons", () => {
+	const lines = [
+		node("n1", {}, [0, 0]),
+		node("n2", {}, [M, 0]),
+		node("n3", {}, [M, M]),
+		way("w1", ["n1", "n2", "n3"]),
+		way("w2", ["n3", "n1"]),
+	];
+	const multipolygon = (members: string[]) =>
+		relation(
+			"r1",
+			members.map((ref) => ({ ref: ref as WayId, role: "outer" })),
+			{ type: "multipolygon", building: "yes" },
+		);
+
+	it("refuses a ring left open, as an error the upload waits on", () => {
+		const found = validate(
+			Graph.fromEntities([...lines, multipolygon(["w1"])]),
+			["r1"],
+			[],
+		).find((i) => i.rule === "open-multipolygon");
+		expect(found?.severity).toBe("error");
+		expect(BLOCKING_RULES.has("open-multipolygon")).toBe(true);
+	});
+
+	it("accepts open ways that close a ring together, and a relation not all downloaded", () => {
+		expect(rulesOf([...lines, multipolygon(["w1", "w2"])], "r1")).toEqual([]);
+		expect(rulesOf([...lines, multipolygon(["w1", "w9"])], "r1")).toEqual([]);
 	});
 });
