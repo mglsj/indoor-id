@@ -3,6 +3,7 @@ import {
 	expect,
 	LAT,
 	LON,
+	reloadDiscardingEdits,
 	room,
 	selectRoom,
 	tagsBox,
@@ -94,7 +95,7 @@ test("lists the indoor types first, and the last types chosen above them", async
 	await expect(featureType(editor, "Cafe")).toBeVisible();
 
 	// Remembered across visits, for areas.
-	await page.reload();
+	await reloadDiscardingEdits(page);
 	const again = await selectRoom(page);
 	await featureType(again, "Room").click();
 	await expect(again.getByRole("option").first()).toHaveText("Cafe");
