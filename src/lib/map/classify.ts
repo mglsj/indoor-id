@@ -1,6 +1,6 @@
 /**
  * How the map draws each feature, decided once per feature in code rather than in long style
- * expressions. The rules follow the 1.x stylesheet (`public/style.mapcss`) and Simple Indoor
+ * expressions. The rules follow the OsmInEdit stylesheet (`public/style.mapcss`) and Simple Indoor
  * Tagging, plus older tags still found in the data (`room=*`, `buildingpart=*`).
  */
 import type { Tags } from "#lib/osm/tags.ts";
@@ -153,7 +153,7 @@ const STRUCTURE_PRESETS =
 
 /**
  * The icon of a feature, or null: its preset's icon (Maki or Temaki) when bundled, else the
- * first available 1.x icon.
+ * first available OsmInEdit icon.
  */
 export function iconFor(
 	tags: Tags,

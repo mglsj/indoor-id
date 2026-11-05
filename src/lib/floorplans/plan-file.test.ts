@@ -17,7 +17,7 @@ import {
 
 const IMAGE = "data:image/png;base64,iVBORw0KGgo=";
 
-/** Corners of a 1.x plan, clockwise from the top left, as [lon, lat]. */
+/** Corners of an OsmInEdit plan, clockwise from the top left, as [lon, lat]. */
 const LEGACY_CORNERS: [LngLat, LngLat, LngLat, LngLat] = [
 	[-1.6955, 48.137],
 	[-1.6949, 48.1369],
@@ -25,7 +25,7 @@ const LEGACY_CORNERS: [LngLat, LngLat, LngLat, LngLat] = [
 	[-1.6956, 48.1367],
 ];
 
-/** A 1.x export entry, with corners written the way Leaflet serialised them. */
+/** An OsmInEdit export entry, with corners written the way Leaflet serialised them. */
 function legacyEntry(write: (c: LngLat) => unknown): Record<string, unknown> {
 	const [tl, tr, br, bl] = LEGACY_CORNERS;
 	return {
@@ -166,7 +166,7 @@ describe("the buildings' place in files", () => {
 	});
 });
 
-describe("1.x plan files", () => {
+describe("OsmInEdit plan files", () => {
 	it.each([
 		["[lat, lng] arrays", ([lon, lat]: LngLat) => [lat, lon]],
 		["{lat, lng} objects", ([lon, lat]: LngLat) => ({ lat, lng: lon })],
@@ -197,7 +197,7 @@ describe("1.x plan files", () => {
 		const [plan] = parsePlansFile(JSON.stringify([entry]));
 		if (!plan) throw new Error("No plan");
 
-		// 1.x drew a missing bottom-right corner below the top right, right of the bottom left.
+		// OsmInEdit drew a missing bottom-right corner below the top right, right of the bottom left.
 		const [tl, tr, , bl] = LEGACY_CORNERS;
 		expectCorners(corners(transformOf(plan, 400, 300), 400, 300), [
 			tl,

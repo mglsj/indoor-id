@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-IndoorID, an indoor OpenStreetMap editor: a rewrite of OsmInEdit (React + Leaflet, 2019) as a client-only
-SvelteKit + MapLibre app. OSM is the only backend. The roadmap, decisions and phase status live in
+IndoorID, a new indoor OpenStreetMap editor (version 0.1 alpha): a client-only SvelteKit + MapLibre
+app. OSM is the only backend. The roadmap, decisions and phase status live in
 [plan.md](plan.md): read it before starting a phase and update its status when a phase lands.
 Finished phases, with what was measured and decided, are in [docs/history.md](docs/history.md):
 move a phase's notes there once it is done.
@@ -32,7 +32,7 @@ runs the same commands.
   (`import { parseHash } from "#lib/map/hash.ts"`). `$lib` does not exist in SvelteKit 3.
 - `src/lib/ui/` components, `src/lib/map/` map helpers, `src/routes/` pages, `static/` copied
   as-is (`config.json`, help images), `tests/e2e/` browser tests. Map icons load on demand
-  (`style/icons.ts`): the 1.x set in `src/lib/map/style/icons/` (`key_value.svg|png`) and the
+  (`style/icons.ts`): OsmInEdit's set in `src/lib/map/style/icons/` (`key_value.svg|png`) and the
   presets' Maki/Temaki icons (`maki-toilet.svg`) copied into `presets/generated/icons/`.
 - Data model (P1): `osm/` (entities, immutable `Graph`, `History`, osmChange), `actions/`
   (pure `graph => graph` functions), `levels/` (level values as ranges; `level-names.ts`: what the switcher lists, `level:ref`, `building:levels:ref`, `non_existent_levels`), `api/` (`OsmApi`).
@@ -83,7 +83,7 @@ runs the same commands.
   transforms map plan units; a plan's `source` names the file it came from, stored once by
   file id (a PDF shared by its pages); `georef.ts` transforms fitted in Web Mercator,
   `plan-file.ts` plan files (version 2: a ZIP of `plans.json` and the source files; version 1
-  JSON and 1.x read), `tiling.ts`, `import.ts` raster/SVG/PDF, `buildings.ts` (the buildings
+  JSON and OsmInEdit read), `tiling.ts`, `import.ts` raster/SVG/PDF, `buildings.ts` (the buildings
   a plan can be assigned to, `FloorPlan.building`); vector plans (P4.2):
   `vector.ts` (`VectorContent`: segments, triangles, texts, CAD layers; `VectorBuilder`),
   `vector-pdf.ts` (pdf.js operator lists, text from `showText`, pure: pass pdf.js's `OPS`; `pdfPageKind` for Auto; a plan's `source.mode` says how it is
@@ -157,7 +157,7 @@ runs the same commands.
   data (the OSM graph, GeoJSON) in `$state.raw` and replace it immutably, prefer `$derived` over
   effects, and only use `$effect` to sync to the outside world.
 - **Config**: `static/config.json` is public. Never put secrets or API keys in it or in the code.
-- **OSM data**: never rewrite a tag the user didn't edit (the legacy editor silently rewrote
+- **OSM data**: never rewrite a tag the user didn't edit (OsmInEdit silently rewrote
   `level`). Level values are strings like `0;1`, `-1`, `0.5`, `1-3`; level `0` is a real level,
   never treat it as falsy. Uploads are one atomic osmChange, built from the graph difference.
 - **UI**: build with the shadcn-svelte components in `src/lib/components/shadcn/` (added with
@@ -235,10 +235,11 @@ IndexedDB, File System Access).
 
 Cloud sessions run `.claude/hooks/session-start.sh` (`bun install`) at startup.
 
-## Reference: the legacy editor
+## Reference: OsmInEdit
 
-The 1.x code is on `master` history before the rewrite (commit `cd1e955`, tag `legacy-v1.0.16`
-once pushed). Useful files to port behaviour from, via `git show cd1e955:<path>`:
+IndoorID started from OsmInEdit (React + Leaflet, 2019), whose code is in `master`'s history
+at commit `cd1e955`. Mention it only as a source, never as an earlier version of IndoorID.
+Useful files to look at, via `git show cd1e955:<path>`:
 `src/ctrl/VectorDataManager.js` (level logic, diff scenarios), its `.test.js`,
 `public/style.mapcss` (visual language), `public/presets/indoor.xml`,
 `src/ctrl/ImageryManager.js`, `src/config/locales/`.

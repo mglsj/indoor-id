@@ -74,7 +74,7 @@ describe("buildOsmChange", () => {
 		);
 	});
 
-	it("modifies a relation before deleting one of its members (1.x failed with HTTP 412)", () => {
+	it("modifies a relation before deleting one of its members (OsmInEdit failed with HTTP 412)", () => {
 		const graph = Graph.fromEntities([
 			node("n1"),
 			node("n2"),

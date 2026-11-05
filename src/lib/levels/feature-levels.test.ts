@@ -59,7 +59,7 @@ describe("featureLevels", () => {
 			expect(levelsOf({ "building:levels": "2.5" })).toBe("0-2");
 		});
 
-		it("has no level for building:levels=0 (1.x invented level -1)", () => {
+		it("has no level for building:levels=0 (OsmInEdit invented level -1)", () => {
 			expect(levelsOf({ "building:levels": "0" })).toBeNull();
 		});
 

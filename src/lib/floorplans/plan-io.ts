@@ -148,7 +148,7 @@ export async function pdfPage(
 	};
 }
 
-/** Reads a plan file: an archive (version 2), or JSON (version 1, OsmInEdit 1.x). */
+/** Reads a plan file: an archive (version 2), or JSON (version 1, OsmInEdit). */
 export async function readPlans(
 	file: Blob,
 	decoders: PlanDecoders,

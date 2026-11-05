@@ -350,7 +350,7 @@ describe("readPlans: plan files of earlier versions", () => {
 		expect(plan?.content.raster?.unit).toBe(2);
 	});
 
-	it("reads a 1.x plan, measured by its image, placed by its four corners", async () => {
+	it("reads an OsmInEdit plan, measured by its image, placed by its four corners", async () => {
 		const { decoders } = fakeDecoders();
 		const text = JSON.stringify([
 			{

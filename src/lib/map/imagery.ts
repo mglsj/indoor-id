@@ -43,7 +43,7 @@ export interface ImageryEntry {
 	readonly bbox: readonly [number, number, number, number] | null;
 }
 
-/** Imagery older than this is left out of the list (as in 1.x). */
+/** Imagery older than this is left out of the list (as in OsmInEdit). */
 const MAX_AGE_YEARS = 10;
 
 /** Keeps the background imagery MapLibre can display. */

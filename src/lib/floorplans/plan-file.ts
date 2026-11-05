@@ -2,7 +2,7 @@
  * Floor plan files. Version 2, written now: a ZIP archive of `plans.json` and the files the
  * plans were imported from (a PDF once for all its pages), stored as they are. Read too:
  * version 1, IndoorID's JSON with images as data URLs, and the `osminedit_floor_imagery.json`
- * files of OsmInEdit 1.x. Pure: bytes in, bytes out.
+ * files of OsmInEdit. Pure: bytes in, bytes out.
  */
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { MessageError, msg } from "#lib/i18n/messages.ts";
@@ -15,7 +15,7 @@ import {
 	type TransformKind,
 } from "./georef.ts";
 
-/** Where a plan sits: a fitted transform, or (1.x files) the map positions of its corners. */
+/** Where a plan sits: a fitted transform, or (OsmInEdit files) the map positions of its corners. */
 export type PlanPlacement =
 	| { readonly transform: Transform }
 	| { readonly corners: readonly [LngLat, LngLat, LngLat, LngLat] };
@@ -24,7 +24,7 @@ export interface PlanFileEntry {
 	readonly name: string;
 	/** The image, as a data URL. */
 	readonly image: string;
-	/** Image size in pixels, when the file says (1.x files may not). */
+	/** Image size in pixels, when the file says (OsmInEdit files may not). */
 	readonly width?: number;
 	readonly height?: number;
 	/** OSM level the plan shows, like `0` or `-1`; null when not assigned yet. */
@@ -263,12 +263,12 @@ export function exportPlans(
 	);
 }
 
-/** The plans of an IndoorID or OsmInEdit 1.x floor plan file, bottom first. */
+/** The plans of an IndoorID or OsmInEdit floor plan file, bottom first. */
 export function parsePlansFile(text: string): PlanFileEntry[] {
 	return parsePlanFile(text).plans;
 }
 
-/** Reads an IndoorID or OsmInEdit 1.x floor plan file. */
+/** Reads an IndoorID or OsmInEdit floor plan file. */
 export function parsePlanFile(text: string): PlanFile {
 	let data: unknown;
 	try {
@@ -297,7 +297,7 @@ export function transformOf(
 	const { placement } = entry;
 	if ("transform" in placement) return placement.transform;
 	const [tl, tr, br, bl] = placement.corners;
-	// Four exact corners: a perspective, as 1.x drew its plans (CSS matrix3d).
+	// Four exact corners: a perspective, as OsmInEdit drew its plans (CSS matrix3d).
 	return fitPlan(
 		[
 			{ image: [0, 0], map: tl },
@@ -335,13 +335,13 @@ function readPlan(value: unknown): PlanFileEntry {
 	};
 }
 
-/** A 1.x entry: Leaflet corners (`[lat, lng]` or `{lat, lng}`), numeric level, 0–1 opacity. */
+/** An OsmInEdit entry: Leaflet corners (`[lat, lng]` or `{lat, lng}`), numeric level, 0–1 opacity. */
 function readLegacyPlan(value: unknown): PlanFileEntry {
 	if (!isRecord(value)) throw invalid();
 	const tl = latLng(value.topleft);
 	const tr = latLng(value.topright);
 	const bl = latLng(value.bottomleft);
-	// 1.x drew a missing bottom-right corner from its neighbours.
+	// OsmInEdit drew a missing bottom-right corner from its neighbours.
 	const br = value.bottomright ? latLng(value.bottomright) : [tr[0], bl[1]];
 	const level = typeof value.level === "number" ? value.level : Number.NaN;
 	return {

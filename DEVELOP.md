@@ -2,8 +2,6 @@
 
 IndoorID is a client-side web application written in TypeScript with [Svelte 5](https://svelte.dev) and [SvelteKit](https://svelte.dev/docs/kit), rendered with [MapLibre GL JS](https://maplibre.org) and styled with [Tailwind CSS](https://tailwindcss.com) and [shadcn-svelte](https://shadcn-svelte.com) components. It has no backend of its own: OpenStreetMap is the backend.
 
-> IndoorID is a rewrite of the OsmInEdit 1.x editor (React + Leaflet). Its last version is kept under the git tag `legacy-v1.0.16`.
-
 ## Requirements
 
 - [Bun](https://bun.sh) 1.4 (package manager and script runner)
@@ -81,4 +79,4 @@ anyone can edit it, so expect names and shapes that don't match reality.
 
 ## Translations
 
-Translations are managed on [Transifex](https://www.transifex.com/openlevelup/osminedit). The translation setup of the new editor is not in place yet; existing translations remain available in the `legacy-v1.0.16` tag.
+Translations use [Paraglide](https://inlang.com/m/gerre34r/library-inlang-paraglideJs) message files in `messages/`. Only English is in place so far; other languages come with the P6 phase of the [plan](plan.md).

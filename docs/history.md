@@ -1,11 +1,11 @@
 # IndoorID: finished phases
 
 What was built, measured and decided in each finished phase, moved out of [plan.md](../plan.md)
-on 2026-10-29 so the plan only holds what comes next. Legacy code: commit `cd1e955`.
+on 2026-10-29 so the plan only holds what comes next. OsmInEdit's code: commit `cd1e955`.
 
-## Why a rewrite (findings from the 1.x code)
+## Why a new editor (findings from OsmInEdit's code)
 
-- **Upload logic is the main source of bugs.** 1.x edits GeoJSON (via osmtogeojson), then a
+- **Upload logic is the main source of bugs.** OsmInEdit edits GeoJSON (via osmtogeojson), then a
   ~560-line heuristic (`_analyzeDiff`, `src/ctrl/VectorDataManager.js:1535-2095`) guesses which
   OSM nodes, ways and relations changed. Known failures:
   - the analysis promise can hang forever (no try/catch inside a `setTimeout`);
@@ -40,10 +40,10 @@ Each phase ends with lint, check, unit and e2e tests green, and a status update 
 
 ### P0: Scaffold — done
 
-- Legacy code removed (kept at `cd1e955`); SvelteKit 3, Svelte 5, Tailwind 4, bits-ui,
+- OsmInEdit's code removed (kept at `cd1e955`); SvelteKit 3, Svelte 5, Tailwind 4, bits-ui,
   MapLibre 6; Bun, Biome, Vitest, Playwright, CI; `CLAUDE.md` and project skills.
 - Map with keyless OpenFreeMap basemap from `static/config.json` (no secrets).
-- URL hash `#zoom/lat/lon/level`, compatible with 1.x links, keeping fractional zooms and
+- URL hash `#zoom/lat/lon/level`, compatible with OsmInEdit links, keeping fractional zooms and
   decimal levels; level up/down control.
 - Lesson: MapLibre 6 under Vite needs `setWorkerUrl()`; covered by an e2e test that checks a
   GeoJSON polygon actually renders.
@@ -60,7 +60,7 @@ Each phase ends with lint, check, unit and e2e tests green, and a status update 
   indexes, `newId`, `changes()`), `History` (graph snapshots), `buildOsmChange` and
   `applyDiffResult` (tiny parser, no XML dependency).
 - `actions/`: `changeTags`, `addNode`, `moveNode`, `addWay`, `insertNodeInWay`,
-  `deleteEntities` with iD-style cleanup. The 1.x `_analyzeDiff` scenarios that still apply are
+  `deleteEntities` with iD-style cleanup. The OsmInEdit `_analyzeDiff` scenarios that still apply are
   covered; the ones about guessing topology from coordinates disappear with the graph model.
 - `api/`: `OsmApi.loadMap(bbox)` and `OsmApi.upload(graph, tags)` (one request, changeset always
   closed, typed errors).
@@ -81,7 +81,7 @@ editing UI); merging re-downloaded data into the graph → P2 (map loader); OAut
   switch is a `setFilter`, never a data rebuild. `map/classify.ts` decides `@kind`, `@icon`,
   `@label`, `@restricted` in code instead of long style expressions.
 - Style: `map/style/layers.ts` (fills and lines under the basemap labels, doors and labels
-  above), validated with MapLibre's validator; 1.x icons bundled and rasterised on demand at
+  above), validated with MapLibre's validator; OsmInEdit icons bundled and rasterised on demand at
   the screen's pixel density through MapLibre 6's `setMissingStyleImageResolver`.
 - UI: `EditorView` with the `Editor` state class, a level selector built from the data,
   Nominatim search on submit (`nominatim_url`), and a Background panel listing
@@ -119,7 +119,7 @@ incline/conveying arrows → P5.
   source, review request and `imagery_used` from the backgrounds picked; one atomic osmChange;
   each API error explained, with the edits kept. The e2e test asserts the exact osmChange.
 - Icons: the presets' Maki and Temaki icons (CC0) on the map and in the inspector, falling back
-  to the 1.x icons; rooms, walls, doors and other structure get none. Icon files are loaded on
+  to the OsmInEdit icons; rooms, walls, doors and other structure get none. Icon files are loaded on
   demand rather than inlined in the bundle.
 - Performance: building the features of 10,000 rooms with presets takes ~290 ms the first time
   (matching every preset) and ~40 ms after, thanks to the match cache.
@@ -140,8 +140,8 @@ test instead of a shared `mock-osm.ts`.
   scaling to a measured distance, rotation about a pinned pixel, moving onto one point. Tested
   against spherical geometry at several latitudes.
 - Plan files (`floorplans/plan-file.ts`, pure): IndoorID JSON export/import (images as data
-  URLs), and OsmInEdit 1.x `osminedit_floor_imagery.json`. 1.x corners become an exact
-  perspective transform (as 1.x drew them with CSS `matrix3d`) instead of the affine first
+  URLs), and OsmInEdit `osminedit_floor_imagery.json`. OsmInEdit corners become an exact
+  perspective transform (as OsmInEdit drew them with CSS `matrix3d`) instead of the affine first
   planned, which would have reshaped plans that are not parallelograms.
 - Import (`floorplans/import.ts`): PNG/JPEG/WebP through `createImageBitmap` (scaled down past
   8192 px); SVG rendered through an `<img>`, so its scripts never run; PDF page picker with
@@ -159,7 +159,7 @@ test instead of a shared `mock-osm.ts`.
   active tool instead of selecting OSM features.
 - Storage (`persist/plan-store.ts`, `idb`): images and settings in IndexedDB, restored on
   reload. Each plan has a level and shows only on it.
-- Floor plan mode (as in 1.x): the map shows only building outlines (any area with a
+- Floor plan mode (as in OsmInEdit): the map shows only building outlines (any area with a
   `building` tag, malls included); OSM selection, the feature editor and the edit toolbar are
   off, and the floor plans are edited in the left side panel. New plans go in the middle of
   the map beside that panel. As in photo editors, the selected plan is dragged to move it, by a corner handle to
@@ -762,7 +762,7 @@ are shared down the chain (links only added, lookups check them). After: 0.33 s,
    cutting, WebP encoding, path flattening) in one module worker; pdf.js keeps parsing in its
    own worker.
 4. Plan file format 2 (raster, vector or original file; size required; version checked); the
-   v1 and 1.x readers stay.
+   v1 and OsmInEdit readers stay.
 5. The panel split into a plan list and the alignment tools; 128 px thumbnails.
 
 Decided ✔: plans saved before R2 keep their pixels as plan units (migrated as rasters, placed
@@ -805,7 +805,7 @@ stored by file id in `originals` (`saveFile`/`loadFile`), deleted with the last 
 (plans saved before have theirs under their own id); `PlanImage` no longer carries a PNG of
 renderings. Plan file version 2 (`plan-file.ts`, fflate): `plans.json` (size and source
 required, `fitKind` kept) and `files/n.ext` stored uncompressed; a version above 2 is refused
-("made by a newer version"); version 1 JSON and 1.x files are still read. `plan-io.ts`:
+("made by a newer version"); version 1 JSON and OsmInEdit files are still read. `plan-io.ts`:
 `readPlans` (archive or JSON) draws each plan again from its file, a PDF opened once with its
 pages rendered at their DPI, files given new ids; `writePlanFile` gives a `.zip` Blob; `pdfPage`
 names and sources a picked page. E2E: exported archive read back, the PDF stored once.

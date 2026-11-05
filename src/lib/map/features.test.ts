@@ -234,7 +234,7 @@ describe("buildFeatures", () => {
 
 		expect(icon("w1")).toBe("maki-toilet");
 		expect(icon("n5")).toBe("maki-toilet");
-		// A lone node is a point, which the elevator preset is not for: 1.x icon.
+		// A lone node is a point, which the elevator preset is not for: OsmInEdit icon.
 		expect(icon("n6")).toBe("highway_elevator");
 		expect(icon("n7")).toBe("temaki-elevator");
 	});
