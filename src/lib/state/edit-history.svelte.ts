@@ -9,6 +9,15 @@ import type { Graph } from "#lib/osm/graph.ts";
 import { type Action, History } from "#lib/osm/history.ts";
 import type { Tags } from "#lib/osm/tags.ts";
 import type { TagPatch } from "#lib/presets/combo.ts";
+import type { Selection } from "./selection.svelte.ts";
+
+export interface EditHistoryOptions {
+	/**
+	 * The selection each step records while it is the current one: undo and redo select again
+	 * what the step they go to had selected, as iD does.
+	 */
+	readonly selection?: Selection;
+}
 
 const CHANGE_TAGS = msg("undo_change_tags");
 
@@ -35,8 +44,10 @@ export class EditHistory {
 	#typing: string | null = null;
 	/** The action a drag shows on the map, not a step yet (see `preview`). */
 	#preview = $state.raw<Action | null>(null);
+	readonly #selection?: Selection;
 
-	constructor(base: Graph) {
+	constructor(base: Graph, { selection }: EditHistoryOptions = {}) {
+		this.#selection = selection;
 		this.#history = new History<Message>(base);
 		this.graph = $state.raw(base);
 		this.#made.set(base, 0);
@@ -72,6 +83,7 @@ export class EditHistory {
 		if (this.locked) return;
 		this.#endPreview();
 		this.#typing = null;
+		this.#recordSelection();
 		this.#edited(this.#history.perform(action, annotation));
 	}
 
@@ -79,15 +91,33 @@ export class EditHistory {
 	undo(): void {
 		if (this.locked || this.#preview) return;
 		this.#typing = null;
+		this.#recordSelection();
 		this.#history.undo();
 		this.#edited(this.#history.graph);
+		this.#selectAgain();
 	}
 
 	redo(): void {
 		if (this.locked || this.#preview) return;
 		this.#typing = null;
+		this.#recordSelection();
 		this.#history.redo();
 		this.#edited(this.#history.graph);
+		this.#selectAgain();
+	}
+
+	/** Keeps the selection on the current step, to select it again when coming back to it. */
+	#recordSelection(): void {
+		if (this.#selection) this.#history.select(this.#selection.ids);
+	}
+
+	/** Selects what the current step had selected, leaving out what it doesn't have. */
+	#selectAgain(): void {
+		if (!this.#selection) return;
+		const graph = this.graph;
+		this.#selection.select(
+			this.#history.selected.filter((id) => graph.entity(id)),
+		);
 	}
 
 	/**
@@ -191,6 +221,7 @@ export class EditHistory {
 	/** Applies a tag change, folded into the last step while the same features are typed in. */
 	#apply(action: Action, features: string, live: boolean): void {
 		this.#endPreview();
+		this.#recordSelection();
 		this.#edited(
 			this.#typing === features
 				? this.#history.replace(action, CHANGE_TAGS)

@@ -32,8 +32,11 @@ export interface EditorOptions {
 }
 
 export class Editor {
-	readonly history = new EditHistory(Graph.fromEntities([]));
 	readonly selection = new Selection();
+	/** Undo and redo select again what each step had selected. */
+	readonly history = new EditHistory(Graph.fromEntities([]), {
+		selection: this.selection,
+	});
 	readonly catalog: Catalog;
 	readonly sync: DataSync;
 
