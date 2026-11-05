@@ -7,6 +7,11 @@ import { type Message, msg } from "#lib/i18n/messages.ts";
 import { type Entity, type EntityId, sameTags } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import { type Action, History } from "#lib/osm/history.ts";
+import {
+	restoreHistory,
+	type SavedHistory,
+	saveHistory,
+} from "#lib/osm/history-json.ts";
 import type { Tags } from "#lib/osm/tags.ts";
 import type { TagPatch } from "#lib/presets/combo.ts";
 import type { Selection } from "./selection.svelte.ts";
@@ -258,6 +263,27 @@ export class EditHistory {
 			? this.#history.graph.update(this.#preview)
 			: this.#history.graph;
 		this.#made.set(this.graph, this.#edits);
+	}
+
+	/** The steps, for autosave (see `history-json.ts`), with the selection shown now. */
+	save(): SavedHistory<Message> {
+		this.#recordSelection();
+		return saveHistory(this.#history);
+	}
+
+	/**
+	 * Takes autosaved steps back, over the data downloaded since: newer versions of entities
+	 * they edited are conflicts, as for any download (`History.merge`). Selects what was selected.
+	 */
+	restore(saved: SavedHistory<Message>): void {
+		if (this.locked) return;
+		const downloaded = [...this.#history.base.entities()];
+		this.#typing = null;
+		this.#preview = null;
+		this.#history = restoreHistory(saved);
+		this.#history.merge(downloaded);
+		this.#edited(this.#history.graph);
+		this.#selectAgain();
 	}
 
 	/** Starts a new history from `graph` (the server's state after an upload). */

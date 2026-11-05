@@ -382,3 +382,33 @@ describe("EditHistory with a selection: undo and redo select again, as iD", () =
 		expect(selection.ids).toEqual(["n1"]);
 	});
 });
+
+describe("EditHistory.save and restore: autosaved edits back over newer downloads", () => {
+	it("restores the steps and the selection, over the data downloaded meanwhile", () => {
+		const selection = new Selection();
+		const before = new EditHistory(
+			Graph.fromEntities([node("n1", { amenity: "bench" })]),
+			{ selection },
+		);
+		selection.select("n1");
+		before.setTags("n1", { amenity: "bench", name: "Saved" });
+		const saved = JSON.parse(JSON.stringify(before.save()));
+
+		const after = new Selection();
+		const history = new EditHistory(Graph.fromEntities([]), {
+			selection: after,
+		});
+		history.merge([
+			node("n1", { amenity: "bench" }),
+			node("n2", { amenity: "toilets" }),
+		]);
+		history.restore(saved);
+
+		expect(tagsOf(history, "n1")).toEqual({ amenity: "bench", name: "Saved" });
+		expect(tagsOf(history, "n2")).toEqual({ amenity: "toilets" });
+		expect(history.editCount).toBe(1);
+		expect(after.ids).toEqual(["n1"]);
+		history.undo();
+		expect(tagsOf(history, "n1")).toEqual({ amenity: "bench" });
+	});
+});

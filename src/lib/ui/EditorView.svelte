@@ -88,7 +88,9 @@
 	import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
 	import { extentOf, extentsIntersect } from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
+	import { Autosave } from "#lib/persist/autosave.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
+	import { EditAutosave } from "#lib/state/autosave.svelte.ts";
 	import { performEdit } from "#lib/state/commands.ts";
 	import { Editor, setEditor } from "#lib/state/editor.svelte.ts";
 	import {
@@ -109,6 +111,7 @@
 		widthBounds,
 	} from "#lib/ui/panel-width.ts";
 	import RepeatDialog from "#lib/ui/RepeatDialog.svelte";
+	import RestoreDialog from "#lib/ui/RestoreDialog.svelte";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
 	import UnsavedPlanDialog from "#lib/ui/UnsavedPlanDialog.svelte";
 	import { resolve } from "$app/paths";
@@ -151,6 +154,18 @@
 		return { session, editor, websiteUrl };
 	});
 	setEditor(editor);
+
+	// Edits are saved in this browser as they are made, and offered back on start.
+	const autosave = new EditAutosave(editor, new Autosave());
+	$effect(() => {
+		void autosave.start();
+		return () => autosave.stop();
+	});
+	$effect(() => {
+		void editor.history.graph;
+		void editor.sync.failedChangeset;
+		autosave.changed();
+	});
 	let saving = $state(false);
 	// Plans saved in earlier visits come back once their images are decoded.
 	/**
@@ -789,6 +804,11 @@
 </script>
 
 <svelte:window onkeydown={onKeydown} onbeforeunload={onBeforeUnload} />
+<svelte:document
+	onvisibilitychange={() => {
+		if (document.visibilityState === "hidden") void autosave.flush();
+	}}
+/>
 
 {#snippet iconButton(
 	label: string,
@@ -1034,6 +1054,11 @@
 	{/if}
 
 	<UnsavedPlanDialog {floorplans} />
+	<RestoreDialog
+		offer={autosave.offer}
+		onrestore={() => void autosave.restore()}
+		ondiscard={() => void autosave.discard()}
+	/>
 
 	{#if repeating}
 		<RepeatDialog
