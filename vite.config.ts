@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import adapter from "@sveltejs/adapter-static";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
@@ -13,6 +14,11 @@ function gitHash(): string {
 	}
 }
 
+/** The app version from package.json, shown next to the commit. */
+const version: string = JSON.parse(
+	readFileSync(new URL("package.json", import.meta.url), "utf8"),
+).version;
+
 export default defineConfig({
 	plugins: [
 		tailwindcss(),
@@ -23,6 +29,7 @@ export default defineConfig({
 		}),
 	],
 	define: {
+		__APP_VERSION__: JSON.stringify(version),
 		__GIT_HASH__: JSON.stringify(gitHash()),
 	},
 	// The plan worker loads its JPEG XL encoder on demand, a split ES module workers allow.

@@ -12,7 +12,8 @@
 	<header class="flex h-12 shrink-0 items-center gap-3 border-b px-4">
 		<h1 class="text-base font-semibold">IndoorID</h1>
 		<span class="text-xs text-muted-foreground"
-			>2.0 preview · {__GIT_HASH__}</span
+			>{__APP_VERSION__}
+			· {__GIT_HASH__}</span
 		>
 	</header>
 

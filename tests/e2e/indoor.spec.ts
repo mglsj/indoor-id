@@ -173,7 +173,7 @@ test("draws the preset's Maki icon for a point of interest", async ({
 			tags: { amenity: "toilets", level: "0" },
 		},
 	]);
-	// The Restroom preset's icon, rather than the 1.x amenity_toilets.png.
+	// The Restroom preset's icon, rather than the OsmInEdit amenity_toilets.png.
 	const icon = page.waitForRequest(/\/maki-toilet\.[\w-]+\.svg$/);
 	await page.goto(`/#19/${LAT}/${LON}/0`);
 	await icon;

@@ -9,7 +9,7 @@ import {
 	test,
 } from "./fixtures.ts";
 
-test("centres the map on a 1.x style URL hash", async ({ page }) => {
+test("centres the map on an OsmInEdit-style URL hash", async ({ page }) => {
 	await page.goto("/#19/48.13/-1.69/1");
 
 	const view = await camera(page);

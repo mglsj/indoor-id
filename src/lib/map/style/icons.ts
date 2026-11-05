@@ -1,6 +1,6 @@
 /**
  * Map icons: the presets' Maki and Temaki icons, named as in the presets (`maki-toilet`, copied
- * by scripts/build-presets.ts), and the 1.x set, named `key_value` like `amenity_toilets`.
+ * by scripts/build-presets.ts), and the OsmInEdit set, named `key_value` like `amenity_toilets`.
  * They are bundled by Vite and loaded only when the map first needs them, at the screen's pixel
  * density.
  */

@@ -8,7 +8,7 @@ IndoorID aims to make [indoor data editing](https://wiki.openstreetmap.org/wiki/
 
 If you are looking for an indoor data viewer (a map for browsing existing data), have a look at [OpenLevelUp](https://openlevelup.net/).
 
-> **Work in progress.** IndoorID is a rewrite of [OsmInEdit](https://framagit.org/PanierAvide/osminedit) with Svelte, MapLibre GL JS and an OpenStreetMap-native data model. It is not usable for editing yet: see the [plan](plan.md) for progress. The last release of OsmInEdit is kept under the git tag `legacy-v1.0.16`.
+> **Alpha (0.1).** IndoorID is a new editor, built with Svelte, MapLibre GL JS and an OpenStreetMap-native data model. It is early: expect missing features and rough edges, and see the [plan](plan.md) for progress.
 
 ## Contributing
 
@@ -18,26 +18,21 @@ This project is an open source tool, meaning it is made by volunteers. If you **
 
 To run your own instance of IndoorID, or work on its development, read the [develop documentation](DEVELOP.md).
 
-## Contributors
+## Credits
 
-IndoorID builds on OsmInEdit, which exists thanks to the **amazing people** following:
+IndoorID started from [OsmInEdit](https://framagit.org/PanierAvide/osminedit) by Adrien Pavie,
+sponsored by Daimler AG. Its map icons and help images come from OsmInEdit, and IndoorID still
+opens OsmInEdit links and floor plan files.
 
-- Adrien Pavie, main developer of OsmInEdit
-- Daimler AG team, for sponsoring and leading the project
-- Florian Lainez, for improving the user experience
-- Thomas Gratier, for his work on [osm-request](https://github.com/osmlab/osm-request) library
-- And all users, for using the tool and sharing their ideas !
-
-Presets and fields come from iD's [tagging schema](https://github.com/openstreetmap/id-tagging-schema)
+Ideas for floor plan editing and level heights come from
+[osm-simple3d-editor](https://github.com/FelisPimeja/osm-simple3d-editor) (ISC). Presets and
+fields come from iD's [tagging schema](https://github.com/openstreetmap/id-tagging-schema)
 (ISC), and icons from [Maki](https://github.com/mapbox/maki) and
 [Temaki](https://github.com/rapideditor/temaki) (CC0).
 
 ## License
 
-Copyright (c) Adrien Pavie 2019
+Copyright (c) 2026 IndoorID contributors
 
-Copyright (c) Daimler AG 2019
-
-Copyright (c) IndoorID contributors 2026
-
-Released under ISC license, see [LICENSE](LICENSE.md) for complete license text.
+Released under the ISC license, see [LICENSE](LICENSE.md) for the full text and the notices of
+third-party code and assets.

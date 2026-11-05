@@ -90,7 +90,7 @@ describe("iconFor", () => {
 			).toBe("temaki-elevator");
 		});
 
-		it("falls back to the 1.x icons when the preset's icon is not bundled", () => {
+		it("falls back to the OsmInEdit icons when the preset's icon is not bundled", () => {
 			expect(
 				iconFor({ indoor: "room", stairs: "yes" }, withPresetIcons, {
 					id: "indoor/stairs",

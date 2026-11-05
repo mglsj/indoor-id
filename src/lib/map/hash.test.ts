@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { coordinatePrecision, formatHash, parseHash } from "./hash.ts";
 
 describe("parseHash", () => {
-	it("reads OsmInEdit 1.x links", () => {
+	it("reads OsmInEdit links", () => {
 		expect(parseHash("#19/48.13678/-1.69533/1")).toEqual({
 			zoom: 19,
 			lat: 48.13678,

@@ -1,6 +1,6 @@
 {
 	"name": "indoor-id",
-	"version": "0.0.1",
+	"version": "0.1.0-alpha",
 	"description": "Web tool for editing OpenStreetMap building indoors data",
 	"private": true,
 	"type": "module",

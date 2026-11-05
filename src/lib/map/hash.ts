@@ -1,8 +1,8 @@
 /**
  * URL hash holding the map view, in the format `#zoom/lat/lon/level`.
  *
- * This is the format used by OsmInEdit 1.x (level is optional), so old links keep working.
- * Unlike 1.x, fractional zooms and decimal levels (e.g. mezzanine `0.5`) are preserved.
+ * This is the format used by OsmInEdit (level is optional), so old links keep working.
+ * Unlike OsmInEdit, fractional zooms and decimal levels (e.g. mezzanine `0.5`) are preserved.
  */
 
 export interface MapView {

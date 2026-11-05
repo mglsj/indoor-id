@@ -1,8 +1,8 @@
-# IndoorID rewrite plan
+# IndoorID plan
 
-A client-only indoor editor for OpenStreetMap ([Simple Indoor Tagging](https://wiki.openstreetmap.org/wiki/Simple_Indoor_Tagging)),
-rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `cd1e955`
-(`git show cd1e955:<path>`), to be tagged `legacy-v1.0.16`.
+A new client-only indoor editor for OpenStreetMap ([Simple Indoor Tagging](https://wiki.openstreetmap.org/wiki/Simple_Indoor_Tagging)),
+version 0.1 alpha (`0.1.0-alpha`). It started from OsmInEdit (React 16, Leaflet, 2019), which
+is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<path>`).
 
 ## Goals
 
@@ -42,6 +42,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | V      | Viewer mode (V.1–V.3)                      | Not started |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
 | P5.4b  | Rebase before upload, conflicts            | Not started |
+| W2     | Wiki conformance, November research        | Not started |
 | P6     | Parity and polish                          | Not started |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -237,7 +238,10 @@ After P5.4a (decided ✔), on R5's map shell, in three slices:
    OpenLevelUp).
 3. **V.3 Side panel.** Search over names and refs, a room list by level and place details
    (OpenIndoorMaps, OpenLevelUp); rooms coloured by use, counting POIs inside them (a shop node
-   in an untagged room).
+   in an untagged room). The rule, from osm-simple3d-editor: a room or `indoor=area` with no
+   purpose tags takes its colour from the first POI inside it, leaving out doors and
+   entrances, and for areas small things (ATMs, vending machines, benches, kiosks);
+   corridors never do.
 
 Dropped: the temporary "view in 3D" link to osm-simple3d-editor, since 3D.1 follows V. Routing
 (a graph from `highway=footway`/`corridor`, doors, stairs and elevators with their levels;
@@ -271,9 +275,13 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
      on its lowest level only; `repeat_on` on each listed level; stairwells and lifts
      (`stairs=yes`, `room=stairs|elevator`, `highway=elevator`) a landing on each level; an
      escalator area only at the bottom. 2D keeps `isOnLevel`; only 3D uses this.
-   - Atriums: a level's outline minus everything mapped on it, thin leftovers removed by a
-     morphological opening, large pieces with mapped space below them are voids; slabs get
-     holes there.
+   - Atriums (revised 2026-11-05 after the forum, see the research addendum): never infer
+     voids from missing rooms, since mapping is often incomplete and light wells look the same.
+     Every level has a floor and a ceiling by default. Voids are the inner rings of an
+     `indoor=level` multipolygon, and the upper levels of a space with several levels
+     (`level=0;1`). `ceiling=no` on a room open to the level above is being discussed in
+     [t/149582](https://community.openstreetmap.org/t/indoor-tagging-lack-of-floor/149582):
+     read it once agreed, don't write it before.
    - Ranges stay ranges (`levels.ts`); don't port its parser, which expands ranges to integers.
    - Revised 2026-10-28 (its `src/osm/levels.ts` and real-data survey): `height` on
      `indoor=level` is that level's own height, not its floor elevation; a floor's elevation is
@@ -284,6 +292,13 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
      `19.6 m` as metres; drop values outside 2–10 m. Basements go down from 0. Never write
      `min_height` on `indoor=level` (undocumented). A level's outline is the 2D section of the
      union of the building parts that exist at its height.
+
+   - Never write a derived or estimated `height` (the forum asked osm-simple3d-editor to stop,
+     and it did): show estimates in grey, write only what the user types. A length tag that
+     already has a unit (`3 ft`) keeps it. Underground: a level whose floor is below zero is
+     underground even when its ceiling is above ground; leave `building:part=steps` out of a
+     basement's outline; `building:levels:underground` must be a whole number of 0 or more.
+     Entrances with a `level` sit at that level's floor.
 
    Renderer: fill-extrusion can't cut door openings into walls, slope escalators or put holes
    in slabs. osm-simple3d-editor does all three in a three.js custom layer, at the cost of a
@@ -302,21 +317,50 @@ After 3D. Autosave, P5.4's first step, moved to P5.4a; steps 2 to 4 stay here.
    taken from the base when uploading; a conflict dialog (keep mine, take theirs, per entity).
 4. After upload, uploaded entities take the uploader and the time.
 
+Also: read the OSM API with `cache: "no-store"`, so the browser can't hand back an older
+version of an entity (osm-simple3d-editor issue #47), and warn when restored edits are based on
+versions older than the server's.
+
+### W2: Wiki conformance from the November research — S–M
+
+Proposed 2026-11-05, not yet scheduled (from the osm-simple3d-editor research addendum):
+
+- Escalators: both end levels in `level`, `incline=up|down`, two-point lines only, slope 15–38°
+  on the inclined part (stairs 20–45°), each end inside a room, corridor or level outline of
+  its level; say when level heights are estimates.
+- Stairs and escalators with `level` over three or more levels: warn, with a fix that splits
+  them into pairs of adjacent levels.
+- `room=reception` wants `amenity=reception_desk`, `room=dressing` wants
+  `amenity=dressing_room`. Check the wiki before treating `room=service|technical` as
+  outdated (osm-simple3d-editor maps them to `room=utility`; iD doesn't).
+- Doors on an `indoor=wall` area: the approved
+  [proposal](https://wiki.openstreetmap.org/wiki/Proposal:Allow_area%3Dyes_for_indoor%3Dwall)
+  allows them when the door is also on a room's outline. Reword `issue_door_on_wall_area` to
+  say so; still flag, don't cut the wall. Add a test that a closed `indoor=wall` without
+  `area=yes` stays a line.
+- Keep the `building:part` + `indoor` warning (the forum agrees), but draw such a feature on its
+  level as indoor.
+- Degenerate rings: also require the ring to be narrow for its size, so small posts aren't
+  flagged.
+
 ### P6: Parity and polish — M
 
-- Translations with Paraglide (one module per locale), migrating 1.x's (en, fr, de, it, hu,
-  cs, es); preset and field names from the schema; plurals and dates from `Intl`.
+- Translations with Paraglide (one module per locale), starting from OsmInEdit's (en, fr, de,
+  it, hu, cs, es); preset and field names from the schema; plurals and dates from `Intl`.
 - Shortcuts help (from the keymap), help pages, indoor= preview (origin-checked
   `postMessage`), README and usage docs.
-- Reach: userscripts adding "Open in IndoorID" to openstreetmap.org and OSMCha (as
+- Reach: userscripts adding "Open in IndoorID" to openstreetmap.org, OSMCha and indoor= (as
   osm-simple3d-editor does); a read-only `?source=josm` that reads JOSM's active layer,
   unsaved edits included, from Remote Control `GET http://127.0.0.1:8111/export` (JOSM
   r19425+, "Export data" permission), upload disabled.
 - Left over from P5.3: a right-click operations menu; the read-only hover preview in the
   Inspector (tried, dropped because the side panel opened and closed as the pointer crossed
   features); validation in idle time.
-- Release: an e2e checklist of 1.x features, `LICENSE` (ISC notice for ported code), the
-  `legacy-v1.0.16` tag.
+- Left over from geometry editing (from osm-simple3d-editor): a multipolygon left with one
+  outer way and no holes becomes a tagged way again on upload; tracing along existing
+  outlines; removing a way's last vertices deletes the way.
+- Release 0.1 alpha: an e2e checklist of the features it ships with, and an announcement as a
+  new editor.
 
 ### Decisions taken with the user ✔
 
@@ -326,11 +370,14 @@ After 3D. Autosave, P5.4's first step, moved to P5.4a; steps 2 to 4 stay here.
 - Vector plan text as map labels from pdf.js's text content.
 - Component tests in Vitest browser mode.
 - CI stays on `master` and pull requests (no runs on branch pushes).
-- No rewrite after the October research; the viewer (V) and 3D floors come after geometry
+- No broad refactor after the October research; the viewer (V) and 3D floors come after geometry
   editing (P5.3).
 - After the P5.3 review (2026-10-29): R4 and R5 first, autosave (P5.4a) before V and 3D, V in
   three slices, 3D level heights (3D.3) before walls and stacked floors (3D.2), the rest of
   P5.4 after 3D; finished phases moved to `docs/history.md`.
+- 2026-11-05: IndoorID is presented as a new editor, not a rewrite. Version `0.1.0-alpha`
+  (was shown as "2.0 preview"); OsmInEdit is credited as a source in the README and
+  `LICENSE.md`, which keeps its ISC notice for the icons and help images that came from it.
 
 ## Testing strategy
 
@@ -350,12 +397,12 @@ After 3D. Autosave, P5.4's first step, moved to P5.4a; steps 2 to 4 stay here.
 | Upstream preset gaps and version churn             | Pin the schema version; local overlay                                                      |
 | OAuth redirect URIs per domain                     | Separate client ids per deployment in `config.json`                                        |
 | Biome's Svelte support is still experimental       | Keep `svelte-check` in CI; fall back to Prettier for `.svelte` if formatting breaks markup |
-| Losing 1.x features                                | Legacy code kept at `cd1e955`; P6 parity checklist                                         |
+| Missing features OsmInEdit users expect            | Its code at `cd1e955` to look at; P6 release checklist                                     |
 | GPU float32 precision for plans in Web Mercator    | Combine transform and camera in float64 on the CPU, relative to the plan's centre          |
 | Refactors (R0–R2) breaking working features        | One refactor per slice, e2e suite green before and after, no behaviour change mixed in     |
 
 ## Open questions
 
-- ~~**License.**~~ Settled 2026-10-28 with the owner: ISC. `LICENSE.md` restored (the 1.x
-  notice plus ours) and `package.json` says `ISC`. Keep the ISC notice with ported code.
-- **Legacy tag.** `legacy-v1.0.16` has to be pushed from a machine with tag permissions.
+- ~~**License.**~~ Settled 2026-10-28 with the owner: ISC, and `package.json` says `ISC`.
+  Since 2026-11-05 `LICENSE.md` names IndoorID's contributors, with OsmInEdit's notice under
+  "Third-party notices" for the assets that came from it.

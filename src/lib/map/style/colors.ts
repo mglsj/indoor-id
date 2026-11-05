@@ -1,5 +1,5 @@
 /**
- * Colours of indoor features, after the 1.x stylesheet: neutral greys for spaces, dark walls,
+ * Colours of indoor features, after the OsmInEdit stylesheet: neutral greys for spaces, dark walls,
  * blue for stairs and elevators, green for doors. Fills stay translucent so floor plans and
  * imagery underneath remain visible.
  */
