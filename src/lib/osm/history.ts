@@ -4,9 +4,14 @@ import type { Graph } from "./graph.ts";
 /** A change to the graph. Actions are pure: they return a new graph. */
 export type Action = (graph: Graph) => Graph;
 
-interface Step<A> {
+/** One undo step: its graph, label, what it changed and what was selected on it. */
+export interface Step<A> {
 	readonly graph: Graph;
 	readonly annotation: A | null;
+	/** The entities the step changed from the one before (what a saved step holds). */
+	readonly changed: readonly EntityId[];
+	/** The features selected while the step was the current one, last. */
+	readonly selected: readonly EntityId[];
 }
 
 /** Undo/redo as a list of graph snapshots, each labelled with an annotation (`A`). */
@@ -20,8 +25,37 @@ export class History<A = string> {
 	#server: Graph;
 
 	constructor(base: Graph) {
-		this.#steps = [{ graph: base, annotation: null }];
+		this.#steps = [
+			{ graph: base, annotation: null, changed: [], selected: [] },
+		];
 		this.#server = base.base();
+	}
+
+	/** A history of saved steps (`history-json.ts`), the first one without edits. */
+	static fromSteps<A>(steps: readonly Step<A>[], index: number): History<A> {
+		const first = steps[0];
+		if (!first) throw new Error("A history needs a first step");
+		const history = new History<A>(first.graph);
+		history.#steps = [...steps];
+		history.#index = Math.max(0, Math.min(index, steps.length - 1));
+		return history;
+	}
+
+	/** Every step, first the one without edits, and the index of the current one. */
+	get steps(): { readonly steps: readonly Step<A>[]; readonly index: number } {
+		return { steps: this.#steps, index: this.#index };
+	}
+
+	/** The features selected on the current step. */
+	get selected(): readonly EntityId[] {
+		return this.#current.selected;
+	}
+
+	/** Records the selection on the current step, for undo, redo and a restore to select again. */
+	select(ids: readonly EntityId[]): void {
+		const step = this.#current;
+		if (sameIds(step.selected, ids)) return;
+		this.#steps[this.#index] = { ...step, selected: [...ids] };
 	}
 
 	get graph(): Graph {
@@ -48,10 +82,12 @@ export class History<A = string> {
 	/** Applies an action, labelled for the undo button, and drops anything that could be redone. */
 	perform(action: Action, annotation: A): Graph {
 		const graph = this.graph.update(action);
+		const changed = [...graph.changedSince(this.graph)];
 		// An action that changed nothing makes no step to undo.
-		if (sameGraph(graph, this.graph)) return this.graph;
+		if (sameEntities(changed, graph, this.graph)) return this.graph;
+		const { selected } = this.#current;
 		this.#steps = this.#steps.slice(0, this.#index + 1);
-		this.#steps.push({ graph, annotation });
+		this.#steps.push({ graph, annotation, changed, selected });
 		this.#index++;
 		return graph;
 	}
@@ -67,9 +103,12 @@ export class History<A = string> {
 			return this.perform(action, annotation);
 		}
 		const graph = step.graph.update(action);
+		const changed = [
+			...new Set([...step.changed, ...graph.changedSince(step.graph)]),
+		];
 		this.#steps = [
 			...this.#steps.slice(0, this.#index),
-			{ graph, annotation: step.annotation },
+			{ ...step, graph, changed },
 		];
 		return graph;
 	}
@@ -133,9 +172,17 @@ export class History<A = string> {
 	}
 }
 
-/** Whether two graphs hold the same entities, as copies or as the same objects. */
-function sameGraph(a: Graph, b: Graph): boolean {
-	for (const id of a.changedSince(b)) {
+function sameIds(a: readonly EntityId[], b: readonly EntityId[]): boolean {
+	return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
+/** Whether two graphs hold the same `changed` entities, as copies or as the same objects. */
+function sameEntities(
+	changed: readonly EntityId[],
+	a: Graph,
+	b: Graph,
+): boolean {
+	for (const id of changed) {
 		const [x, y] = [a.entity(id), b.entity(id)];
 		if (!x || !y || x.version !== y.version || !sameContent(x, y)) return false;
 	}
