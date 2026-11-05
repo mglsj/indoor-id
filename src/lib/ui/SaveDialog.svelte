@@ -48,7 +48,7 @@
 		| { kind: "signing-in"; cancel: AbortController }
 		| { kind: "uploading" }
 		| { kind: "done"; changesetId: number; notDeleted: readonly string[] }
-		| { kind: "error"; message: string }
+		| { kind: "error"; message: string; uploaded?: number }
 	>({ kind: "form" });
 
 	const issues = $derived(editor.editIssues);
@@ -92,7 +92,14 @@
 			if (phase.kind === "form") return;
 			if (error instanceof OsmApiError && error.kind === "auth")
 				session.logout();
-			phase = { kind: "error", message: explain(error) };
+			phase = {
+				kind: "error",
+				message: explain(error),
+				uploaded:
+					error instanceof OsmApiError && error.kind === "uploaded"
+						? error.changesetId
+						: undefined,
+			};
 		}
 	}
 
@@ -119,6 +126,12 @@
 				return "OpenStreetMap is limiting requests right now. Wait a moment and try again.";
 			case "network":
 				return "OpenStreetMap could not be reached. Check your connection and try again.";
+			case "uploaded":
+				return t(
+					msg("upload_already_uploaded", {
+						changeset: String(error.changesetId ?? ""),
+					}),
+				);
 			default:
 				return error.message;
 		}
@@ -259,7 +272,22 @@
 				{#if phase.kind === "error"}
 					<Alert.Root variant="destructive">
 						<CircleAlert />
-						<Alert.Description>{phase.message}</Alert.Description>
+						<Alert.Description>
+							{phase.message}
+							{#if phase.uploaded !== undefined}
+								<Button
+									variant="outline"
+									size="sm"
+									class="mt-2"
+									onclick={() => {
+										editor.sync.discard();
+										open = false;
+									}}
+								>
+									{t(msg("upload_start_over"))}
+								</Button>
+							{/if}
+						</Alert.Description>
 					</Alert.Root>
 				{/if}
 

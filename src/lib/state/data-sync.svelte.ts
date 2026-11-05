@@ -4,7 +4,7 @@
  */
 import { MAX_CHANGESET_CHANGES } from "#lib/api/changeset.ts";
 import { MapLoader, type MapLoaderOptions } from "#lib/api/map-loader.ts";
-import type { Bbox, OsmApi } from "#lib/api/osm-api.ts";
+import { type Bbox, type OsmApi, OsmApiError } from "#lib/api/osm-api.ts";
 import { MessageError, msg } from "#lib/i18n/messages.ts";
 import type { Entity, EntityId, RelationId } from "#lib/osm/entity.ts";
 import type { Tags } from "#lib/osm/tags.ts";
@@ -96,6 +96,13 @@ export class DataSync {
 		}
 	}
 
+	/**
+	 * The changeset of the last upload that failed, until one goes through: the failure may
+	 * have lost only the answer, so the next upload checks it first (`OsmApi.upload`'s
+	 * `retryOf`). Autosaved with the edits.
+	 */
+	failedChangeset = $state<number | undefined>();
+
 	/** True while an upload is under way. */
 	get uploading(): boolean {
 		return this.#uploading !== null;
@@ -117,10 +124,18 @@ export class DataSync {
 		}
 		this.#history.lock();
 		this.#loader.pause();
-		const uploading = this.#api.upload(this.#history.graph, changesetTags);
+		const uploading = this.#api.upload(this.#history.graph, changesetTags, {
+			retryOf: this.failedChangeset,
+		});
 		this.#uploading = uploading;
 		try {
-			const result = await uploading;
+			const result = await uploading.catch((error: unknown) => {
+				if (error instanceof OsmApiError && error.changesetId !== undefined) {
+					this.failedChangeset = error.changesetId;
+				}
+				throw error;
+			});
+			this.failedChangeset = undefined;
 			this.#generation++;
 			this.#loader.reset();
 			this.#selection.remap(result.idMap);
@@ -134,6 +149,17 @@ export class DataSync {
 			this.#history.unlock();
 			this.#loader.resume();
 		}
+	}
+
+	/**
+	 * Drops the edits and downloads the data again: what a retry does when the server already
+	 * has the upload (`uploaded`).
+	 */
+	discard(): void {
+		this.failedChangeset = undefined;
+		this.#generation++;
+		this.#loader.reset();
+		this.#history.reset(this.#history.graph.base());
 	}
 
 	#receive(entities: Entity[]): void {

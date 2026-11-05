@@ -26,6 +26,8 @@ export type OsmApiErrorKind =
 	| "precondition"
 	| "rate-limit"
 	| "server"
+	/** A retry found the earlier upload in its changeset: its answer was lost, not the data. */
+	| "uploaded"
 	| "other";
 
 export class OsmApiError extends Error {
@@ -88,13 +90,35 @@ export class OsmApi {
 	 * Uploads the local edits of `graph` in a new changeset, and returns the graph as it is on
 	 * the server afterwards. The changeset is always closed, even when the upload fails.
 	 */
+	/**
+	 * Uploads the graph's changes in a new changeset. `retryOf` is the changeset of an upload
+	 * that failed: when it holds changes, that upload went through and only its answer was lost,
+	 * so nothing is sent again (an error of kind `uploaded`).
+	 */
 	async upload(
 		graph: Graph,
 		changesetTags: Tags,
+		{ retryOf }: { retryOf?: number } = {},
 	): Promise<UploadResult & { changesetId: number }> {
 		if (!graph.hasChanges()) throw new Error("Nothing to upload");
 		const token = this.#getToken();
 		if (!token) throw new OsmApiError("You need to log in to upload", "auth");
+		if (retryOf !== undefined) {
+			const change = await this.#request(
+				"GET",
+				`/changeset/${retryOf}/download`,
+				undefined,
+				token,
+			);
+			if (/<(create|modify|delete)\b/.test(change)) {
+				throw new OsmApiError(
+					`Changeset ${retryOf} already holds the upload`,
+					"uploaded",
+					undefined,
+					retryOf,
+				);
+			}
+		}
 
 		const changesetId = Number(
 			await this.#request(
