@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { changeTags } from "#lib/actions/change-tags.ts";
-import type { Bbox } from "#lib/api/osm-api.ts";
+import { type Bbox, OsmApiError } from "#lib/api/osm-api.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import type { Entity } from "#lib/osm/entity.ts";
 import { node } from "#lib/osm/fixtures.ts";
@@ -85,6 +85,71 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 		expect(history.graph).toBe(uploaded);
 		expect(history.canUndo).toBe(false);
 		expect(selection.ids).toEqual(["n100"]);
+	});
+
+	it("asks a retry to check the changeset of the upload that failed", async () => {
+		const retries: (number | undefined)[] = [];
+		const { history, sync } = setup({
+			upload: async (_graph, _tags, options) => {
+				retries.push(options?.retryOf);
+				throw new OsmApiError("lost", "network", undefined, 41);
+			},
+		});
+		history.perform(
+			(graph) => graph.replace(node("n-1", {}, [0, 0])),
+			msg("undo_add_point"),
+		);
+
+		await sync.upload({ comment: "One" }).catch(() => undefined);
+		expect(sync.failedChangeset).toBe(41);
+		await sync.upload({ comment: "One" }).catch(() => undefined);
+
+		expect(retries).toEqual([undefined, 41]);
+	});
+
+	it("forgets the failed changeset once an upload goes through", async () => {
+		const { history, sync } = setup({
+			upload: async () => ({
+				graph: Graph.fromEntities([]),
+				idMap: new Map(),
+				notDeleted: [],
+				changesetId: 42,
+			}),
+		});
+		sync.failedChangeset = 41;
+		history.perform(
+			(graph) => graph.replace(node("n-1", {}, [0, 0])),
+			msg("undo_add_point"),
+		);
+
+		await sync.upload({ comment: "One" });
+
+		expect(sync.failedChangeset).toBeUndefined();
+	});
+
+	it("drops the edits and downloads again, when the server already has them", async () => {
+		let downloads = 0;
+		const { history, sync } = setup({
+			loadMap: async () => {
+				downloads++;
+				return [{ ...node("n1", { amenity: "toilets" }), version: 2 }];
+			},
+		});
+		await sync.loadView(VIEW, 18);
+		history.perform(
+			changeTags("n1", { amenity: "toilets" }),
+			msg("undo_change_tags"),
+		);
+		sync.failedChangeset = 41;
+
+		sync.discard();
+		await sync.loadView(VIEW, 18);
+
+		expect(history.editCount).toBe(0);
+		expect(history.canUndo).toBe(false);
+		expect(sync.failedChangeset).toBeUndefined();
+		expect(downloads).toBe(2);
+		expect(history.graph.entity("n1")?.version).toBe(2);
 	});
 
 	it("holds edits and downloads while uploading, and downloads again what came before", async () => {

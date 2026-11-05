@@ -305,6 +305,46 @@ describe("upload", () => {
 		expect(requests).toEqual([]);
 	});
 
+	it("on a retry, uploads again when the earlier changeset holds nothing", async () => {
+		const { fetch, requests } = fakeFetch(
+			routes({
+				"GET /api/0.6/changeset/41/download": () =>
+					new Response('<osmChange version="0.6" generator="OSM"/>'),
+			}),
+		);
+		const result = await api(fetch).upload(
+			edited,
+			{ comment: "test" },
+			{ retryOf: 41 },
+		);
+
+		expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual([
+			"GET https://api.example.org/api/0.6/changeset/41/download",
+			"PUT https://api.example.org/api/0.6/changeset/create",
+			"POST https://api.example.org/api/0.6/changeset/42/upload",
+			"PUT https://api.example.org/api/0.6/changeset/42/close",
+		]);
+		expect(result.changesetId).toBe(42);
+	});
+
+	it("on a retry, uploads nothing when the earlier upload went through (its answer was lost)", async () => {
+		const { fetch, requests } = fakeFetch(
+			routes({
+				"GET /api/0.6/changeset/41/download": () =>
+					new Response(`<osmChange version="0.6" generator="OSM">
+						<create><node id="500" version="1" changeset="41" lat="48.86" lon="2.36"><tag k="door" v="yes"/></node></create>
+						<modify><node id="1" version="2" changeset="41" lat="48.85" lon="2.35"><tag k="amenity" v="toilets"/></node></modify>
+					</osmChange>`),
+			}),
+		);
+		const error = await api(fetch)
+			.upload(edited, { comment: "test" }, { retryOf: 41 })
+			.catch((e: unknown) => e);
+
+		expect(error).toMatchObject({ kind: "uploaded", changesetId: 41 });
+		expect(requests.map((r) => r.method)).toEqual(["GET"]);
+	});
+
 	it("reports a rejected login", async () => {
 		const { fetch } = fakeFetch(
 			routes({

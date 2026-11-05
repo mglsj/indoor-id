@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { changeTags } from "#lib/actions/change-tags.ts";
+import { deleteEntities } from "#lib/actions/delete.ts";
 import { moveNode } from "#lib/actions/geometry.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import type { EntityId } from "#lib/osm/entity.ts";
 import { node } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { EditHistory } from "./edit-history.svelte.ts";
+import { Selection } from "./selection.svelte.ts";
 
 /** Two benches, as downloaded. */
 const benches = () =>
@@ -325,5 +327,88 @@ describe("EditHistory.preview: a drag shown live, one undo step on release", () 
 		history.preview(move(1));
 		history.commit(move(1), msg("undo_move_node"));
 		expect(history.graph.entity("n1")).toMatchObject({ loc: [2.35, 48.85] });
+	});
+});
+
+describe("EditHistory with a selection: undo and redo select again, as iD", () => {
+	const selected = () => {
+		const selection = new Selection();
+		const history = new EditHistory(
+			Graph.fromEntities([
+				node("n1", { amenity: "bench" }),
+				node("n2", { amenity: "bench" }),
+			]),
+			{ selection },
+		);
+		return { history, selection };
+	};
+
+	it("selects again a feature whose delete is undone", () => {
+		const { history, selection } = selected();
+		selection.select("n2");
+		history.perform(deleteEntities(["n2"]), msg("undo_delete"));
+		selection.select(null);
+
+		history.undo();
+
+		expect(selection.ids).toEqual(["n2"]);
+	});
+
+	it("selects what was selected before the undone step, and the redone step's again", () => {
+		const { history, selection } = selected();
+		selection.select("n1");
+		history.setTags("n1", { amenity: "bench", name: "One" });
+		selection.select("n2");
+		history.setTags("n2", { amenity: "bench", name: "Two" });
+
+		history.undo();
+		expect(selection.ids).toEqual(["n2"]);
+		history.undo();
+		expect(selection.ids).toEqual(["n1"]);
+		history.redo();
+		history.redo();
+		expect(selection.ids).toEqual(["n2"]);
+	});
+
+	it("leaves out features the step it goes to doesn't have", () => {
+		const { history, selection } = selected();
+		selection.select(["n1", "n2"]);
+		history.perform(deleteEntities(["n2"]), msg("undo_delete"));
+		history.undo();
+		expect(selection.ids).toEqual(["n1", "n2"]);
+
+		history.redo();
+
+		expect(selection.ids).toEqual(["n1"]);
+	});
+});
+
+describe("EditHistory.save and restore: autosaved edits back over newer downloads", () => {
+	it("restores the steps and the selection, over the data downloaded meanwhile", () => {
+		const selection = new Selection();
+		const before = new EditHistory(
+			Graph.fromEntities([node("n1", { amenity: "bench" })]),
+			{ selection },
+		);
+		selection.select("n1");
+		before.setTags("n1", { amenity: "bench", name: "Saved" });
+		const saved = JSON.parse(JSON.stringify(before.save()));
+
+		const after = new Selection();
+		const history = new EditHistory(Graph.fromEntities([]), {
+			selection: after,
+		});
+		history.merge([
+			node("n1", { amenity: "bench" }),
+			node("n2", { amenity: "toilets" }),
+		]);
+		history.restore(saved);
+
+		expect(tagsOf(history, "n1")).toEqual({ amenity: "bench", name: "Saved" });
+		expect(tagsOf(history, "n2")).toEqual({ amenity: "toilets" });
+		expect(history.editCount).toBe(1);
+		expect(after.ids).toEqual(["n1"]);
+		history.undo();
+		expect(tagsOf(history, "n1")).toEqual({ amenity: "bench" });
 	});
 });

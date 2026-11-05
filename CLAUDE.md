@@ -133,7 +133,13 @@ runs the same commands.
   `MessageError`s. Add the English to `messages/en.json` (snake_case keys, `{param}`
   placeholders), then `bun run messages` (it also runs on install) to update the typed
   `i18n/generated/en.ts`.
-- Planned modules (see plan.md): `persist/autosave` (P5.4a). Pure modules (`osm`, `levels`,
+- Autosave (P5.4a): `osm/history-json.ts` (`saveHistory`/`restoreHistory`: base versions and
+  each step's changes, label and selection), `persist/autosave.ts` (`Autosave`: a record per
+  tab, the heartbeat lock; tested on fake-indexeddb), `state/autosave.svelte.ts`
+  (`EditAutosave`: saves after changes, offers found edits with `ui/RestoreDialog.svelte`).
+  `EditHistory` takes the `Selection`: steps record it, undo and redo select it again. A failed
+  upload's changeset (`DataSync.failedChangeset`) is checked by the next upload (`retryOf`).
+  E2E tests open a second tab with `context.newPage()` and `blockExternal()`. Pure modules (`osm`, `levels`,
   `actions`, `presets`, `validation`, `floorplans/georef`, `floorplans/plan-file`,
   `floorplans/tiling`) must not touch the DOM or Svelte.
 

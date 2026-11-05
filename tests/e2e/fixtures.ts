@@ -23,21 +23,28 @@ export const blankStyle = {
 /** Serves the basemap style from a fixture and blocks every other external request. */
 export const test = base.extend({
 	page: async ({ page }, use) => {
-		await page.route(
-			(url) => url.hostname !== "localhost",
-			(route) => {
-				const url = route.request().url();
-				if (url.includes("/styles/"))
-					return route.fulfill({ json: blankStyle });
-				if (url.includes("/api/0.6/map.json")) {
-					return route.fulfill({ json: { version: "0.6", elements: [] } });
-				}
-				return route.abort();
-			},
-		);
+		await blockExternal(page);
 		await use(page);
 	},
 });
+
+/**
+ * What the `page` fixture does to its page, for another page of the test (`context.newPage()`):
+ * blocks external requests, serving a blank basemap style and an empty OSM area.
+ */
+export async function blockExternal(page: Page) {
+	await page.route(
+		(url) => url.hostname !== "localhost",
+		(route) => {
+			const url = route.request().url();
+			if (url.includes("/styles/")) return route.fulfill({ json: blankStyle });
+			if (url.includes("/api/0.6/map.json")) {
+				return route.fulfill({ json: { version: "0.6", elements: [] } });
+			}
+			return route.abort();
+		},
+	);
+}
 
 export { expect };
 

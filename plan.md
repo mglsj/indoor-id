@@ -38,7 +38,7 @@ rewritten from OsmInEdit 1.0.16 (React 16, Leaflet, 2019). Legacy code: commit `
 | P5.3   | Geometry editing                           | Done        |
 | R4     | Fixes after P5.3 (review)                  | Done        |
 | R5     | Map shell split (review)                   | Done        |
-| P5.4a  | Autosave and restore                       | Not started |
+| P5.4a  | Autosave and restore                       | In progress |
 | V      | Viewer mode (V.1–V.3)                      | Not started |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
 | P5.4b  | Rebase before upload, conflicts            | Not started |
@@ -200,6 +200,24 @@ Before V and 3D (decided ✔). From P5.4's first step:
   osm-simple3d-editor's lighter lock, one record per tab id (kept in `sessionStorage`, so a
   reload finds it) plus a `localStorage` heartbeat every 5 s; a record silent for 20 s belongs
   to a closed tab and a new tab may restore it.
+  Autosave done ✅ (the first PR; the unmapped floor follows as its own):
+  `osm/history-json.ts` saves the downloaded versions of the entities edited, then each step as
+  what it changed (`Step.changed`, kept when the step is made, so a save costs the edits, not
+  the data), its label and its selection; `restoreHistory` replays them and the data downloaded
+  since is merged on top (a newer version of an edited entity is a conflict). The next id isn't
+  saved: replaying gives one below every new entity. Downloads merge into the server data once
+  and each step is rebased when next shown: a tile under 10,000 steps went from 939 ms to 1.3 ms
+  (the conflict check asks the last step, which holds every entity edited in any).
+  `persist/autosave.ts`: one IndexedDB record per tab (`indoorid-edits`), the tab id in
+  `sessionStorage`, a `localStorage` heartbeat every 5 s, records silent for 20 s claimable in
+  one transaction. `state/autosave.svelte.ts` saves a second after each change and when the tab
+  is hidden, and nothing before the edits found on start are restored or discarded
+  (`ui/RestoreDialog.svelte`). Steps record the selection while current; undo and redo select it
+  again, without what the step doesn't have. A failed upload's changeset is kept
+  (`DataSync.failedChangeset`, autosaved too) and the next upload downloads it first
+  (`OsmApi.upload`'s `retryOf`): when it holds changes the upload went through, nothing is sent,
+  and the Save dialog offers Start over (`DataSync.discard`).
+
 - Then, as an editing feature: **unmapped floor** (from osm-simple3d-editor's lessons, not
   built in P5.3): a click on floor outside any room selects the level outline minus its rooms,
   corridors and areas; tagging it creates an `indoor=area` on the shown level, sharing nodes
