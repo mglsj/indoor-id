@@ -13,9 +13,15 @@ interface Step<A> {
 export class History<A = string> {
 	#steps: Step<A>[];
 	#index = 0;
+	/**
+	 * The latest server data. A merge only replaces it: each step is rebased onto it when next
+	 * shown (`#at`), so a download under 10,000 steps doesn't rebase them all (R4.4).
+	 */
+	#server: Graph;
 
 	constructor(base: Graph) {
 		this.#steps = [{ graph: base, annotation: null }];
+		this.#server = base.base();
 	}
 
 	get graph(): Graph {
@@ -74,24 +80,22 @@ export class History<A = string> {
 	 * taken: the local edit stays, the upload will be refused for it, and it is reported here.
 	 */
 	merge(entities: Iterable<Entity>): { conflicts: EntityId[] } {
-		const base = this.base;
+		const base = this.#server;
+		// Each step is made from the one before, so the last one has every entity edited in any.
+		const last = this.#steps[this.#steps.length - 1] as Step<A>;
 		const accepted: Entity[] = [];
 		const conflicts: EntityId[] = [];
 		for (const entity of entities) {
 			const known = base.entity(entity.id);
 			if (known && (known.version ?? 0) >= (entity.version ?? 0)) continue;
-			if (this.#steps.some((step) => step.graph.isEdited(entity.id))) {
+			if (last.graph.isEdited(entity.id)) {
 				conflicts.push(entity.id);
 			} else {
 				accepted.push(entity);
 			}
 		}
 		if (accepted.length > 0) {
-			const merged = base.withBaseEntities(accepted);
-			this.#steps = this.#steps.map((step) => ({
-				...step,
-				graph: step.graph.rebaseOnto(merged),
-			}));
+			this.#server = base.withBaseEntities(accepted).base();
 		}
 		return { conflicts };
 	}
@@ -112,11 +116,20 @@ export class History<A = string> {
 	}
 
 	get #current(): Step<A> {
-		return this.#steps[this.#index] as Step<A>;
+		return this.#at(this.#index);
 	}
 
 	get #first(): Step<A> {
-		return this.#steps[0] as Step<A>;
+		return this.#at(0);
+	}
+
+	/** Step `index`, rebased onto the latest server data first if a merge came since. */
+	#at(index: number): Step<A> {
+		const step = this.#steps[index] as Step<A>;
+		if (step.graph.base() === this.#server) return step;
+		const rebased = { ...step, graph: step.graph.rebaseOnto(this.#server) };
+		this.#steps[index] = rebased;
+		return rebased;
 	}
 }
 
