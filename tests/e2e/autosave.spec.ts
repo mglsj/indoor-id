@@ -8,6 +8,7 @@ import {
 	mapCenter,
 	mapDrawn,
 	room,
+	savedTabs,
 	serveOsm,
 	test,
 } from "./fixtures.ts";
@@ -29,26 +30,6 @@ async function addPoint(page: Page) {
 	await page.mouse.click(x, y);
 	await expect(page.getByTestId("edit-count")).toHaveText("1");
 	await expect.poll(() => savedTabs(page)).toBe(1);
-}
-
-/** How many tabs have edits saved in this browser. */
-function savedTabs(page: Page): Promise<number> {
-	return page.evaluate(
-		() =>
-			new Promise<number>((resolve, reject) => {
-				const open = indexedDB.open("indoorid-edits");
-				open.onerror = () => reject(open.error);
-				open.onsuccess = () => {
-					const db = open.result;
-					if (!db.objectStoreNames.contains("edits")) return resolve(0);
-					const count = db.transaction("edits").objectStore("edits").count();
-					count.onsuccess = () => {
-						resolve(count.result);
-						db.close();
-					};
-				};
-			}),
-	);
 }
 
 test("edits come back after a reload, to undo as before", async ({ page }) => {

@@ -350,3 +350,36 @@ export async function tagsBox(page: Page): Promise<Locator> {
 	if ((await text.getAttribute("aria-checked")) !== "true") await text.click();
 	return root.getByRole("textbox", { name: "Tags", exact: true });
 }
+
+/** How many tabs have edits saved in this browser. */
+export function savedTabs(page: Page): Promise<number> {
+	return page.evaluate(
+		() =>
+			new Promise<number>((resolve, reject) => {
+				const open = indexedDB.open("indoorid-edits");
+				open.onerror = () => reject(open.error);
+				open.onsuccess = () => {
+					const db = open.result;
+					if (!db.objectStoreNames.contains("edits")) return resolve(0);
+					const count = db.transaction("edits").objectStore("edits").count();
+					count.onsuccess = () => {
+						resolve(count.result);
+						db.close();
+					};
+				};
+			}),
+	);
+}
+
+/**
+ * Reloads once the edits are autosaved, and discards them when they are offered back: for
+ * tests that reload to check something kept apart from the edits.
+ */
+export async function reloadDiscardingEdits(page: Page): Promise<void> {
+	await expect.poll(() => savedTabs(page)).toBe(1);
+	await page.reload();
+	await page
+		.getByRole("alertdialog", { name: "Restore your unsaved edits?" })
+		.getByRole("button", { name: "Discard" })
+		.click();
+}
