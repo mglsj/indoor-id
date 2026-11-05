@@ -283,7 +283,29 @@ describe("buildFeatures", () => {
 		];
 		const { levels } = featuresOf(entities);
 		expect(levels).toEqual([0, 1]);
-		expect(feature(entities, "w1")?.properties["@lv"]).toBe(";0;1;");
+		const floors = Array.from({ length: 25 }, (_, i) => i).join(";");
+		expect(feature(entities, "w1")?.properties["@lv"]).toBe(`;${floors};`);
+	});
+
+	it("draws a building on all its building:levels above the listed ones", () => {
+		// The switcher lists 0 to 5 (4 filled in between); the building counts 6 floors.
+		const entities = [
+			...square(1, 0, 0),
+			way("w1", ring(1), { building: "yes", "building:levels": "6" }),
+			node("n5", { amenity: "toilets", level: "0;1;2;3" }),
+			node("n6", { amenity: "toilets", level: "5" }),
+		];
+		expect(feature(entities, "w1")?.properties["@lv"]).toBe(";0;1;2;3;4;5;");
+		expect(feature(entities, "n5")?.properties["@lv"]).toBe(";0;1;2;3;");
+	});
+
+	it("doesn't fill a building's levels from an unreadably large count", () => {
+		const entities = [
+			...square(1, 0, 0),
+			way("w1", ring(1), { building: "yes", "building:levels": "100000" }),
+			node("n5", { amenity: "toilets", level: "2" }),
+		];
+		expect(feature(entities, "w1")?.properties["@lv"]).toBe(";2;");
 	});
 
 	it("draws a bare multipolygon (tags on its outer way) once, as that way", () => {

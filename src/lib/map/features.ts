@@ -199,10 +199,27 @@ export function levelFilter(level: number): FilterSpecification {
 	];
 }
 
+/** No feature fills more whole levels than this from its own ranges (a stray `level=0-1e9`). */
+const MAX_OWN_LEVELS = 250;
+
+/**
+ * The known levels a feature is on, plus the whole levels inside its own ranges: the shown
+ * level may be one no listed feature is on (a building's `building:levels`, a level the
+ * switcher fills between others, or one stepped to with nothing listed in view), and a
+ * building counting 6 floors is still drawn on its 5th.
+ */
 function encodeLevels(levels: Levels | null, known: readonly number[]): string {
 	if (!levels) return "*";
-	return `;${known
-		.filter((l) => isOnLevel(levels, l))
+	const on = new Set(known.filter((l) => isOnLevel(levels, l)));
+	for (const { min, max } of levels) {
+		if (max - min > MAX_OWN_LEVELS) continue;
+		on.add(min);
+		on.add(max);
+		for (let l = Math.ceil(min); l <= Math.floor(max); l++) on.add(l);
+	}
+	return `;${[...on]
+		.map((l) => (Object.is(l, -0) ? 0 : l))
+		.sort((a, b) => a - b)
 		.map(String)
 		.join(";")};`;
 }
