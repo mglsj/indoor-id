@@ -37,6 +37,27 @@ describe("LevelControl", () => {
 			.toBeInTheDocument();
 	});
 
+	it("labels unnamed levels as floors when given a numbering", async () => {
+		renderWithTooltips(LevelControl, {
+			level: 0,
+			levels: [{ level: -1 }, { level: 0 }, { level: 1, ref: "M" }],
+			numbering: "from-0" as const,
+		});
+		await expect.element(radios().first()).toBeInTheDocument();
+		expect(
+			radios()
+				.elements()
+				.map((r) => r.textContent?.trim()),
+		).toEqual(["M", "G", "-1"]);
+		await expect
+			.element(
+				page.getByRole("radio", {
+					name: "Level 0: G · Ground floor · level 0",
+				}),
+			)
+			.toBeChecked();
+	});
+
 	it("shortens long names on the buttons", async () => {
 		renderWithTooltips(LevelControl, {
 			level: 0,

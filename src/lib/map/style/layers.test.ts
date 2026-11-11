@@ -108,3 +108,61 @@ describe("indoorLayers", () => {
 		]);
 	});
 });
+
+describe("indoorLayers: presentation and theme", () => {
+	const paint = (layers: ReturnType<typeof indoorLayers>, id: string) =>
+		layers.find((l) => l.id === id)?.paint as Record<string, unknown>;
+
+	it("draws dark colours for a dark map", () => {
+		const light = JSON.stringify(paint(indoorLayers(0), "indoor-fill"));
+		const dark = JSON.stringify(
+			paint(indoorLayers(0, { theme: "dark" }), "indoor-fill"),
+		);
+		expect(light).toContain("#d6d1c7");
+		expect(dark).not.toContain("#d6d1c7");
+		expect(dark).toContain("#4a463f");
+		expect(
+			paint(indoorLayers(0, { theme: "dark" }), "indoor-labels")["text-color"],
+		).toBe("#eeeeee");
+	});
+
+	it("draws rooms nearly opaque in the viewer, translucent in the editor", () => {
+		const opacity = (presentation: "edit" | "view") =>
+			paint(indoorLayers(0, { presentation }), "indoor-fill")["fill-opacity"];
+		expect(opacity("edit")).toEqual([
+			"match",
+			["get", "@kind"],
+			"building",
+			0.5,
+			"wall",
+			0.9,
+			0.8,
+		]);
+		expect(opacity("view")).toEqual([
+			"match",
+			["get", "@kind"],
+			"building",
+			0.85,
+			0.95,
+		]);
+	});
+
+	it("is a valid style in every presentation and theme", () => {
+		for (const presentation of ["edit", "view"] as const) {
+			for (const theme of ["light", "dark"] as const) {
+				const style: StyleSpecification = {
+					version: 8,
+					glyphs: "https://example.org/fonts/{fontstack}/{range}.pbf",
+					sources: {
+						[INDOOR_SOURCE]: {
+							type: "geojson",
+							data: { type: "FeatureCollection", features: [] },
+						},
+					},
+					layers: indoorLayers(0, { presentation, theme }),
+				};
+				expect(validateStyleMin(style)).toEqual([]);
+			}
+		}
+	});
+});

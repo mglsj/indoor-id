@@ -128,6 +128,14 @@ runs the same commands.
   a selected feature moves the selection (`edit/feature-drag.ts`). Spatial checks (P5.3.9) are
   `validation/spatial.ts`; `BLOCKING_RULES` stop the upload; `Editor.editIssues` leaves out
   the warnings the downloaded data had (a second `Validator` on `graph.base()`).
+- Viewer (V.1): `/view` is `ui/ViewerView.svelte` on `MapShell` (`presentation="view"`,
+  `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`
+  laid over its answers (the editor records each upload through `onupload`); a click shows
+  `ui/FeatureCard.svelte`. Both pages render inside `ui/AppPage.svelte` (header, config).
+  `indoorLayers(level, { presentation, theme })`: colours from `style/colors.ts`
+  (`indoorColors(theme)`), applied with `IndoorMap.setLook`. Floor labels for unnamed levels:
+  `levels/floor-numbering.ts`. E2E tests serve Overpass with `serveOverpass()` in
+  `viewer.spec.ts`.
 - Messages (R1.7): text shown to users is a `Message` made with `msg("key", {params})` from
   `i18n/messages.ts` and rendered with `t()` in components; errors shown to users are
   `MessageError`s. Add the English to `messages/en.json` (snake_case keys, `{param}`

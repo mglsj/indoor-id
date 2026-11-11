@@ -11,12 +11,20 @@ import type {
 	GeoJSONSource,
 	Map as MapLibreMap,
 } from "./maplibre.ts";
+import type { Theme } from "./style/colors.ts";
 import { loadIconsOnDemand } from "./style/icons.ts";
 import {
 	INDOOR_SOURCE,
 	indoorLayers,
+	type Presentation,
 	SELECTABLE_LAYER_IDS,
 } from "./style/layers.ts";
+
+/** How the indoor layers look: for editing or viewing, on a light or dark map. */
+export interface IndoorLook {
+	readonly presentation: Presentation;
+	readonly theme: Theme;
+}
 
 /** The slot of each indoor layer: fills under floor plans, outlines and lines over them,
  * doors, labels and the selection over the basemap's labels. */
@@ -51,6 +59,7 @@ export class IndoorMap {
 	#hover: readonly string[] = [];
 	#planMode = false;
 	#buildingsVisible = true;
+	#look: IndoorLook = { presentation: "edit", theme: "light" };
 
 	constructor(map: MapLibreMap) {
 		this.#map = map;
@@ -87,9 +96,30 @@ export class IndoorMap {
 	setLevel(level: number): void {
 		this.#level = level;
 		if (!this.#ready) return;
-		for (const layer of indoorLayers(level)) {
+		for (const layer of indoorLayers(level, this.#look)) {
 			if ("filter" in layer && layer.filter) {
 				this.#map.setFilter(layer.id, layer.filter as FilterSpecification);
+			}
+		}
+	}
+
+	/** Draws the indoor data for editing or viewing, on a light or dark map: only paint changes. */
+	setLook(look: IndoorLook): void {
+		if (
+			look.presentation === this.#look.presentation &&
+			look.theme === this.#look.theme
+		) {
+			return;
+		}
+		this.#look = look;
+		if (!this.#ready) return;
+		for (const layer of indoorLayers(this.#level, look)) {
+			for (const [name, value] of Object.entries(layer.paint ?? {})) {
+				this.#map.setPaintProperty(
+					layer.id,
+					name as Parameters<MapLibreMap["setPaintProperty"]>[1],
+					value,
+				);
 			}
 		}
 	}
@@ -111,7 +141,7 @@ export class IndoorMap {
 
 	#applyPlanMode(): void {
 		const visibility = (shown: boolean) => (shown ? "visible" : "none");
-		for (const layer of indoorLayers(this.#level)) {
+		for (const layer of indoorLayers(this.#level, this.#look)) {
 			this.#map.setLayoutProperty(
 				layer.id,
 				"visibility",
@@ -202,7 +232,7 @@ export class IndoorMap {
 		this.#removed = true;
 		if (!this.#ready) return;
 		for (const { id } of [
-			...indoorLayers(this.#level),
+			...indoorLayers(this.#level, this.#look),
 			{ id: BUILDINGS_LAYER },
 		]) {
 			if (this.#map.getLayer(id)) this.#map.removeLayer(id);
@@ -227,7 +257,7 @@ export class IndoorMap {
 		});
 		this.#sent = new Map(this.#features?.byId ?? []);
 		this.#drawing = true;
-		for (const layer of indoorLayers(this.#level)) {
+		for (const layer of indoorLayers(this.#level, this.#look)) {
 			map.addLayer(layer, slotId(SLOTS[layer.id] ?? "indoor-top"));
 		}
 		// Placed among the floor plans, in its place in their stack (`FloorPlanLayers`).

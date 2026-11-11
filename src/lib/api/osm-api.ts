@@ -227,7 +227,7 @@ interface JsonElement {
 }
 
 /** Converts the elements of an OSM JSON document into entities. */
-function parseElements(json: { elements?: JsonElement[] }): Entity[] {
+export function parseElements(json: { elements?: JsonElement[] }): Entity[] {
 	return (json.elements ?? []).flatMap((e): Entity[] => {
 		const common = {
 			version: e.version,

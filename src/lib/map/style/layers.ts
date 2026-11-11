@@ -10,7 +10,7 @@ import type {
 	LayerSpecification,
 } from "../maplibre.ts";
 import { ARROW_IMAGE, BOTH_ARROWS_IMAGE } from "./arrows.ts";
-import { INDOOR_COLORS as C } from "./colors.ts";
+import { indoorColors, type Theme } from "./colors.ts";
 
 export const INDOOR_SOURCE = "osm";
 
@@ -94,15 +94,33 @@ const outlineOpacity: ExpressionSpecification = [
 /** The labels' font, when the basemap names none. */
 export const LABEL_FONT = ["Noto Sans Regular"];
 
+/**
+ * How the indoor data is drawn (V.1): `edit` keeps fills translucent so floor plans and
+ * imagery show through; `view` draws them nearly opaque, as a map to read. 3D comes with 3D.1.
+ */
+export type Presentation = "edit" | "view";
+
 export interface IndoorStyleOptions {
 	/** Fonts available from the basemap's glyph server. */
 	readonly textFont?: string[];
+	readonly presentation?: Presentation;
+	/** Colours for a light or dark basemap. */
+	readonly theme?: Theme;
 }
 
 export function indoorLayers(
 	level: number,
-	{ textFont = LABEL_FONT }: IndoorStyleOptions = {},
+	{
+		textFont = LABEL_FONT,
+		presentation = "edit",
+		theme = "light",
+	}: IndoorStyleOptions = {},
 ): LayerSpecification[] {
+	const C = indoorColors(theme);
+	const fillOpacity: ExpressionSpecification =
+		presentation === "view"
+			? ["match", kind, "building", 0.85, 0.95]
+			: ["match", kind, "building", 0.5, "wall", 0.9, 0.8];
 	const onLevel = (filter: ExpressionSpecification): FilterSpecification => [
 		"all",
 		filter,
@@ -133,7 +151,7 @@ export function indoorLayers(
 					C.wall,
 					C.area,
 				],
-				"fill-opacity": ["match", kind, "building", 0.5, "wall", 0.9, 0.8],
+				"fill-opacity": fillOpacity,
 			},
 			layout: {
 				// Containers below their contents: building, open spaces, rooms, then the rest.

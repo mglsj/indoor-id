@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type { Message } from "#lib/i18n/messages.ts";
+import { msg } from "#lib/i18n/messages.ts";
 import type { Loc } from "#lib/osm/entity.ts";
 import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { EditHistory } from "#lib/state/edit-history.svelte.ts";
-import { featureDrag, nodesOf } from "./feature-drag.ts";
+import { featureDrag, nodesOf, othersHint } from "./feature-drag.ts";
 import type { MapPoint } from "./mode.ts";
 
 const at = (lon: number, lat: number): MapPoint => ({
@@ -82,5 +84,60 @@ describe("featureDrag", () => {
 		drag.cancel();
 		expect(locOf(history.graph, "n6")).toEqual([0.002, 0.001]);
 		expect(history.canUndo).toBe(false);
+	});
+});
+
+/**
+ * A room on level 0 and the room above it on level 1 sharing the corners n1 and n2 (the
+ * forum's "move with neighbours" case), and a door on level 1 on n2.
+ */
+const stacked = () =>
+	Graph.fromEntities([
+		node("n1", {}, [0, 0]),
+		node("n2", { door: "yes", level: "1" }, [0.001, 0]),
+		node("n3", {}, [0.001, 0.001]),
+		node("n4", {}, [0, 0.001]),
+		node("n5", {}, [0.001, 0.002]),
+		node("n6", {}, [0, 0.002]),
+		way("w1", ["n1", "n2", "n3", "n4", "n1"], { indoor: "room", level: "0" }),
+		way("w2", ["n1", "n2", "n5", "n6", "n1"], { indoor: "room", level: "1" }),
+		way("w3", ["n3", "n4"], {}),
+		relation("r1", [{ ref: "w3", role: "outer" }], {
+			type: "multipolygon",
+			indoor: "area",
+			level: "0",
+		}),
+	]);
+
+describe("othersHint", () => {
+	it("says what a move drags along on other levels through shared nodes", () => {
+		expect(othersHint(stacked(), ["w1"])).toEqual(
+			msg("drag_moves_others", { count: 3, levels: "0;1" }),
+		);
+	});
+
+	it("says nothing when only the selection moves", () => {
+		expect(othersHint(stacked(), ["w1", "w2", "n2", "r1"])).toBeNull();
+	});
+
+	it("leaves out the members of a selected multipolygon", () => {
+		expect(othersHint(stacked(), ["r1"])).toEqual(
+			msg("drag_moves_others", { count: 1, levels: "0" }),
+		);
+	});
+
+	it("is shown when the drag starts and taken away when it ends", () => {
+		const hints: (Message | null)[] = [];
+		const history = new EditHistory(stacked());
+		const drag = featureDrag(["w1"], at(0, 0), history, {
+			onhint: (hint) => hints.push(hint),
+		});
+		expect(hints).toHaveLength(1);
+		expect(hints[0]).not.toBeNull();
+		drag.end(at(0.001, 0));
+		expect(hints.at(-1)).toBeNull();
+		// The room above stretched along: its corners n1 and n2 moved.
+		expect(locOf(history.graph, "n1")?.[0]).toBeCloseTo(0.001, 9);
+		expect(locOf(history.graph, "n5")).toEqual([0.001, 0.002]);
 	});
 });

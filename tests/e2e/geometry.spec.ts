@@ -107,6 +107,32 @@ test("dragging a corner shared by rooms on two levels says what it moves", async
 	await expect(page.getByTestId("edit-count")).toHaveText("1");
 });
 
+test("moving a room says it also moves the room above sharing its corner", async ({
+	page,
+}) => {
+	const lower = room(100, LON, LAT, "0");
+	const upper = room(200, LON, LAT, "1");
+	const upperWay = upper.at(-1) as { nodes: number[] };
+	upperWay.nodes = [101, 202, 203, 204, 101];
+	await serveOsm(page, [...lower, ...upper.slice(1)]);
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	await mapDrawn(page);
+	const { x, y } = await mapCenter(page);
+	await page.mouse.click(x, y);
+
+	await page.mouse.move(x, y);
+	await page.mouse.down();
+	await page.mouse.move(x + 30, y + 30, { steps: 4 });
+	await expect(page.getByTestId("drag-hint")).toHaveText(
+		"Also moves features not selected (1, on levels 1)",
+	);
+	await page.mouse.up();
+	await expect(page.getByTestId("drag-hint")).toBeHidden();
+	// The room's four corners.
+	await expect(page.getByTestId("edit-count")).toHaveText("4");
+});
+
 test("an area is drawn corner by corner, then its type is picked", async ({
 	page,
 }) => {

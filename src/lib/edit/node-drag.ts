@@ -15,7 +15,7 @@ import { type Message, msg } from "#lib/i18n/messages.ts";
 import { featureLevels, unionOfLevels } from "#lib/levels/feature-levels.ts";
 import { formatLevels } from "#lib/levels/levels.ts";
 import type { SnapTarget } from "#lib/map/snap.ts";
-import type { Loc, NodeId, WayId } from "#lib/osm/entity.ts";
+import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
 import { hasInterestingTags } from "#lib/osm/tags.ts";
@@ -120,23 +120,7 @@ function joinAction(
  * features on levels 0;1" (rooms sharing the building outline's nodes, on every level).
  */
 export function movesHint(graph: Graph, id: NodeId): Message | null {
-	const node = graph.entity(id);
-	if (node?.type !== "node") return null;
-	const features = new Map<string, ReturnType<typeof featureLevels>>();
-	if (hasInterestingTags(node.tags)) features.set(id, featureLevels(node.tags));
-	for (const way of graph.parentWays(id)) {
-		const relations = graph.parentRelations(way.id);
-		for (const relation of relations) {
-			features.set(relation.id, featureLevels(relation.tags));
-		}
-		// An untagged member is drawn as its multipolygon.
-		if (hasInterestingTags(way.tags) || relations.length === 0) {
-			features.set(
-				way.id,
-				featureLevels(way.tags, () => relations.map((r) => r.tags)),
-			);
-		}
-	}
+	const features = featuresUsing(graph, [id]);
 	if (features.size < 2) return null;
 	const levels = unionOfLevels([...features.values()]);
 	return levels
@@ -145,4 +129,36 @@ export function movesHint(graph: Graph, id: NodeId): Message | null {
 				levels: formatLevels(levels),
 			})
 		: msg("drag_moves_features_no_level", { count: features.size });
+}
+
+/**
+ * The features drawn with these nodes, by id, with their levels: tagged nodes, the ways using
+ * them, and the multipolygons those ways are in (an untagged member is drawn as its
+ * multipolygon, so it isn't a feature of its own).
+ */
+export function featuresUsing(
+	graph: Graph,
+	nodes: Iterable<NodeId>,
+): Map<EntityId, ReturnType<typeof featureLevels>> {
+	const features = new Map<EntityId, ReturnType<typeof featureLevels>>();
+	for (const id of nodes) {
+		const node = graph.entity(id);
+		if (node?.type !== "node") continue;
+		if (hasInterestingTags(node.tags))
+			features.set(id, featureLevels(node.tags));
+		for (const way of graph.parentWays(id)) {
+			if (features.has(way.id)) continue;
+			const relations = graph.parentRelations(way.id);
+			for (const relation of relations) {
+				features.set(relation.id, featureLevels(relation.tags));
+			}
+			if (hasInterestingTags(way.tags) || relations.length === 0) {
+				features.set(
+					way.id,
+					featureLevels(way.tags, () => relations.map((r) => r.tags)),
+				);
+			}
+		}
+	}
+	return features;
 }
