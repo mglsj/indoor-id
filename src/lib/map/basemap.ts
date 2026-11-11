@@ -2,8 +2,8 @@
  * Swaps the vector basemap's style (light or dark, with the theme) while keeping everything
  * else on the map. `map.setStyle` would rebuild the style and drop the app's sources, layers
  * (custom WebGL layers too) and images; here only the basemap's own layers and sources are
- * replaced, its below-label layers under the imagery slot and its labels under the indoor
- * features' top layers, as `installSlots` placed them.
+ * replaced: its labels under the indoor features' top layers, every other layer under the
+ * imagery slot, as `installSlots` orders the first basemap.
  */
 import { slotId, slotsReady } from "./layer-slots.ts";
 import type {
@@ -64,11 +64,11 @@ export async function setBasemap(map: MapLibreMap, url: string): Promise<void> {
 	if (style.glyphs) map.setGlyphs(style.glyphs);
 	if (typeof style.sprite === "string") map.setSprite(style.sprite);
 
-	const firstLabel = style.layers.findIndex((l) => l.type === "symbol");
-	style.layers.forEach((layer: LayerSpecification, i) => {
-		const belowLabels = firstLabel === -1 || i < firstLabel;
-		map.addLayer(layer, slotId(belowLabels ? "imagery" : "indoor-top"));
-	});
+	// As `installSlots` orders a first basemap: labels over the indoor fills, the rest under.
+	for (const layer of style.layers as LayerSpecification[]) {
+		const label = layer.type === "symbol";
+		map.addLayer(layer, slotId(label ? "indoor-top" : "imagery"));
+	}
 	basemaps.set(map, {
 		url,
 		layers: style.layers.map((layer) => layer.id),

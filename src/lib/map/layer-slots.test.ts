@@ -37,6 +37,33 @@ const BASEMAP = [
 ];
 
 describe("installSlots: where each kind of layer goes", () => {
+	it("moves the basemap's fills and lines drawn after its first label under the labels", () => {
+		const { map, ids } = fakeMap([
+			{ id: "water", type: "fill" },
+			{ id: "water-name", type: "symbol" },
+			{ id: "building", type: "fill" },
+			{ id: "oneway", type: "symbol" },
+			{ id: "roads", type: "line" },
+			{ id: "place-labels", type: "symbol" },
+		]);
+		installSlots(map);
+		expect(ids()).toEqual([
+			"water",
+			"building",
+			"roads",
+			slotId("imagery"),
+			slotId("indoor-fill"),
+			slotId("plans"),
+			slotId("indoor-lines"),
+			"water-name",
+			"oneway",
+			"place-labels",
+			slotId("indoor-top"),
+			slotId("edit"),
+			slotId("tools"),
+		]);
+	});
+
 	it("puts imagery, indoor fills, plans and indoor lines under the basemap's labels, the rest above", () => {
 		const { map, ids } = fakeMap(BASEMAP);
 		installSlots(map);
