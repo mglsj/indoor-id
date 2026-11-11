@@ -147,3 +147,47 @@ body {
 		@apply z-50;
 	}
 }
+
+/*
+ * MapLibre's own controls (zoom, compass, location, scale, attribution) in the app's theme:
+ * its stylesheet only has a light look. Their icons are dark SVGs, inverted in dark mode.
+ */
+.maplibregl-map .maplibregl-ctrl-bottom-right {
+	right: var(--map-covered-right, 0px);
+}
+
+.maplibregl-map .maplibregl-ctrl-group,
+.maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact {
+	background: var(--background);
+	color: var(--foreground);
+	box-shadow: 0 0 0 1px var(--border);
+}
+
+.maplibregl-map .maplibregl-ctrl-group button + button {
+	border-top-color: var(--border);
+}
+
+.maplibregl-map .maplibregl-ctrl button:not(:disabled):hover,
+.maplibregl-map .maplibregl-ctrl button:not(:disabled):active {
+	background-color: var(--accent);
+}
+
+.maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
+	background-color: color-mix(in oklch, var(--background) 60%, transparent);
+	color: var(--foreground);
+}
+
+.maplibregl-map .maplibregl-ctrl-attrib a {
+	color: var(--muted-foreground);
+}
+
+.maplibregl-map .maplibregl-ctrl-scale {
+	background-color: color-mix(in oklch, var(--background) 75%, transparent);
+	border-color: var(--foreground);
+	color: var(--foreground);
+}
+
+.dark .maplibregl-map .maplibregl-ctrl-icon,
+.dark .maplibregl-map .maplibregl-ctrl-attrib-button {
+	filter: invert(1);
+}

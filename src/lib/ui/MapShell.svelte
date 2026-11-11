@@ -1,28 +1,33 @@
 <script lang="ts">
 	/**
 	 * The map every page shows (R5): the MapLibre map with the indoor features of `getEditor()`,
-	 * the shown level and its switcher, the URL hash, background imagery, place search and the
-	 * download status. Pages add their controls and panels through the snippets; the editor
+	 * the shown level and its switcher, the URL hash, the background (the basemap in the theme's
+	 * colours, imagery, in a pane on the right), place search and the download status. Pages add their controls and panels through the snippets; the editor
 	 * (`EditorView`) adds modes, drawing, floor plans and upload on top.
 	 */
+	import Layers from "@lucide/svelte/icons/layers";
 	import { mode } from "mode-watcher";
 	import type { Snippet } from "svelte";
 	import type { Place } from "#lib/api/nominatim.ts";
+	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import type { FloorNumbering } from "#lib/levels/floor-numbering.ts";
 	import { setBackground } from "#lib/map/background.ts";
+	import { BASEMAP_STYLES, type Imagery } from "#lib/map/backgrounds.ts";
+	import { setBasemap } from "#lib/map/basemap.ts";
 	import {
 		formatHash,
 		parseHash,
 		type MapView as View,
 	} from "#lib/map/hash.ts";
-	import type { ImageryEntry } from "#lib/map/imagery.ts";
 	import { IndoorMap } from "#lib/map/indoor-map.ts";
 	import type { Map as MapLibreMap } from "#lib/map/maplibre.ts";
 	import type { Presentation } from "#lib/map/style/layers.ts";
 	import { visibleExtent } from "#lib/map/view.ts";
+	import { BackgroundSettings } from "#lib/state/background.svelte.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
-	import ImageryPicker from "#lib/ui/ImageryPicker.svelte";
+	import BackgroundPane from "#lib/ui/BackgroundPane.svelte";
 	import LevelControl from "#lib/ui/LevelControl.svelte";
 	import MapView from "#lib/ui/MapView.svelte";
 	import SearchPlace from "#lib/ui/SearchPlace.svelte";
@@ -48,11 +53,11 @@
 		presentation?: Presentation;
 		/** How unnamed levels are labelled in the switcher; their numbers when unset. */
 		numbering?: FloorNumbering;
-		/** A background was picked (null: none). */
-		onbackground?: (entry: ImageryEntry | null) => void;
+		/** The imagery shown changed (null: the map alone), and once at first. */
+		onbackground?: (imagery: Imagery | null) => void;
 		/** Controls under the place search. */
 		controls?: Snippet;
-		/** Controls under the imagery picker. */
+		/** Controls under the background button. */
 		tools?: Snippet;
 		/** Panels, hints and dialogs over the map. */
 		children?: Snippet;
@@ -78,7 +83,12 @@
 
 	const editor = getEditor();
 	let lastHash = "";
-	let background = $state.raw<ImageryEntry | null>(null);
+	const background = new BackgroundSettings(browserStorage());
+	/** The background pane, on the right of the map. */
+	let backgroundOpen = $state(false);
+	/** Its width in pixels (20rem). */
+	const PANE_WIDTH = 320;
+	const theme = $derived(mode.current === "dark" ? "dark" : "light");
 	/** Indoor features the map has drawn (for the e2e tests' `data-drawn`). */
 	let drawn = $state<number>();
 
@@ -91,7 +101,7 @@
 		$effect(() =>
 			layers.setLook({
 				presentation,
-				theme: mode.current === "dark" ? "dark" : "light",
+				theme,
 			}),
 		);
 		$effect(() => layers.setFeatures(editor.features));
@@ -106,11 +116,24 @@
 		};
 	});
 
-	function showBackground(entry: ImageryEntry | null) {
-		background = entry;
-		onbackground?.(entry);
-		if (map) void setBackground(map, entry);
+	function browserStorage(): Storage | undefined {
+		try {
+			return localStorage;
+		} catch {
+			return undefined;
+		}
 	}
+
+	// The basemap follows the theme; the imagery and its offset follow the settings.
+	$effect(() => {
+		if (map) void setBasemap(map, BASEMAP_STYLES[theme]).catch(() => {});
+	});
+	$effect(() => {
+		if (map) void setBackground(map, background.imagery, background.offset);
+	});
+	$effect(() => {
+		onbackground?.(background.imagery);
+	});
 
 	/** The levels of the data in view, named, for the switcher; followed after each move. */
 	const levelsInView = $derived.by(() => {
@@ -178,9 +201,9 @@
 <svelte:window onhashchange={onHashChange} />
 
 <MapView
-	styleUrl={mode.current === "dark"
-		? (config.basemap_style_dark ?? config.basemap_style)
-		: config.basemap_style}
+	styleUrl={BASEMAP_STYLES[theme]}
+	dark={theme === "dark"}
+	coveredRight={backgroundOpen ? PANE_WIDTH : 0}
 	initialCamera={fromUrl ?? {
 		zoom: config.map_initial_zoom,
 		lat: config.map_initial_latlng[0],
@@ -204,18 +227,38 @@
 		baseUrl={config.nominatim_url}
 	/>
 	{@render controls?.()}
-	<ImageryPicker
-		center={camera && [camera.lon, camera.lat]}
-		selected={background?.id ?? null}
-		onselect={showBackground}
-		indexUrl={config.imagery_index_url}
-	/>
+	<div class="rounded-md bg-background shadow-md">
+		<Button
+			variant={backgroundOpen ? "secondary" : "outline"}
+			aria-pressed={backgroundOpen}
+			title={t(msg("background_toggle"))}
+			onclick={() => (backgroundOpen = !backgroundOpen)}
+		>
+			<Layers data-icon="inline-start" />
+			{t(msg("background"))}
+		</Button>
+	</div>
 	{@render tools?.()}
 </div>
 
-<div class="absolute top-4 right-4 z-10">
+<div
+	class="absolute top-4 z-10"
+	style:right={backgroundOpen ? `calc(${PANE_WIDTH}px + 1rem)` : "1rem"}
+>
 	<LevelControl bind:level levels={levelsInView} {numbering} />
 </div>
+
+{#if backgroundOpen}
+	<div
+		class="absolute inset-y-0 right-0 z-30 max-w-full"
+		style:width="{PANE_WIDTH}px"
+	>
+		<BackgroundPane
+			settings={background}
+			onclose={() => (backgroundOpen = false)}
+		/>
+	</div>
+{/if}
 
 {#if statusMessage}
 	<p

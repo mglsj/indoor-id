@@ -4,7 +4,6 @@ import { parseConfig } from "./config-schema.ts";
 const minimal = {
 	osm_api_url: "https://api.openstreetmap.org",
 	oauth_client_id: "abc",
-	basemap_style: "https://tiles.example/style.json",
 };
 
 describe("parseConfig", () => {
@@ -21,17 +20,19 @@ describe("parseConfig", () => {
 		const config = parseConfig({
 			...minimal,
 			editor_name: "IndoorID",
+			basemap_style: "https://tiles.example/style.json",
 			taginfo_url: "https://taginfo.example/api/4/",
 			data_min_zoom: 17,
 		});
 		expect(config.taginfo_url).toBe("https://taginfo.example/api/4/");
 		expect(config.data_min_zoom).toBe(17);
 		expect(config).not.toHaveProperty("editor_name");
+		expect(config).not.toHaveProperty("basemap_style");
 	});
 
 	it("says which settings are missing or wrong", () => {
 		expect(() => parseConfig({ oauth_client_id: "abc" })).toThrow(
-			"config.json: osm_api_url must be a URL; basemap_style must be a URL",
+			"config.json: osm_api_url must be a URL",
 		);
 		expect(() =>
 			parseConfig({ ...minimal, map_initial_latlng: [1], data_min_zoom: "18" }),

@@ -1,11 +1,16 @@
 <script lang="ts">
 	/**
-	 * A page of the app: the header (name, version, the editor and viewer, licenses) and the
+	 * A page of the app: the header (name, version, the editor and viewer, licenses, the light or
+	 * dark theme: the system's until toggled, then remembered by mode-watcher) and the
 	 * instance's `config.json` loaded before `children` render with it.
 	 */
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
+	import Moon from "@lucide/svelte/icons/moon";
+	import Sun from "@lucide/svelte/icons/sun";
+	import { mode, toggleMode } from "mode-watcher";
 	import type { Snippet } from "svelte";
 	import * as Alert from "#lib/components/shadcn/alert/index.ts";
+	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import { Spinner } from "#lib/components/shadcn/spinner/index.ts";
 	import { type EditorConfig, loadConfig } from "#lib/config.ts";
 	import { msg, t } from "#lib/i18n/messages.ts";
@@ -21,6 +26,9 @@
 	let { page, children }: Props = $props();
 
 	const configPromise = loadConfig();
+
+	const dark = $derived(mode.current === "dark");
+	const label = $derived(t(msg(dark ? "theme_to_light" : "theme_to_dark")));
 
 	/** The other page, at the same place and level (the URL hash). */
 	function open(event: MouseEvent, target: "/" | "/view") {
@@ -79,6 +87,19 @@
 			rel="noopener"
 			>Licenses</a
 		>
+		<Button
+			variant="ghost"
+			size="icon-sm"
+			aria-label={label}
+			title={label}
+			onclick={toggleMode}
+		>
+			{#if dark}
+				<Sun />
+			{:else}
+				<Moon />
+			{/if}
+		</Button>
 	</header>
 
 	<main class="relative min-h-0 flex-1">

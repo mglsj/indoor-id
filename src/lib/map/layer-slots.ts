@@ -29,7 +29,16 @@ export function slotId(slot: Slot): string {
 /** Adds the slots' anchor layers, unless they are there already. */
 export function installSlots(map: MapLibreMap): void {
 	if (map.getLayer(slotId("tools"))) return;
-	const firstLabel = map.getStyle().layers.find((l) => l.type === "symbol")?.id;
+	const layers = map.getStyle().layers;
+	const firstLabel = layers.find((l) => l.type === "symbol")?.id;
+	// Some basemaps draw a label early (OpenFreeMap Dark: water names before buildings): their
+	// later fills and lines go down under the labels, or they would cover the indoor features.
+	if (firstLabel) {
+		const after = layers.slice(layers.findIndex((l) => l.id === firstLabel));
+		for (const layer of after) {
+			if (layer.type !== "symbol") map.moveLayer(layer.id, firstLabel);
+		}
+	}
 	const anchor = (slot: Slot, before?: string) =>
 		map.addLayer(
 			{ id: slotId(slot), type: "background", layout: { visibility: "none" } },

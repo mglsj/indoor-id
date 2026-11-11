@@ -41,6 +41,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | P5.4a  | Autosave and restore                       | Done        |
 | LN     | License notices                            | Done        |
 | V      | Viewer mode (V.1–V.3)                      | Done        |
+| T      | One theme, background pane                 | Done        |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
 | P5.4b  | Rebase before upload, conflicts            | Not started |
 | W2     | Wiki conformance, November research        | Not started |
@@ -221,7 +222,7 @@ already exists).
    `from-1` (1, 2, 3; regions US, CA, RU, BY, KZ, CN, JP, KR, TW by the locale's likely
    region), a toggle in the viewer kept in localStorage; `LevelControl` takes `numbering`.
    Left for later: a dark basemap swap while the page is open (the style is chosen once, since
-   `setStyle` drops the custom layers).
+   `setStyle` drops the custom layers). Done in T.
 
 2. **V.2 Discovery.** Count bubbles or a heatmap of indoor features below zoom 16 (indoor=,
    OpenLevelUp).
@@ -255,6 +256,23 @@ already exists).
    (fetched by the viewer's query) carry `@rail-r17` (half the gauge, standard when unknown)
    and the viewer draws their two rails (`indoor-rails-left|right`) instead of a centre line.
    Tracks are drawn wherever they were loaded, not only inside buildings.
+
+### T: One theme, simpler backgrounds — S — done
+
+Asked by the user after V, before 3D.1. The page followed the system, MapLibre's controls stayed
+light and the basemap was chosen once.
+Done ✅ (2026-11-11): a theme button at the right of the header (`toggleMode`; the system's
+until toggled, then remembered by mode-watcher). The OpenFreeMap basemap is hard-coded
+(`BASEMAP_STYLES` in `map/backgrounds.ts`, Positron or Dark) and swapped with the theme by
+`map/basemap.ts`, which replaces only the basemap's layers and sources around the slots
+(`setStyle` would drop the app's layers); MapLibre's controls take the theme's colours in
+`app.css`. The Editor Layer Index download is gone: the backgrounds are the map, Esri World
+Imagery, Esri World Imagery (Clarity) Beta and a custom tile URL, with an offset in metres as
+iD's (nudges of 0.5 m, 5 m with Shift, or typed "east, north"), drawn through the
+`offset-tile` protocol in `map/background.ts` (each moved tile drawn from the source tiles it
+overlaps). They sit in `ui/BackgroundPane.svelte`, a pane on the right of the map as in iD, and
+`state/background.svelte.ts` keeps the choice, the custom URL and each imagery's offset in
+localStorage. `basemap_style`, `basemap_style_dark` and `imagery_index_url` left the config.
 
 Dropped: the temporary "view in 3D" link to osm-simple3d-editor, since 3D.1 follows V. Routing
 (a graph from `highway=footway`/`corridor`, doors, stairs and elevators with their levels;

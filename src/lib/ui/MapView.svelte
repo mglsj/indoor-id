@@ -3,6 +3,7 @@
 	import { untrack } from "svelte";
 	import type { Attachment } from "svelte/attachments";
 	import * as Alert from "#lib/components/shadcn/alert/index.ts";
+	import { trackBasemap } from "#lib/map/basemap.ts";
 	import { MAX_ZOOM, type MapView } from "#lib/map/hash.ts";
 	import {
 		GeolocateControl,
@@ -17,7 +18,12 @@
 	type Camera = Omit<MapView, "level">;
 
 	interface Props {
+		/** The basemap's style at creation time; `setBasemap` swaps it later. */
 		styleUrl: string;
+		/** Whether the dark theme is shown, for the plain background when the basemap fails. */
+		dark?: boolean;
+		/** Pixels a pane covers on the right: MapLibre's controls there move left of it. */
+		coveredRight?: number;
 		/** Camera at creation time. Later changes go through `map.jumpTo`. */
 		initialCamera: Camera;
 		/** The MapLibre map, once created. */
@@ -32,6 +38,8 @@
 
 	let {
 		styleUrl,
+		dark = false,
+		coveredRight = 0,
 		initialCamera,
 		map = $bindable(),
 		onmove,
@@ -42,7 +50,7 @@
 	let error = $state<string>();
 
 	/** The style shown when the basemap's can't be loaded; its glyphs are OpenFreeMap's. */
-	const FALLBACK_STYLE: StyleSpecification = {
+	const fallbackStyle = (dark: boolean): StyleSpecification => ({
 		version: 8,
 		glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
 		sources: {},
@@ -50,10 +58,10 @@
 			{
 				id: "background",
 				type: "background",
-				paint: { "background-color": "#f2f2ef" },
+				paint: { "background-color": dark ? "#1f2023" : "#f2f2ef" },
 			},
 		],
-	};
+	});
 	let camera = $state<Camera>();
 
 	// Created once: later prop changes must not rebuild the map.
@@ -79,6 +87,7 @@
 
 			// Remember the first load now, for layers added later (see `styleReady`).
 			void styleReady(instance);
+			trackBasemap(instance, styleUrl);
 			instance.addControl(
 				new NavigationControl({ visualizePitch: true }),
 				"bottom-right",
@@ -110,7 +119,7 @@
 				error = `The basemap could not be loaded: ${event.error.message}`;
 				// A plain background instead, so the indoor data still shows.
 				fallback = true;
-				instance.setStyle(FALLBACK_STYLE);
+				instance.setStyle(fallbackStyle(dark));
 			});
 
 			map = instance;
@@ -124,6 +133,7 @@
 <div
 	{@attach createMap}
 	class="h-full w-full"
+	style:--map-covered-right="{coveredRight}px"
 	data-testid="map"
 	data-zoom={camera?.zoom}
 	data-center={camera ? `${camera.lat},${camera.lon}` : undefined}
