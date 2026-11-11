@@ -7,6 +7,7 @@
 import type { Loc } from "#lib/osm/entity.ts";
 import { bearingOf, type Frame, lengthOf, normalizeAngle } from "./frame.ts";
 import type { SnapTarget } from "./snap.ts";
+import type { TypedInput } from "./typed.ts";
 
 /** A length (and an angle) shown on the map. */
 export interface Measure {
@@ -16,6 +17,8 @@ export interface Measure {
 	readonly pointer?: boolean;
 	/** Metres. */
 	readonly length: number;
+	/** A rectangle's depth in metres, shown as `length × depth`. */
+	readonly depth?: number;
 	/** Degrees, 0 to 360 against the frame, or 0 to 180 between two sides. */
 	readonly angle?: number;
 }
@@ -23,6 +26,8 @@ export interface Measure {
 export interface Feedback {
 	readonly snap: SnapTarget | null;
 	readonly measures: readonly Measure[];
+	/** What was typed, while something is (C.2). */
+	readonly input?: TypedInput;
 }
 
 /** Shows feedback, or hides it (null). */

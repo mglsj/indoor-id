@@ -6,6 +6,7 @@
 	import Layers2 from "@lucide/svelte/icons/layers-2";
 	import MapPin from "@lucide/svelte/icons/map-pin";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
+	import RectangleHorizontal from "@lucide/svelte/icons/rectangle-horizontal";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
 	import Scissors from "@lucide/svelte/icons/scissors";
 	import Spline from "@lucide/svelte/icons/spline";
@@ -50,6 +51,10 @@
 		floorPlanMode,
 		floorPlanToolMode,
 	} from "#lib/edit/modes/floorplan.ts";
+	import {
+		drawRectangleMode,
+		type RectangleVariant,
+	} from "#lib/edit/modes/rectangle.ts";
 	import { splitMode } from "#lib/edit/modes/split.ts";
 	import { type NodeGrab, nodeDrag } from "#lib/edit/node-drag.ts";
 	import {
@@ -296,13 +301,18 @@
 	}
 
 	/** The drawing tool on (P5.3.4; the split tool, P5.3.5), or null when browsing. */
-	let drawing = $state<"point" | "line" | "area" | "split" | null>(null);
+	let drawing = $state<
+		"point" | "line" | "area" | "rectangle" | "split" | null
+	>(null);
+	/** How the rectangle tool draws (Tab switches). */
+	let rectangleVariant = $state<RectangleVariant>("corners");
 	/** The split tool's cut line, or the lasso, as drawn so far. */
 	let cut = $state.raw<readonly Loc[]>([]);
 
 	/** Turns a drawing tool on, or off when it is on already. */
-	function draw(kind: "point" | "line" | "area" | "split") {
+	function draw(kind: "point" | "line" | "area" | "rectangle" | "split") {
 		drawing = drawing === kind ? null : kind;
+		rectangleVariant = "corners";
 		if (drawing) editor.select(null);
 	}
 
@@ -316,6 +326,7 @@
 		point: msg("draw_point_hint"),
 		line: msg("draw_line_hint"),
 		area: msg("draw_area_hint"),
+		rectangle: msg("draw_rectangle_hint"),
 		split: msg("split_hint"),
 	};
 
@@ -618,6 +629,24 @@
 								precision: {
 									frameAt,
 									step: () => precision.step,
+									units: () => precision.units,
+									show: showFeedback,
+								},
+							}),
+						);
+						break;
+					case "draw-rectangle":
+						manager.setMode(
+							drawRectangleMode({
+								history: editor.history,
+								level,
+								snap: snapNode,
+								onfinish: drawingEnded,
+								onvariant: (variant) => (rectangleVariant = variant),
+								precision: {
+									frameAt,
+									step: () => precision.step,
+									units: () => precision.units,
 									show: showFeedback,
 								},
 							}),
@@ -899,6 +928,7 @@
 		{ combo: "1", run: () => draw("point") },
 		{ combo: "2", run: () => draw("line") },
 		{ combo: "3", run: () => draw("area") },
+		{ combo: "4", run: () => draw("rectangle") },
 		{ combo: "X", run: () => draw("split") },
 		{ combo: "S", run: () => precision.toggle() },
 		{ combo: "Mod+Z", run: () => editor.history.undo() },
@@ -918,7 +948,11 @@
 				event.preventDefault();
 			return;
 		}
-		if (modes?.key(event)) return;
+		if (modes?.key(event)) {
+			// Tab, quotes and Enter typed into a drawing (C.2) are not the browser's.
+			event.preventDefault();
+			return;
+		}
 		if (planMode) return;
 		const operation = operations.find(({ operation }) =>
 			operation.keys.some((combo) => matches(event, combo, mac)),
@@ -973,7 +1007,7 @@
 {/snippet}
 
 {#snippet drawButton(
-	kind: "point" | "line" | "area" | "split",
+	kind: "point" | "line" | "area" | "rectangle" | "split",
 	label: string,
 	key: string,
 	Icon: Component,
@@ -1077,6 +1111,12 @@
 					{@render drawButton("point", "Point", "1", MapPin)}
 					{@render drawButton("line", "Line", "2", Spline)}
 					{@render drawButton("area", "Area", "3", Pentagon)}
+					{@render drawButton(
+						"rectangle",
+						"Rectangle",
+						"4",
+						RectangleHorizontal,
+					)}
 					{@render drawButton("split", "Split", "X", Scissors)}
 				</ButtonGroup.Root>
 			</div>
@@ -1154,9 +1194,10 @@
 		</div>
 	{/if}
 
-	{#if feedback && feedback.measures.length > 0}
+	{#if feedback && (feedback.measures.length > 0 || feedback.input)}
 		<MeasureLabels
 			measures={feedback.measures}
+			input={feedback.input}
 			project={projectLoc}
 			units={precision.units}
 			{camera}
@@ -1169,7 +1210,11 @@
 			data-testid="draw-hint"
 			class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
 		>
-			{t(DRAW_HINTS[drawing])}
+			{t(
+				drawing === "rectangle" && rectangleVariant === "side"
+					? msg("draw_rectangle_side_hint")
+					: DRAW_HINTS[drawing],
+			)}
 		</p>
 	{/if}
 
