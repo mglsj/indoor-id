@@ -170,6 +170,11 @@ runs the same commands.
   or `dark:` overrides. Dark mode follows the system via `mode-watcher` (`.dark` class). Controls
   floating over the map sit on a `bg-background` wrapper: shadcn's dark outline and input styles
   are translucent. A `Command`'s input is named by the Command's `label`, not `aria-label`.
+- **Licenses**: code ported or translated from another project (iD, osm-simple3d-editor,
+  OsmInEdit…) needs that project's copyright and license notice in `LICENSE.md` in the same PR,
+  and a source comment naming it. New bundled packages are picked up by `build/licenses.md`
+  automatically; anything Vite doesn't bundle from JS (fonts, worker-only packages) goes into
+  `thirdPartyNotices()` in `vite.config.ts`.
 - **Formatting**: Biome (tabs, double quotes) formats `.ts`, `.svelte`, `.css` and `.json`. Don't
   hand-format; run `bun run format`.
 

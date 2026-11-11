@@ -15,6 +15,15 @@
 			>{__APP_VERSION__}
 			· {__GIT_HASH__}</span
 		>
+		<!-- The licenses of IndoorID and of what it ships, written by the build (vite.config.ts);
+		     relative, as the app may be served from a subfolder. -->
+		<a
+			class="ml-auto text-xs text-muted-foreground underline-offset-2 hover:underline"
+			href="./licenses.md"
+			target="_blank"
+			rel="noopener"
+			>Licenses</a
+		>
 	</header>
 
 	<main class="relative min-h-0 flex-1">
