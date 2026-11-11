@@ -338,6 +338,7 @@ test("resting on a side arms its extension, snapped to past its end", async ({
 	// A second on the north side, then past its east end, 4 px off its line.
 	await page.mouse.move(x, y - 223);
 	await page.waitForTimeout(1200);
+	await page.mouse.move(x + 1, y - 223);
 	await page.mouse.move(x + 220, y - 219);
 	await expect(page.getByTestId("inference")).toHaveText("Extension");
 });
@@ -350,6 +351,8 @@ test("resting on a corner lines a new corner up with it", async ({ page }) => {
 	// Half a second on the north-west corner, then level with it east of the room, 3 px off.
 	await page.mouse.move(x - 149, y - 223);
 	await page.waitForTimeout(700);
+	// Still on it: arms on this move too, should the timer run late on a busy machine.
+	await page.mouse.move(x - 148, y - 223);
 	await page.mouse.move(x + 297, y - 220);
 	await expect(page.getByTestId("inference")).toHaveText(
 		"In line with a corner",
