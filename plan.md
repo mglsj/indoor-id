@@ -42,7 +42,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | LN     | License notices                            | Done         |
 | V      | Viewer mode (V.1–V.3)                      | Done         |
 | T      | One theme, background pane                 | Done         |
-| C      | CAD-style precision (C.0–C.6)              | C.0–C.3 done |
+| C      | CAD-style precision (C.0–C.6)              | C.0–C.4 done |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started  |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
@@ -439,6 +439,19 @@ snapping menu: typed angle, align, origin, each visible plan's angle on the show
 turn the map to the frame and north up. The frame in view is the selection's building, else the
 map centre's. The grid is drawn only while shown (`G`, kept in the precision settings). Not
 done: setting the frame by two clicks (aligning to a side covers it).
+
+Landed with C.4: `edit/precision/inference.ts` (`Inferences`: a side armed after 1 s on it, a
+corner after 0.5 s, at most four of each, forgotten 4 s after last use; `hoveredOf`,
+`sideDirections`), inferred lines in `snapAt` as `DirectionLine`s with a `kind` (rays with a
+`reach` for extensions), and point snaps for the foot of the perpendicular from the last corner
+onto a side and for two sides crossing without a node (crossing priority). Guides carry their
+kind; the pointer's label names it ("Extension", "Parallel", "Square", "In line with a
+corner", "Midpoint", "Intersection"); armed corners get a small ring. Four snapping options:
+extensions, parallel and square, in line with corners, where sides cross. Works from the first
+corner (extensions and tracking) in the line and area tools; a typed length on a tracking line
+is measured from the tracked corner. The rectangle tool and vertex drags don't infer yet. The
+bench's pointer move with every snap kind on takes 0.1 ms (target 2 ms). Guides are all drawn
+with one dash style; the label by the pointer says the kind.
 
 Order inside C: C.0 and C.1 together first (one PR each), then C.2, then C.3; C.4 to C.6 can
 be reordered after users have tried C.1–C.3.

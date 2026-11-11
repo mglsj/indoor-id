@@ -4,6 +4,7 @@
  * background is. Frames and guides, which belong to buildings, are kept with the floor plans.
  */
 import { getContext, setContext } from "svelte";
+import type { Inference } from "#lib/edit/precision/snap.ts";
 import { defaultUnits, type Units } from "#lib/units/length.ts";
 
 const KEY = "indoorid.precision";
@@ -17,14 +18,30 @@ export type SnapOption =
 	| "midpoints"
 	| "planVertices"
 	| "angles"
-	| "grid";
+	| "grid"
+	| "extensions"
+	| "parallels"
+	| "tracking"
+	| "intersections";
 export const SNAP_OPTIONS: readonly SnapOption[] = [
 	"points",
 	"midpoints",
 	"planVertices",
 	"angles",
 	"grid",
+	"extensions",
+	"parallels",
+	"tracking",
+	"intersections",
 ];
+
+/** The option that turns each kind of inferred line on or off (C.4). */
+export const INFERENCE_OPTIONS: Record<Inference, SnapOption> = {
+	extension: "extensions",
+	parallel: "parallels",
+	perpendicular: "parallels",
+	tracking: "tracking",
+};
 
 interface Saved {
 	enabled: boolean;
@@ -45,6 +62,10 @@ export class PrecisionSettings {
 		planVertices: true,
 		angles: true,
 		grid: true,
+		extensions: true,
+		parallels: true,
+		tracking: true,
+		intersections: true,
 	});
 	angleStep = $state(15);
 	units = $state<Units>("metric");

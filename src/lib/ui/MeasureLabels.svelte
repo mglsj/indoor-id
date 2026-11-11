@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Measure } from "#lib/edit/precision/feedback.ts";
 	import type { TypedInput } from "#lib/edit/precision/typed.ts";
-	import { msg, t } from "#lib/i18n/messages.ts";
+	import { type Message, msg, t } from "#lib/i18n/messages.ts";
 	import type { Loc } from "#lib/osm/entity.ts";
 	import { formatAngle, formatLength, type Units } from "#lib/units/length.ts";
 
@@ -9,6 +9,8 @@
 		measures: readonly Measure[];
 		/** What is being typed (C.2), shown under the pointer's label. */
 		input?: TypedInput;
+		/** What the snap means (C.4: "Parallel", "In line with a corner"…), under the pointer's label. */
+		inference?: Message;
 		/** Screen pixels of a position on the map (read again when `camera` changes). */
 		project: (loc: Loc) => { x: number; y: number };
 		units: Units;
@@ -16,7 +18,7 @@
 		camera?: unknown;
 	}
 
-	let { measures, input, project, units, camera }: Props = $props();
+	let { measures, input, inference, project, units, camera }: Props = $props();
 
 	const labels = $derived.by(() => {
 		void camera;
@@ -46,6 +48,11 @@
 		<span data-testid={label.pointer ? "measure-pointer" : "measure-side"}
 			>{label.text}</span
 		>
+		{#if label.pointer && inference}
+			<span class="font-medium text-primary" data-testid="inference"
+				>{t(inference)}</span
+			>
+		{/if}
 		{#if label.pointer && input}
 			<span class="mt-0.5 flex gap-2 border-t pt-0.5" data-testid="typed-input">
 				<span

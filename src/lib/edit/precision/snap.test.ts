@@ -228,3 +228,90 @@ describe("snapAt with a grid", () => {
 		expect(target?.loc[1]).toBeCloseTo(0.3, 3);
 	});
 });
+
+describe("snapAt with inferences (C.4)", () => {
+	it("catches a ray only ahead of its origin, with its kind on the guide", () => {
+		const extension = {
+			origin: [1, 0] as Loc,
+			angle: 0,
+			ray: true,
+			kind: "extension" as const,
+		};
+		const ahead = snapAt(
+			{ x: 150, y: 3 },
+			{ lines: [extension] },
+			project,
+			8,
+			[1.5, -0.03],
+		);
+		expect(ahead?.kind).toBe("angle");
+		if (ahead?.kind !== "angle") return;
+		expect(ahead.loc[0]).toBeCloseTo(1.5, 6);
+		expect(ahead.loc[1]).toBeCloseTo(0, 6);
+		expect(ahead.guides).toEqual([
+			{ from: [1, 0], to: ahead.loc, kind: "extension" },
+		]);
+		expect(
+			snapAt({ x: 50, y: 3 }, { lines: [extension] }, project, 8, [0.5, -0.03]),
+		).toBeNull();
+	});
+
+	it("catches a line only within its reach, in metres", () => {
+		// 60 km is about 0.54° at the equator.
+		const line = { origin: [1, 0] as Loc, angle: 0, ray: true, reach: 60_000 };
+		expect(
+			snapAt({ x: 140, y: 3 }, { lines: [line] }, project, 8, [1.4, -0.03])
+				?.kind,
+		).toBe("angle");
+		expect(
+			snapAt({ x: 200, y: 3 }, { lines: [line] }, project, 8, [2, -0.03]),
+		).toBeNull();
+	});
+
+	it("snaps to the foot of the perpendicular from the last corner onto a side", () => {
+		const target = snapAt(
+			{ x: 33, y: 3 },
+			{ segments: [side], from: [0.3, 1] },
+			project,
+		);
+		expect(target?.kind).toBe("segment");
+		if (target?.kind !== "segment") return;
+		expect(target.mark).toBe("perpendicular");
+		expect(target.loc[0]).toBeCloseTo(0.3, 6);
+		expect(target.loc[1]).toBeCloseTo(0, 6);
+		expect(target.guides).toEqual([
+			{ from: [0.3, 1], to: target.loc, kind: "perpendicular" },
+		]);
+	});
+
+	it("leaves out a foot beyond the side's ends", () => {
+		const target = snapAt(
+			{ x: 103, y: 3 },
+			{ segments: [side], from: [1.2, 1] },
+			project,
+		);
+		expect(target?.kind === "segment" && target.mark).toBeFalsy();
+	});
+
+	it("snaps to where two sides cross without a node", () => {
+		const across: Segment = {
+			way: "w2",
+			a: { id: "n5", loc: [0.5, -0.5] },
+			b: { id: "n6", loc: [0.5, 0.5] },
+		};
+		const target = snapAt(
+			{ x: 53, y: 4 },
+			{ segments: [side, across], crossings: true },
+			project,
+		);
+		expect(target?.kind).toBe("segment");
+		if (target?.kind !== "segment") return;
+		expect(target.mark).toBe("intersection");
+		expect(target.loc[0]).toBeCloseTo(0.5, 6);
+		expect(target.loc[1]).toBeCloseTo(0, 6);
+		// Without the option, the nearest point on a side.
+		expect(
+			snapAt({ x: 53, y: 4 }, { segments: [side, across] }, project)?.loc,
+		).not.toEqual(target.loc);
+	});
+});

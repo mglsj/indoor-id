@@ -5,6 +5,8 @@ import {
 	LAT,
 	LON,
 	mapCenter,
+	mapDrawn,
+	room,
 	selectRoom,
 	serveOsm,
 	test,
@@ -315,4 +317,45 @@ test("the drawing frame aligns to a clicked side", async ({ page }) => {
 	await expect(page.getByTestId("frame-hint")).toBeHidden();
 	await page.getByRole("button", { name: "Snapping…" }).click();
 	await expect(page.getByTestId("frame-state")).toHaveText("30°, set by you");
+});
+
+/** The room of `selectRoom`, not selected: its north side runs 149 px either side, 223 px up. */
+async function roomMap(page: Page) {
+	await serveOsm(page, room(100, LON, LAT, "0"));
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	await mapDrawn(page);
+	return mapCenter(page);
+}
+
+test("resting on a side arms its extension, snapped to past its end", async ({
+	page,
+}) => {
+	await metric(page);
+	const { x, y } = await roomMap(page);
+	await page.keyboard.press("2");
+	await page.mouse.click(x + 300, y + 100);
+	// A second on the north side, then past its east end, 4 px off its line.
+	await page.mouse.move(x, y - 223);
+	await page.waitForTimeout(1200);
+	await page.mouse.move(x + 220, y - 219);
+	await expect(page.getByTestId("inference")).toHaveText("Extension");
+});
+
+test("resting on a corner lines a new corner up with it", async ({ page }) => {
+	await metric(page);
+	const { x, y } = await roomMap(page);
+	await page.keyboard.press("2");
+	await page.mouse.click(x + 300, y + 150);
+	// Half a second on the north-west corner, then level with it east of the room, 3 px off.
+	await page.mouse.move(x - 149, y - 223);
+	await page.waitForTimeout(700);
+	await page.mouse.move(x + 297, y - 220);
+	await expect(page.getByTestId("inference")).toHaveText(
+		"In line with a corner",
+	);
+	// Straight up from the first corner, level with the room's north side: 373 px, 37.2 m.
+	await expect(page.getByTestId("measure-pointer")).toHaveText(
+		/^37\.\d\d m · 90°$/,
+	);
 });
