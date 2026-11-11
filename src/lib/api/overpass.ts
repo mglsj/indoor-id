@@ -6,8 +6,8 @@
  * JSON with `out meta`, read like the OSM API's.
  * See https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL
  */
-import type { Entity, RelationId } from "#lib/osm/entity.ts";
-import { osmId } from "#lib/osm/entity.ts";
+import type { Entity, EntityId, Loc, RelationId } from "#lib/osm/entity.ts";
+import { makeId, osmId } from "#lib/osm/entity.ts";
 import { type Bbox, OsmApiError, parseElements } from "./osm-api.ts";
 
 export const DEFAULT_OVERPASS_URL = "https://overpass-api.de/api";
@@ -39,6 +39,21 @@ export function indoorQuery(bbox: Bbox, timeout = 25): string {
 	return `[out:json][timeout:${timeout}][bbox:${area}];(${sets});(._;>;);out meta;`;
 }
 
+/** An indoor space found by `indoorCentres`: where to put its dot on a small-scale map. */
+export interface IndoorCentre {
+	readonly id: EntityId;
+	readonly loc: Loc;
+}
+
+/**
+ * The query behind discovery (V.2): rooms, areas and corridors in an area, as ids and centres
+ * only (`out ids center`), so a city's worth stays small.
+ */
+export function centresQuery(bbox: Bbox, timeout = 25): string {
+	const area = [bbox.south, bbox.west, bbox.north, bbox.east].join(",");
+	return `[out:json][timeout:${timeout}][bbox:${area}];wr["indoor"~"^(room|area|corridor)$"];out ids center qt;`;
+}
+
 export class Overpass {
 	readonly #baseUrl: string;
 	readonly #fetch: typeof fetch;
@@ -53,6 +68,17 @@ export class Overpass {
 	/** The indoor data of an area (see `indoorQuery`). */
 	loadMap(bbox: Bbox): Promise<Entity[]> {
 		return this.#query(indoorQuery(bbox, this.#timeout));
+	}
+
+	/** Where the rooms, areas and corridors of an area are (V.2). */
+	async indoorCentres(bbox: Bbox): Promise<IndoorCentre[]> {
+		const json = await this.#run(centresQuery(bbox, this.#timeout));
+		const elements = (json as { elements?: CentreElement[] }).elements ?? [];
+		return elements.flatMap((e) =>
+			(e.type === "way" || e.type === "relation") && e.center
+				? [{ id: makeId(e.type, e.id), loc: [e.center.lon, e.center.lat] }]
+				: [],
+		);
 	}
 
 	/** A relation with its members and their nodes. */
@@ -70,6 +96,13 @@ export class Overpass {
 	}
 
 	async #query(query: string): Promise<Entity[]> {
+		return parseElements(
+			(await this.#run(query)) as Parameters<typeof parseElements>[0],
+		);
+	}
+
+	/** Runs a query and returns its JSON answer. */
+	async #run(query: string): Promise<unknown> {
 		let response: Response;
 		try {
 			response = await this.#fetch(`${this.#baseUrl}/interpreter`, {
@@ -91,13 +124,17 @@ export class Overpass {
 				response.status,
 			);
 		}
-		const json = JSON.parse(text) as Parameters<typeof parseElements>[0] & {
-			remark?: string;
-		};
+		const json = JSON.parse(text) as { remark?: string };
 		// A query that ran out of time or memory still answers 200, with what it had so far.
 		if (json.remark && /error/i.test(json.remark)) {
 			throw new OsmApiError(`Overpass: ${json.remark}`, "server");
 		}
-		return parseElements(json);
+		return json;
 	}
+}
+
+interface CentreElement {
+	type: string;
+	id: number;
+	center?: { lat: number; lon: number };
 }

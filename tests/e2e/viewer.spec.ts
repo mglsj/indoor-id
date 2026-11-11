@@ -19,14 +19,26 @@ import {
 /** The room colour drawn at the viewer's fill opacity (0.95, the editor's is 0.8). */
 const VIEW_ROOM = blend([0xd6, 0xd1, 0xc7], 0.95, BACKGROUND);
 
-/** Serves `elements` for every Overpass query and returns the queries asked. */
-async function serveOverpass(page: Page, elements: Element[]) {
+/**
+ * Serves `elements` for every Overpass data query, and `centres` (OSM JSON with `center`) for
+ * discovery's; returns the queries asked.
+ */
+async function serveOverpass(
+	page: Page,
+	elements: Element[],
+	centres: Element[] = [],
+) {
 	const queries: string[] = [];
 	await page.route("**/api/interpreter", (route) => {
-		queries.push(
-			new URLSearchParams(route.request().postData() ?? "").get("data") ?? "",
-		);
-		return route.fulfill({ json: { version: 0.6, elements } });
+		const query =
+			new URLSearchParams(route.request().postData() ?? "").get("data") ?? "";
+		queries.push(query);
+		return route.fulfill({
+			json: {
+				version: 0.6,
+				elements: query.includes("out ids center") ? centres : elements,
+			},
+		});
 	});
 	return queries;
 }
@@ -147,4 +159,33 @@ test("the header switches between the editor and the viewer at the same place", 
 	).toHaveAttribute("aria-current", "page");
 	await page.getByRole("link", { name: "Edit", exact: true }).click();
 	await expect(page.getByRole("button", { name: "Draw area" })).toBeVisible();
+});
+
+test("zoomed out, bubbles show where indoor data is, and a click zooms in", async ({
+	page,
+}) => {
+	const centres = [1, 2, 3].map((id) => ({
+		type: "way",
+		id,
+		center: { lat: LAT + id * 0.0001, lon: LON },
+	}));
+	const queries = await serveOverpass(page, building(), centres);
+	await page.goto(`/view#14/${LAT}/${LON}/0`);
+	const before = await camera(page);
+	const { x, y } = await mapCenter(page);
+	// A bubble of 3: the outline's blue at 0.85 over the background.
+	await expectPixel(
+		page,
+		x,
+		y,
+		blend([0x74, 0x95, 0xda], 0.85, BACKGROUND),
+		12,
+	);
+	expect(queries.some((q) => q.includes("out ids center"))).toBe(true);
+	expect(queries.some((q) => q.includes('nwr["indoor"]'))).toBe(false);
+
+	await page.mouse.click(x, y);
+	await expect
+		.poll(async () => (await camera(page)).zoom)
+		.toBeGreaterThan(before.zoom);
 });

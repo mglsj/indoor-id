@@ -6,14 +6,15 @@ import { type Tile, tileBounds, tilesCovering } from "#lib/map/tiles.ts";
 import type { Entity } from "#lib/osm/entity.ts";
 import type { Bbox } from "./osm-api.ts";
 
-export interface MapLoaderOptions {
+/** Downloads entities by default; the viewer's discovery downloads feature centres. */
+export interface MapLoaderOptions<T = Entity> {
 	/** Downloads one area, e.g. `(bbox) => api.loadMap(bbox)`. */
-	readonly download: (bbox: Bbox) => Promise<Entity[]>;
+	readonly download: (bbox: Bbox) => Promise<T[]>;
 	/**
 	 * Receives downloaded entities: the tiles that arrived since the last call, at most once a
 	 * frame, so loading a large area doesn't redraw the map after every tile.
 	 */
-	readonly onData: (entities: Entity[]) => void;
+	readonly onData: (entities: T[]) => void;
 	/** Runs a function at the next frame (`requestAnimationFrame` by default). */
 	readonly schedule?: (run: () => void) => void;
 	readonly zoom?: number;
@@ -42,8 +43,8 @@ export interface LoadResult {
 	readonly skipped: boolean;
 }
 
-export class MapLoader {
-	readonly #options: Required<MapLoaderOptions>;
+export class MapLoader<T = Entity> {
+	readonly #options: Required<MapLoaderOptions<T>>;
 	readonly #loaded = new Set<string>();
 	/** Tiles too large to download whole: their quarters are downloaded instead. */
 	readonly #split = new Set<string>();
@@ -53,7 +54,7 @@ export class MapLoader {
 	readonly #waiting: (() => void)[] = [];
 	#active = 0;
 	/** Tiles downloaded but not handed over yet, and whether a frame is asked for. */
-	#arrived: { key: string; entities: Entity[] }[] = [];
+	#arrived: { key: string; entities: T[] }[] = [];
 	#scheduled = false;
 	/** Bumped by `reset`: answers to requests made before it are dropped. */
 	#generation = 0;
@@ -61,7 +62,7 @@ export class MapLoader {
 	#paused: Promise<void> | null = null;
 	#resume: () => void = () => {};
 
-	constructor(options: MapLoaderOptions) {
+	constructor(options: MapLoaderOptions<T>) {
 		this.#options = {
 			...options,
 			// Options given as undefined keep their default.
@@ -138,7 +139,7 @@ export class MapLoader {
 	async #download(tile: Tile, key: string): Promise<boolean> {
 		for (;;) {
 			let generation = this.#generation;
-			let entities: Entity[];
+			let entities: T[];
 			try {
 				entities = await this.#limited(async () => {
 					while (this.#paused) await this.#paused;
@@ -182,7 +183,7 @@ export class MapLoader {
 		return results.every(Boolean);
 	}
 
-	#arrive(key: string, entities: Entity[]): void {
+	#arrive(key: string, entities: T[]): void {
 		this.#arrived.push({ key, entities });
 		if (this.#scheduled) return;
 		this.#scheduled = true;

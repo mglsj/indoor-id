@@ -90,3 +90,25 @@ describe("Overpass", () => {
 		await expect(new Overpass().upload()).rejects.toBeInstanceOf(OsmApiError);
 	});
 });
+
+describe("Overpass: indoor centres", () => {
+	it("asks for the centres of rooms, areas and corridors, and reads them", async () => {
+		const { fetch, bodies } = fakeFetch(() =>
+			Response.json({
+				elements: [
+					{ type: "way", id: 5, center: { lat: 48.15, lon: 2.15 } },
+					{ type: "relation", id: 6, center: { lat: 48.16, lon: 2.16 } },
+					{ type: "way", id: 7 },
+				],
+			}),
+		);
+		const centres = await new Overpass({ fetch }).indoorCentres(BBOX);
+		expect(new URLSearchParams(bodies[0]).get("data")).toBe(
+			'[out:json][timeout:25][bbox:48.1,2.1,48.2,2.2];wr["indoor"~"^(room|area|corridor)$"];out ids center qt;',
+		);
+		expect(centres).toEqual([
+			{ id: "w5", loc: [2.15, 48.15] },
+			{ id: "r6", loc: [2.16, 48.16] },
+		]);
+	});
+});
