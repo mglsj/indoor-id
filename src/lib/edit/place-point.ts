@@ -10,8 +10,8 @@
 
 import { changeTags } from "#lib/actions/change-tags.ts";
 import { addNode, insertNodeInSegment } from "#lib/actions/geometry.ts";
+import type { SnapTarget } from "#lib/edit/precision/snap.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
-import type { SnapTarget } from "#lib/map/snap.ts";
 import type { Loc, NodeId, Way } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";

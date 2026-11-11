@@ -7,7 +7,7 @@
  * as one undo step.
  */
 import { addNode, insertNodeInSegment } from "#lib/actions/geometry.ts";
-import type { SnapTarget } from "#lib/map/snap.ts";
+import type { SnapTarget } from "#lib/edit/precision/snap.ts";
 import type { Loc, NodeId, WayId } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
@@ -49,6 +49,15 @@ export class WayDrawing {
 	/** The corners' node ids, in order. */
 	get nodes(): NodeId[] {
 		return this.#corners.map((c) => c.id);
+	}
+
+	/** The corners' positions, in order (an existing node's from `graph`). */
+	locs(graph: Graph): Loc[] {
+		return this.#corners.flatMap((c) => {
+			if (c.kind === "new") return [c.loc];
+			const node = graph.entity(c.id);
+			return node?.type === "node" ? [node.loc] : [];
+		});
 	}
 
 	/** Enough corners for the way: two for a line, three for an area. */

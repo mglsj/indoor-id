@@ -20,6 +20,7 @@
 	import FieldsSection from "#lib/ui/FieldsSection.svelte";
 	import InfoButton from "#lib/ui/InfoButton.svelte";
 	import InspectorSection from "#lib/ui/InspectorSection.svelte";
+	import MeasurementSection from "#lib/ui/MeasurementSection.svelte";
 	import MembersSection from "#lib/ui/MembersSection.svelte";
 	import PresetIcon from "#lib/ui/PresetIcon.svelte";
 	import PresetList from "#lib/ui/PresetList.svelte";
@@ -260,6 +261,8 @@
 							: undefined}
 					/>
 				</InspectorSection>
+
+				<MeasurementSection id={entity.id} />
 
 				{#if entity.type === "relation"}
 					<MembersSection

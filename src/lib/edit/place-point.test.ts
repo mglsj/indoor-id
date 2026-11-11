@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { SnapTarget } from "#lib/edit/precision/snap.ts";
 import { msg } from "#lib/i18n/messages.ts";
-import type { SnapTarget } from "#lib/map/snap.ts";
 import { node, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { placePoint } from "./place-point.ts";

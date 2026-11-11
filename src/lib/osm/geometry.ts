@@ -117,11 +117,26 @@ export function midpoint(a: Point, b: Point): [number, number] {
 const MEAN_RADIUS = 6_371_008.8;
 
 /** Metres east and north of `origin`, flat around it (fine within a few hundred metres). */
-function local(origin: Point, [lon = 0, lat = 0]: Point): [number, number] {
+export function local(
+	origin: Point,
+	[lon = 0, lat = 0]: Point,
+): [number, number] {
 	const [lon0 = 0, lat0 = 0] = origin;
 	return [
 		(lon - lon0) * RAD * MEAN_RADIUS * Math.cos(lat0 * RAD),
 		(lat - lat0) * RAD * MEAN_RADIUS,
+	];
+}
+
+/** The position `east` and `north` metres from `origin`: the inverse of `local`. */
+export function fromLocal(
+	origin: Point,
+	[east, north]: readonly [number, number],
+): [number, number] {
+	const [lon0 = 0, lat0 = 0] = origin;
+	return [
+		lon0 + east / (RAD * MEAN_RADIUS * Math.cos(lat0 * RAD)),
+		lat0 + north / (RAD * MEAN_RADIUS),
 	];
 }
 

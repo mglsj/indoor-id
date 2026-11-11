@@ -98,7 +98,7 @@ function extentOfPolygons(polygons: readonly Polygon[]): Extent | null {
  * The container a click on empty floor is in: the smallest `indoor=level` outline on the
  * level holding it, else the smallest building drawn on the level.
  */
-function containerAt(
+export function containerAt(
 	features: readonly IndoorFeature[],
 	at: Loc,
 	level: number,

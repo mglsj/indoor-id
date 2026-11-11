@@ -178,5 +178,22 @@
 	"background_move_east": "Move the imagery east",
 	"background_move_north": "Move the imagery north",
 	"background_move_south": "Move the imagery south",
-	"background_offset_reset": "Reset the offset"
+	"background_offset_reset": "Reset the offset",
+	"snap_menu": "Snapping",
+	"snap_menu_hint": "Snapping ({key})",
+	"snap_enabled": "Snap while drawing and dragging",
+	"snap_points": "Nodes and sides",
+	"snap_midpoints": "Midpoints of sides",
+	"snap_plan_vertices": "Floor plan corners",
+	"snap_angles": "Angles",
+	"snap_angle_step": "Angle step",
+	"snap_units": "Units",
+	"units_metric": "Metres",
+	"units_imperial": "Feet and inches",
+	"snap_note": "Hold Alt to snap to nothing for a moment, Shift to keep the direction of the side being drawn.",
+	"measure_section": "Measurements",
+	"measure_length": "Length",
+	"measure_perimeter": "Perimeter",
+	"measure_area": "Area",
+	"measure_sides": "Sides"
 }

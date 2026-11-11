@@ -24,6 +24,8 @@ export const INDOOR_COLORS = {
 	pointStroke: "#ffffff",
 	text: "#333333",
 	selection: "#f59e0b",
+	/** Snap guides and markers (C.1). */
+	guide: "#d946ef",
 	textHalo: "rgba(255, 255, 255, 0.8)",
 } as const;
 
@@ -56,6 +58,8 @@ export const DARK_INDOOR_COLORS: IndoorColors = {
 	pointStroke: "#111111",
 	text: "#eeeeee",
 	selection: "#f59e0b",
+	/** Snap guides and markers (C.1). */
+	guide: "#d946ef",
 	textHalo: "rgba(0, 0, 0, 0.75)",
 };
 
