@@ -22,6 +22,10 @@ export interface Measure {
 	readonly depth?: number;
 	/** Degrees, 0 to 360 against the frame, or 0 to 180 between two sides. */
 	readonly angle?: number;
+	/** A scale factor (C.6). */
+	readonly factor?: number;
+	/** Show only the angle (a rotation) or the factor (a scaling), not a length. */
+	readonly shows?: "angle" | "factor";
 }
 
 export interface Feedback {

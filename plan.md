@@ -42,7 +42,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | LN     | License notices                            | Done         |
 | V      | Viewer mode (V.1–V.3)                      | Done         |
 | T      | One theme, background pane                 | Done         |
-| C      | CAD-style precision (C.0–C.6)              | C.0–C.5 done |
+| C      | CAD-style precision (C.0–C.6)              | C.0–C.6 done |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started  |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
@@ -463,6 +463,18 @@ menu shows the level's count, hides them, and clears the level's. A measure is k
 next first click, as a side label; the measured line is drawn through `Feedback.lines`. Not
 done: a list to delete one guide (clear the level instead), and guides on other levels are
 only reachable by switching level. Plan files are exported only when there is a plan.
+
+Landed with C.6: `actions/transform.ts` (`translateNodes`, `rotateNodes`, `scaleNodes`,
+`setSideLength`, `moveSide`: neighbours keep their directions, `offsetWay`: positive inside a
+closed way, `squareToFrame`), `edit/modes/transform.ts` (move, rotate, scale, move a side,
+parallel copy: clicks or a typed distance, angle or factor, one undo step), six operations
+(`Shift+M`, `Shift+R`, `Shift+S`, `E`, `O`, and `Shift+Q` square to the frame; `R` was taken by
+Repeat on levels), arrow nudges in browse mode (0.1 m, Shift 1 m, as the screen points;
+MapLibre's keyboard handler is off while something is selected; the level switcher's arrows
+only act when it has focus), and side lengths typed in the measurements panel. Not done:
+JOSM's extrude that adds a new face (moving a side covers the indoor case), a side length
+typed while dragging a vertex, offset's inner-ring (atrium hole) mode, and dragging (rather than
+clicking) in the move, rotate and scale tools. Nudges are one undo step each.
 
 Order inside C: C.0 and C.1 together first (one PR each), then C.2, then C.3; C.4 to C.6 can
 be reordered after users have tried C.1–C.3.

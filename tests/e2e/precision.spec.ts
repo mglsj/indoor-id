@@ -440,3 +440,60 @@ function storedGuides(page: Page): Promise<number> {
 			}),
 	);
 }
+
+test("arrow keys nudge the selection, not the map", async ({ page }) => {
+	await metric(page);
+	await selectRoom(page);
+	const before = await camera(page);
+	await page.keyboard.press("Shift+ArrowRight");
+	await page.keyboard.press("ArrowUp");
+	// The room's four nodes moved, in two steps.
+	await expect(page.getByTestId("edit-count")).toHaveText("4");
+	expect(await camera(page)).toEqual(before);
+	await page.keyboard.press("Control+z");
+	await page.keyboard.press("Control+z");
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+});
+
+test("a side's length is typed in the measurements", async ({ page }) => {
+	await metric(page);
+	await selectRoom(page);
+	await page.getByRole("button", { name: "Measurements" }).click();
+	const first = page.getByLabel("Side 1");
+	await first.fill("35 m");
+	await first.press("Enter");
+	await expect(first).toHaveValue("35.00 m");
+	await expect(page.getByTestId("edit-count")).toHaveText("1");
+});
+
+test("E moves a side of the selected room by a typed distance", async ({
+	page,
+}) => {
+	await metric(page);
+	await selectRoom(page);
+	const { x, y } = await mapCenter(page);
+	await page.keyboard.press("e");
+	await expect(page.getByTestId("transform-hint")).toContainText("side");
+	// The east side, then 2 m east of it.
+	await page.mouse.click(x + 149, y);
+	await page.mouse.move(x + 200, y + 5);
+	await expect(page.getByTestId("measure-pointer")).toHaveText(/^5\.\d\d m$/);
+	await page.keyboard.type("2");
+	await page.keyboard.press("Enter");
+	await expect(page.getByTestId("transform-hint")).toBeHidden();
+	await expect(page.getByTestId("edit-count")).toHaveText("2");
+});
+
+test("O makes a parallel copy of the selected room, selected after", async ({
+	page,
+}) => {
+	await metric(page);
+	await selectRoom(page);
+	const { x, y } = await mapCenter(page);
+	await page.keyboard.press("o");
+	await page.mouse.move(x + 100, y);
+	await page.keyboard.type("1");
+	await page.keyboard.press("Enter");
+	// Four new nodes and the way.
+	await expect(page.getByTestId("edit-count")).toHaveText("5");
+});

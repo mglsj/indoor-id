@@ -1,17 +1,23 @@
 <script lang="ts">
+	import ArrowRightFromLine from "@lucide/svelte/icons/arrow-right-from-line";
 	import ClipboardPaste from "@lucide/svelte/icons/clipboard-paste";
 	import Combine from "@lucide/svelte/icons/combine";
 	import Copy from "@lucide/svelte/icons/copy";
 	import FileImage from "@lucide/svelte/icons/file-image";
+	import Grid2x2Check from "@lucide/svelte/icons/grid-2x2-check";
 	import Layers2 from "@lucide/svelte/icons/layers-2";
 	import MapPin from "@lucide/svelte/icons/map-pin";
+	import Move from "@lucide/svelte/icons/move";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import RectangleHorizontal from "@lucide/svelte/icons/rectangle-horizontal";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
+	import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 	import Ruler from "@lucide/svelte/icons/ruler";
+	import Scaling from "@lucide/svelte/icons/scaling";
 	import Scissors from "@lucide/svelte/icons/scissors";
 	import Spline from "@lucide/svelte/icons/spline";
 	import Square from "@lucide/svelte/icons/square";
+	import SquareSquare from "@lucide/svelte/icons/square-square";
 	import SquaresSubtract from "@lucide/svelte/icons/squares-subtract";
 	import Trash from "@lucide/svelte/icons/trash";
 	import Undo2 from "@lucide/svelte/icons/undo-2";
@@ -21,6 +27,7 @@
 	import { innerWidth } from "svelte/reactivity/window";
 	import type { Clipboard } from "#lib/actions/copy.ts";
 	import { splitAreas, splitTargets } from "#lib/actions/split-areas.ts";
+	import { translateNodes } from "#lib/actions/transform.ts";
 	import { OsmApi } from "#lib/api/osm-api.ts";
 	import { OsmWikibase } from "#lib/api/osm-wikibase.ts";
 	import { RecentUploads } from "#lib/api/recent-uploads.ts";
@@ -31,7 +38,7 @@
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
-	import { featureDrag } from "#lib/edit/feature-drag.ts";
+	import { featureDrag, nodesOf } from "#lib/edit/feature-drag.ts";
 	import {
 		formatCombo,
 		isForMap,
@@ -59,6 +66,10 @@
 		type RectangleVariant,
 	} from "#lib/edit/modes/rectangle.ts";
 	import { splitMode } from "#lib/edit/modes/split.ts";
+	import {
+		type TransformTool,
+		transformMode,
+	} from "#lib/edit/modes/transform.ts";
 	import { type NodeGrab, nodeDrag } from "#lib/edit/node-drag.ts";
 	import {
 		OPERATIONS,
@@ -489,7 +500,19 @@
 			level,
 			pasteAt: lastPointer ?? (center ? [center.lng, center.lat] : [0, 0]),
 			clipboard,
+			frameAngle: selectionFrameAngle(),
 		};
+	}
+
+	/** The drawing frame's angle where the selection is. */
+	function selectionFrameAngle(): number | undefined {
+		const [id] = editor.selection.ids;
+		const extent = id ? entityExtent(editor.graph, id) : null;
+		if (!extent) return undefined;
+		return frameAt([
+			(extent.west + extent.east) / 2,
+			(extent.south + extent.north) / 2,
+		]).angle;
 	}
 
 	/** The operations on the selection (P5.3.5), while browsing. */
@@ -514,6 +537,10 @@
 			repeating = result.id;
 			return;
 		}
+		if (result.kind === "tool") {
+			transformTool = result.tool;
+			return;
+		}
 		if (result.kind === "copy") {
 			clipboard = result.clipboard;
 			const count = result.clipboard.roots.length;
@@ -535,7 +562,54 @@
 		merge: Combine,
 		multipolygon: SquaresSubtract,
 		delete: Trash,
+		move: Move,
+		rotate: RotateCcw,
+		scale: Scaling,
+		side: ArrowRightFromLine,
+		offset: SquareSquare,
+		"square-frame": Grid2x2Check,
 	};
+
+	/** The tool editing the selection by clicks or typed values (C.6), or null. */
+	let transformTool = $state<TransformTool | null>(null);
+	const TRANSFORM_HINTS: Record<TransformTool, Message> = {
+		move: msg("transform_move_hint"),
+		rotate: msg("transform_rotate_hint"),
+		scale: msg("transform_scale_hint"),
+		side: msg("transform_side_hint"),
+		offset: msg("transform_offset_hint"),
+	};
+
+	/** Nudges the selection by an arrow key (C.6): 0.1 m, 1 m with Shift, as the screen points. */
+	function nudge(event: KeyboardEvent): boolean {
+		const arrows: Record<string, [number, number]> = {
+			ArrowUp: [0, 1],
+			ArrowDown: [0, -1],
+			ArrowLeft: [-1, 0],
+			ArrowRight: [1, 0],
+		};
+		const arrow = arrows[event.key];
+		const ids = editor.selection.ids;
+		if (
+			!arrow ||
+			ids.length === 0 ||
+			event.ctrlKey ||
+			event.metaKey ||
+			event.altKey
+		)
+			return false;
+		const step = event.shiftKey ? 1 : 0.1;
+		// Screen right and up on the ground, as the map is turned.
+		const b = ((map?.getBearing() ?? 0) * Math.PI) / 180;
+		const [x, y] = arrow;
+		const east = (x * Math.cos(b) + y * Math.sin(b)) * step;
+		const north = (-x * Math.sin(b) + y * Math.cos(b)) * step;
+		editor.history.perform(
+			translateNodes(nodesOf(editor.graph, ids), [east, north]),
+			msg("undo_nudge"),
+		);
+		return true;
+	}
 
 	/** What the map's clicks, drags and keys do now (see `edit/modes`). */
 	const modeKind = $derived(
@@ -545,9 +619,11 @@
 				: "floorplan"
 			: framePick
 				? `frame-${framePick}`
-				: drawing
-					? `draw-${drawing}`
-					: "browse",
+				: transformTool
+					? `transform-${transformTool}`
+					: drawing
+						? `draw-${drawing}`
+						: "browse",
 	);
 	let modes = $state.raw<ModeManager>();
 
@@ -563,6 +639,11 @@
 		const overlay = new EditOverlay(instance);
 		const guides = new GuideLayer(instance);
 		$effect(() => guides.show(feedback));
+		// Arrow keys nudge the selection (C.6): the map's keyboard panning waits for none.
+		$effect(() => {
+			if (editor.selection.ids.length > 0) instance.keyboard.disable();
+			else instance.keyboard.enable();
+		});
 		const constructionLayer = new ConstructionLayer(instance);
 		$effect(() =>
 			constructionLayer.setGuides(planMode ? [] : construction.on(level)),
@@ -763,6 +844,33 @@
 							}),
 						);
 						break;
+					case "transform-move":
+					case "transform-rotate":
+					case "transform-scale":
+					case "transform-side":
+					case "transform-offset": {
+						const ids = editor.selection.ids;
+						manager.setMode(
+							transformMode({
+								tool: kind.slice("transform-".length) as TransformTool,
+								history: editor.history,
+								ids,
+								nodes: nodesOf(editor.graph, ids),
+								snap: snapNode,
+								onfinish: (select) => {
+									transformTool = null;
+									if (select) editor.select(select);
+								},
+								precision: {
+									frameAt,
+									step: () => precision.step,
+									units: () => precision.units,
+									show: showFeedback,
+								},
+							}),
+						);
+						break;
+					}
 					case "draw-measure":
 						manager.setMode(
 							measureMode({
@@ -1150,6 +1258,10 @@
 			return;
 		}
 		if (planMode) return;
+		if (modeKind === "browse" && nudge(event)) {
+			event.preventDefault();
+			return;
+		}
 		const operation = operations.find(({ operation }) =>
 			operation.keys.some((combo) => matches(event, combo, mac)),
 		)?.operation;
@@ -1415,7 +1527,15 @@
 		/>
 	{/if}
 
-	{#if framePick}
+	{#if transformTool}
+		<p
+			role="status"
+			data-testid="transform-hint"
+			class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+		>
+			{t(TRANSFORM_HINTS[transformTool])}
+		</p>
+	{:else if framePick}
 		<p
 			role="status"
 			data-testid="frame-hint"
