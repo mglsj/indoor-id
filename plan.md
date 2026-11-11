@@ -42,6 +42,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | LN     | License notices                            | Done        |
 | V      | Viewer mode (V.1–V.3)                      | Done        |
 | T      | One theme, background pane                 | Done        |
+| C      | CAD-style precision (C.0–C.6)              | Proposed    |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
 | P5.4b  | Rebase before upload, conflicts            | Not started |
 | W2     | Wiki conformance, November research        | Not started |
@@ -277,6 +278,153 @@ localStorage. `basemap_style`, `basemap_style_dark` and `imagery_index_url` left
 Dropped: the temporary "view in 3D" link to osm-simple3d-editor, since 3D.1 follows V. Routing
 (a graph from `highway=footway`/`corridor`, doors, stairs and elevators with their levels;
 Dijkstra on a heap) comes after 3D, as its own step.
+
+### C: CAD-style precision — L (C.0–C.6), proposed
+
+Asked by the user on 2026-11-11: drawing and editing feel like iD (free clicks, Square after
+the fact), but indoor mapping needs precision: angles that snap, guides, a grid of a chosen size
+and rotation, exact lengths. Research, with what AutoCAD, SketchUp, JOSM, iD,
+osm-simple3d-editor and floor-plan apps do: `research/cad-precision.md` in the project files.
+Draft: the questions at the end are open, and the defaults below are the recommendations.
+
+The idea in one line: a **drawing frame** (origin and rotation, by default the building's main
+direction) that the grid, axis locks and angles are measured in; a **snap pipeline** whose
+result says what it snapped to, so the map can draw the guide and a label; and **typed values**
+for lengths and angles. Drawing aids are never tags and never uploaded.
+
+Each slice agrees its test seams first (`tdd`). Pure parts (frames, constraints, units, the
+snap pipeline) go in `edit/precision/` with unit tests from worked examples; e2e tests draw with
+typed values and check the osmChange's coordinates within 1 cm (OSM keeps 7 decimals).
+
+0. **C.0 Foundations, no behaviour change — S–M.**
+   - `edit/precision/frame.ts`: a `Frame` (origin `Loc`, angle in degrees from east) and
+     conversions between positions and metres in the frame (east/north metres around the
+     origin, the `local()` that `osm/geometry.ts` keeps private today, made public there).
+     Lengths in metres everywhere; Mercator stays for drawing (it is conformal, so angles agree).
+   - `buildingFrame(graph, building)`: the main direction of a building outline or a level
+     outline, side directions averaged modulo 90° weighted by length (osm-simple3d-editor's
+     `local-axes.ts`, ISC, credited), origin at the outline's south-west corner in the frame.
+   - `edit/precision/snap.ts` replaces `map/snap.ts`'s single function by a pipeline: providers
+     return candidates `{ kind, loc, score, guide? }` (kinds: node, midpoint, segment, plan
+     vertex, intersection, angle, axis, extension, perpendicular, parallel, tracking, grid,
+     guide), scored by screen distance plus a priority penalty as osm-simple3d-editor does
+     (`SNAP_PRIORITY`). Point snaps beat direction constraints; a direction constraint can be
+     combined with a line snap (a 90° ray crossing a wall gives the crossing). Today's three
+     kinds keep today's order and 8 px, so existing tests pass unchanged.
+   - `units/length.ts`: parse `3.2`, `3,2`, `3.2 m`, `320 cm`, `12'6"`, `12 ft 6 in` into
+     metres; format to the centimetre.
+   - `map/guide-layer.ts` in the "edit" slot: guide lines (dashed), angle arcs, a snap marker
+     whose glyph says the kind, and text labels.
+   - `state/precision.svelte.ts`: which snaps are on, angle step, grid settings, kept in
+     localStorage; frames and guides per building in IndexedDB (a new store in
+     `persist/plan-store.ts`, schema 5).
+
+1. **C.1 Readout and angle snapping — M.** The biggest change in feel for the least code.
+   - While drawing a line or area and while dragging a vertex: the length of the side being
+     drawn and its angle, next to the pointer ("3.42 m · 90°"), and the lengths of the sides
+     next to a dragged vertex. Angles are shown relative to the previous side when there is
+     one, else to the frame.
+   - Angle snapping: the new side snaps to multiples of the angle step (default 15°; 90° turns
+     the snapping into CAD's Ortho) relative to the frame's axes and to the previous side, and
+     to 90° from the drawing's first corner (closing a rectangle). Caught within a few degrees
+     and a few pixels of the ray, drawn as a dashed ray with the angle.
+   - Point snaps (node, side, plan vertex, midpoint: new) still win over angles; where the
+     angle ray crosses a side or another ray, that crossing is a snap.
+   - Shift held while drawing locks the current direction (SketchUp, osm-simple3d-editor):
+     a click on any point then only sets the distance along it. Alt turns all snapping off for
+     the moment, as now.
+   - A snapping control on the map (a magnet button with a menu of check boxes, remembered):
+     angles on or off and the step, and each snap kind. Shortcut to toggle all snapping: to be
+     agreed (F3 as CAD, or `S`).
+   - A measurement readout for the selection in the side panel (iD's measurement panel): side
+     lengths, area, perimeter.
+
+2. **C.2 Typed lengths and angles — M.**
+   - While drawing, after the first corner: digits (and `.` `,` `'` `"` and unit letters) open a
+     small input at the pointer, prefilled with nothing. Enter places the next corner at that
+     length in the current direction (snapped angle, locked direction, or the pointer's). Tab
+     moves to an angle field; `@dx,dy` or `dx;dy` in the frame also works (CAD's relative
+     coordinates). Escape clears the input first, then ends the drawing. Backspace edits the
+     input while it has text, else takes the last corner back as now.
+   - The draw modes' keys take digits before the tool shortcuts (1, 2, 3) do; outside drawing
+     the shortcuts stay.
+   - A rectangle tool (R is Repeat on levels today, so another key, to be agreed): two corners
+     in the frame, or a side and a width (three clicks for a rotated one); typed `4;3` for width
+     and depth. It draws an area as the area tool does, so the preset list opens after.
+
+3. **C.3 Grid and frame — M.**
+   - A grid drawn in the frame on the shown level: spacing set by the user (default 0.5 m minor
+     and 5 m major lines; lines fade out when closer than 8 px on screen, so zooming out never
+     draws a carpet), origin and rotation from the frame. Snaps to grid crossings, and to grid
+     lines when combined with an angle.
+   - The frame: automatic per building (`buildingFrame` of the building under the view's centre
+     or of the selection), or set by the user: "Align to this side" on a selected side, a typed
+     angle, or two clicks; the origin moved with a click. Kept per building in IndexedDB, never
+     in OSM. A floor plan's own rotation is offered as a frame too, so the grid matches the
+     plan's module.
+   - "Turn the map to the frame" (sets the bearing so the frame's axes are the screen's) and
+     back to north.
+   - The grid is off by default; the frame is always on, since angles are measured in it.
+
+4. **C.4 Inference guides — M–L.** What CAD calls object snap tracking and SketchUp
+   inference; most of what users would draw guides for.
+   - Extension: a side's line past its ends, after hovering the side (osm-simple3d-editor: 1 s
+     to arm, 30 m long, 6 px to catch, gone 4 s after last use).
+   - Perpendicular: the foot of the perpendicular from the last corner to a nearby side.
+   - Parallel: the new side parallel to a hovered side (SketchUp's magenta).
+   - Tracking: hovering a corner for a moment arms it; lines along the frame's axes and its
+     sides' directions run through it, and where one crosses the angle ray or another tracking
+     line is a snap ("in line with that corner"). A typed number then places a point at that
+     distance along the tracked line.
+   - Intersections of two sides (corners not yet drawn), and midpoints.
+   - All of them drawn with what they mean (dashed line, kind glyph, a short label), and each
+     kind on or off in the snapping menu.
+
+5. **C.5 Construction guides and measuring — M.**
+   - A measure tool (tape): two snapped clicks give the distance and angle, shown until the
+     next measure.
+   - Guides placed by the user: a line through two points, a line parallel to a side at a typed
+     offset (SketchUp's tape measure from a side: "the corridor wall is 2.4 m from this one"),
+     a line at a typed angle through a point. Snapped to like sides, crossings included. Drawn
+     faintly on their level; a list in the snapping menu to hide or clear them.
+   - Kept per building and level in IndexedDB, exported with the floor plan file (`plan-io.ts`)
+     so a layout can be shared with the plan; never in OSM.
+
+6. **C.6 Precise edits of existing geometry — M–L.** Operations in `edit/operations.ts`, one
+   undo step each.
+   - Arrow keys nudge the selection (0.1 m, Shift 1 m, in the frame's axes or the screen's: to
+     be agreed).
+   - Move, rotate and scale by typed values: drag with the same snapping and readout, or type
+     a distance, an angle, or a factor after the first click (osm-simple3d-editor's move, rotate
+     and scale tools).
+   - Set the length of a selected side (in the measurement readout, or by typing while
+     dragging a vertex), keeping its direction and moving the end chosen.
+   - Extrude a side (JOSM's extrude): drag a side of an area out perpendicular to itself, or
+     move it parallel keeping its neighbours' directions; with a typed distance.
+   - Offset a way (parallel copy at a typed distance; an inner-ring mode, already planned in
+     P6 for atrium holes, moves here).
+   - Square with a chosen frame: square the selection to the frame's axes, not only to itself.
+
+Order inside C: C.0 and C.1 together first (one PR each), then C.2, then C.3; C.4 to C.6 can
+be reordered after users have tried C.1–C.3.
+
+Risks: snapping that fights the user is worse than none. Every constraint has a visible guide,
+a way to turn it off, and Alt to suspend all; e2e tests draw with real pointer moves so priority
+changes show up. The pipeline runs on every pointer move: candidates come from the existing
+rbush indexes in 8–12 px around the pointer, and a bench case keeps a pointer move under 2 ms
+with 10,000 rooms.
+
+Questions for the user (2026-11-11), to settle before C.1:
+
+- Where C goes: before 3D (recommended: it changes every drawing session) or after.
+- Angle snapping on by default (recommended, as Sweet Home 3D and SketchUp) or opt-in (JOSM).
+- Default angle step: 15° (recommended), 45° or 90°.
+- The frame: automatic from the building with an override (recommended), or one global grid
+  angle the user sets.
+- Typed input: type anywhere while drawing (SketchUp, recommended) or a field to click.
+- Units: metres with feet and inches accepted when typed (recommended), or a units setting.
+- Keys: the snapping toggle and the rectangle tool.
+- Persistent guides (C.5) and edits (C.6): both wanted, or only some.
 
 ### 3D: 3D floors — M (3D.1), M (3D.3), M–L (3D.2)
 
