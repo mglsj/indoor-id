@@ -10,8 +10,6 @@ export interface EditorConfig {
 	oauth_url?: string;
 	/** Public OAuth 2 client id registered on the OSM instance above (PKCE, no secret). */
 	oauth_client_id: string;
-	/** Editor Layer Index used to list background imagery; the osmlab one by default. */
-	imagery_index_url?: string;
 	/** Nominatim instance for place search; the OSMF one by default. */
 	nominatim_url?: string;
 	/** Taginfo API for value suggestions; the OSMF one by default. */
@@ -24,10 +22,6 @@ export interface EditorConfig {
 	osm_wiki_api_url?: string;
 	/** Overpass API for the viewer, without `/interpreter`; overpass-api.de by default. */
 	overpass_url?: string;
-	/** URL of a MapLibre style used as the default basemap. */
-	basemap_style: string;
-	/** The basemap in dark mode; `basemap_style` when unset. */
-	basemap_style_dark?: string;
 	/** Minimal zoom at which OSM data is downloaded. */
 	data_min_zoom: number;
 	map_initial_zoom: number;
@@ -37,14 +31,12 @@ export interface EditorConfig {
 
 const OPTIONAL_URLS = [
 	"oauth_url",
-	"imagery_index_url",
 	"nominatim_url",
 	"taginfo_url",
 	"wikidata_api_url",
 	"wikipedia_api_url",
 	"osm_wiki_api_url",
 	"overpass_url",
-	"basemap_style_dark",
 ] as const;
 
 const DEFAULTS = {
@@ -78,7 +70,6 @@ export function parseConfig(json: unknown): EditorConfig {
 		osm_api_url: url("osm_api_url", true) ?? "",
 		oauth_client_id:
 			typeof raw.oauth_client_id === "string" ? raw.oauth_client_id : "",
-		basemap_style: url("basemap_style", true) ?? "",
 		data_min_zoom: number("data_min_zoom", DEFAULTS.data_min_zoom),
 		map_initial_zoom: number("map_initial_zoom", DEFAULTS.map_initial_zoom),
 		map_initial_latlng: DEFAULTS.map_initial_latlng,

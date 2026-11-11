@@ -52,8 +52,10 @@ runs the same commands.
   (`EditHistory`), `selection`, `sync` (`DataSync`), `catalog` (presets, upgrades, web
   services); components read it with `getEditor()`, never as a prop; UI edits are functions in
   `state/commands.ts`; issues come from `validation/validator.ts`, cached per entity), and
-  `ui/MapShell.svelte` (R5: the map with its indoor layers, level switcher, URL hash, imagery,
-  search and load status, for any page) under `ui/EditorView.svelte` (the editor's modes,
+  `ui/MapShell.svelte` (R5: the map with its indoor layers, level switcher, URL hash,
+  background, search and load status, for any page; backgrounds (T): `map/backgrounds.ts`, a
+  fixed list, `map/background.ts` with the imagery offset, `state/background.svelte.ts`,
+  `ui/BackgroundPane.svelte` on the right) under `ui/EditorView.svelte` (the editor's modes,
   toolbar, side panel and dialogs; `map/view.ts` for the view extent and projections). Change how a tag is drawn in `classify.ts`, not
   in the style.
 - Tagging and upload (P3): `presets/` (`PresetIndex`: match, search, fields, `listFor`,
@@ -178,7 +180,9 @@ runs the same commands.
 - **UI**: build with the shadcn-svelte components in `src/lib/components/shadcn/` (added with
   `bunx shadcn-svelte@latest add <name>`, then `bun run format`; don't hand-edit them) and the
   theme's semantic colours (`bg-background`, `text-muted-foreground`…), never raw palette colours
-  or `dark:` overrides. Dark mode follows the system via `mode-watcher` (`.dark` class). Controls
+  or `dark:` overrides. Dark mode follows the system via `mode-watcher` (`.dark` class) until
+  the header's theme button picks one; the basemap (`map/basemap.ts`) and MapLibre's controls
+  (`app.css`) follow it. Controls
   floating over the map sit on a `bg-background` wrapper: shadcn's dark outline and input styles
   are translucent. A `Command`'s input is named by the Command's `label`, not `aria-label`.
 - **Licenses**: code ported or translated from another project (iD, osm-simple3d-editor,

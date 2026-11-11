@@ -366,8 +366,8 @@ test("the Escape that closes a popover keeps the selection", async ({
 	page,
 }) => {
 	const editor = await selectRoom(page);
-	await page.getByRole("button", { name: "Background" }).click();
-	const picker = page.getByRole("group", { name: "Background imagery" });
+	await editor.getByRole("button", { name: "Add field" }).click();
+	const picker = page.getByPlaceholder("Search fields");
 	await expect(picker).toBeVisible();
 	await page.keyboard.press("Escape");
 	await expect(picker).toBeHidden();

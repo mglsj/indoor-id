@@ -69,6 +69,7 @@
 	} from "#lib/floorplans/georef.ts";
 	import { planDecoders } from "#lib/floorplans/import.ts";
 	import { type Message, msg, t } from "#lib/i18n/messages.ts";
+	import type { Imagery } from "#lib/map/backgrounds.ts";
 	import { EditOverlay } from "#lib/map/edit-overlay.ts";
 	import type { Segment } from "#lib/map/feature-store.ts";
 	import {
@@ -78,7 +79,6 @@
 		toolFeatures,
 	} from "#lib/map/floorplan-layers.ts";
 	import { parseHash, type MapView as View } from "#lib/map/hash.ts";
-	import type { ImageryEntry } from "#lib/map/imagery.ts";
 	import type { IndoorMap } from "#lib/map/indoor-map.ts";
 	import {
 		LngLat as LngLatClass,
@@ -218,7 +218,7 @@
 	let level = $state(parseHash(location.hash)?.level ?? 0);
 	/** The indoor layers, which `MapShell` puts on the map. */
 	let indoor = $state.raw<IndoorMap>();
-	let background: ImageryEntry | null = null;
+	let background: Imagery | null = null;
 	/** Imagery shown since the last upload, for the changeset's imagery_used tag. */
 	let imageryUsed = $state<string[]>([]);
 
@@ -238,7 +238,7 @@
 		);
 	}
 
-	function backgroundPicked(entry: ImageryEntry | null) {
+	function backgroundPicked(entry: Imagery | null) {
 		background = entry;
 		if (entry && !imageryUsed.includes(entry.name)) {
 			imageryUsed = [...imageryUsed, entry.name];
