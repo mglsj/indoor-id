@@ -81,6 +81,7 @@
 		"immutable": "5.1.9",
 		"maplibre-gl": "6.16.0",
 		"pdfjs-dist": "6.4.299",
+		"polyclip-ts": "0.16.8",
 		"wmf-sitematrix": "0.2.0"
 	},
 	"packageManager": "bun@1.4.2"

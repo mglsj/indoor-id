@@ -33,6 +33,8 @@ const BUILDING_OUTLINE = BUILDING_COLOR;
 
 /** Click tolerance, in pixels around the pointer. */
 const CLICK_TOLERANCE = 4;
+/** The areas' outlines, which a click picks before the floor inside them (P5.4a). */
+const OUTLINE_LAYER = "indoor-outline";
 
 export class IndoorMap {
 	readonly #map: MapLibreMap;
@@ -175,13 +177,22 @@ export class IndoorMap {
 
 	/** The `@id` of the feature drawn at a screen point, topmost first, or null. */
 	hitTest(point: { x: number; y: number }): string | null {
+		return this.#hit(point, SELECTABLE_LAYER_IDS);
+	}
+
+	/** The `@id` of the area whose outline is drawn at a screen point, or null. */
+	outlineAt(point: { x: number; y: number }): string | null {
+		return this.#hit(point, [OUTLINE_LAYER]);
+	}
+
+	#hit(point: { x: number; y: number }, layers: string[]): string | null {
 		if (!this.#ready) return null;
 		const features = this.#map.queryRenderedFeatures(
 			[
 				[point.x - CLICK_TOLERANCE, point.y - CLICK_TOLERANCE],
 				[point.x + CLICK_TOLERANCE, point.y + CLICK_TOLERANCE],
 			],
-			{ layers: SELECTABLE_LAYER_IDS },
+			{ layers },
 		);
 		const id = features[0]?.properties["@id"];
 		return typeof id === "string" ? id : null;

@@ -186,3 +186,46 @@ describe("browseMode with the edit overlay", () => {
 		expect(mode.press?.(at(70))).toBeNull();
 	});
 });
+
+describe("browseMode with unmapped floor", () => {
+	function floorSetup() {
+		const selected: (string | null)[] = [];
+		const asked: (string | null)[] = [];
+		const mode = browseMode({
+			// A level outline right of x = 50, a vertex at x = 100.
+			hitTest: (point) => (point.x > 50 ? "w1" : null),
+			vertexAt: (point) => (point.x === 100 ? "n1" : null),
+			select: (id) => selected.push(id),
+			hover: () => {},
+			toggle: () => {},
+			// Floor left of x = 80.
+			floor: (at, hit) => {
+				asked.push(hit);
+				return at.point.x < 80;
+			},
+		});
+		return { mode, selected, asked };
+	}
+
+	it("lets a click select the floor under it instead of the feature", () => {
+		const { mode, selected, asked } = floorSetup();
+		mode.click?.(at(60));
+		mode.click?.(at(10));
+		expect(asked).toEqual(["w1", null]);
+		expect(selected).toEqual([]);
+	});
+
+	it("selects the feature where there is no floor, and vertices first", () => {
+		const { mode, selected, asked } = floorSetup();
+		mode.click?.(at(90));
+		mode.click?.(at(100));
+		expect(asked).toEqual(["w1"]);
+		expect(selected).toEqual(["w1", "n1"]);
+	});
+
+	it("leaves Shift+click to the selection", () => {
+		const { mode, asked } = floorSetup();
+		mode.click?.({ ...at(60), shiftKey: true });
+		expect(asked).toEqual([]);
+	});
+});

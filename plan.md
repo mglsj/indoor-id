@@ -38,7 +38,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | P5.3   | Geometry editing                           | Done        |
 | R4     | Fixes after P5.3 (review)                  | Done        |
 | R5     | Map shell split (review)                   | Done        |
-| P5.4a  | Autosave and restore                       | In progress |
+| P5.4a  | Autosave and restore                       | Done        |
 | V      | Viewer mode (V.1–V.3)                      | Not started |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
 | P5.4b  | Rebase before upload, conflicts            | Not started |
@@ -55,7 +55,7 @@ Finished phases (what was built, measured and decided) are in [docs/history.md](
 | App         | SvelteKit 3 + `adapter-static`, every route `ssr = false` / `prerender = true`; Svelte 5 runes; TypeScript 6 strict |
 | Map         | MapLibre GL JS 6 (WebGL), imported only via `#lib/map/maplibre.ts`                                                  |
 | UI          | Tailwind CSS 4, shadcn-svelte components (vega style, on bits-ui 2), `@lucide/svelte`                               |
-| Editing     | Custom engine modelled on iD's modes and behaviours, `rbush` spatial index, `@turf/*` v7                            |
+| Editing     | Custom engine modelled on iD's modes and behaviours, `rbush` spatial index, `polyclip-ts` (unmapped floor)          |
 | OSM         | `osm-auth` 3 (OAuth 2 PKCE, no secret, no backend); small `fetch` client for the API v0.6                           |
 | Presets     | `@openstreetmap/id-tagging-schema` filtered at build time, plus a local indoor overlay; `fuse.js`                   |
 | Storage     | IndexedDB via `idb` (floor plans, autosaved edits, settings)                                                        |
@@ -88,7 +88,7 @@ src/lib/
   validation/  rules/*, upgrades (deprecated tag → one-click fix)
   map/         maplibre (entry point), hash, sources (graph → GeoJSON), style/*, imagery/*
   edit/        mode-manager, modes/{browse,select,draw-*,drag-node,floorplan,floorplan-tool},
-               drag, keys (R1)
+               drag, keys (R1), unmapped-floor (P5.4a)
   floorplans/  import, plan-io (R2), georef, tiling, plan-file, vector extraction (P4.2)
   persist/     plan-store, autosave (P5.4a)
   state/       history, selection, data sync, catalog, validator (R1 split of editor.svelte.ts),
@@ -183,46 +183,6 @@ panel's width) and has `controls`, `tools` and `children` snippets. `map/view.ts
 `visibleExtent`, `projectLoc` and `unprojectPoint`. `snap` and `snapNode` stay in `EditorView`:
 they read the editor's features and the floor plans, which V doesn't have. `EditorView` went
 from 1,183 to 1,047 lines; no behaviour change, the same unit and e2e tests pass.
-
-### P5.4a: Autosave and restore — M
-
-Before V and 3D (decided ✔). From P5.4's first step:
-
-- History saved to IndexedDB as per-step differences with their selection and labels, the base
-  versions of edited entities and `nextId`; a restore prompt on start; the `beforeunload`
-  guard stays.
-- Steps as differences over the base, so a downloaded tile is merged into the base once
-  instead of rebasing every step's graph (R4.4: 790 ms per tile under 10,000 steps).
-- Steps record the selection, so undo and redo select again as iD does (today undo leaves the
-  selection on deleted entities).
-- The open changeset id remembered, so a retry after a lost upload response checks it first
-  instead of duplicating data.
-- iD's format (`history.toJSON`) and a session lock so two tabs don't restore the same edits:
-  osm-simple3d-editor's lighter lock, one record per tab id (kept in `sessionStorage`, so a
-  reload finds it) plus a `localStorage` heartbeat every 5 s; a record silent for 20 s belongs
-  to a closed tab and a new tab may restore it.
-  Autosave done ✅ (the first PR; the unmapped floor follows as its own):
-  `osm/history-json.ts` saves the downloaded versions of the entities edited, then each step as
-  what it changed (`Step.changed`, kept when the step is made, so a save costs the edits, not
-  the data), its label and its selection; `restoreHistory` replays them and the data downloaded
-  since is merged on top (a newer version of an edited entity is a conflict). The next id isn't
-  saved: replaying gives one below every new entity. Downloads merge into the server data once
-  and each step is rebased when next shown: a tile under 10,000 steps went from 939 ms to 1.3 ms
-  (the conflict check asks the last step, which holds every entity edited in any).
-  `persist/autosave.ts`: one IndexedDB record per tab (`indoorid-edits`), the tab id in
-  `sessionStorage`, a `localStorage` heartbeat every 5 s, records silent for 20 s claimable in
-  one transaction. `state/autosave.svelte.ts` saves a second after each change and when the tab
-  is hidden, and nothing before the edits found on start are restored or discarded
-  (`ui/RestoreDialog.svelte`). Steps record the selection while current; undo and redo select it
-  again, without what the step doesn't have. A failed upload's changeset is kept
-  (`DataSync.failedChangeset`, autosaved too) and the next upload downloads it first
-  (`OsmApi.upload`'s `retryOf`): when it holds changes the upload went through, nothing is sent,
-  and the Save dialog offers Start over (`DataSync.discard`).
-
-- Then, as an editing feature: **unmapped floor** (from osm-simple3d-editor's lessons, not
-  built in P5.3): a click on floor outside any room selects the level outline minus its rooms,
-  corridors and areas; tagging it creates an `indoor=area` on the shown level, sharing nodes
-  with its neighbours.
 
 ### V: Viewer mode — M–L
 

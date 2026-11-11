@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { OPERATIONS } from "#lib/edit/operations.ts";
+import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import type { Entity } from "#lib/osm/entity.ts";
 import { node, relation, way } from "#lib/osm/fixtures.ts";
@@ -8,6 +9,7 @@ import { Catalog } from "./catalog.svelte.ts";
 import {
 	addToRelation,
 	fix,
+	mapFloor,
 	moveMember,
 	performEdit,
 	relationLabel,
@@ -176,5 +178,53 @@ describe("commands", () => {
 		editor.history.undo();
 		expect(editor.graph.entity("w1")).toBeDefined();
 		expect(editor.graph.entity("n1")).toBeDefined();
+	});
+
+	it("maps the unmapped floor selected in one step, and selects what it made", () => {
+		const M = 1e-5;
+		const editor = editorWith([
+			node("n1", {}, [0, 0]),
+			node("n2", {}, [10 * M, 0]),
+			node("n3", {}, [10 * M, 10 * M]),
+			node("n4", {}, [0, 10 * M]),
+			way("w1", ["n1", "n2", "n3", "n4", "n1"], {
+				indoor: "level",
+				level: "1",
+			}),
+		]);
+		const floor = unmappedFloorAt(
+			editor.features.byId.values(),
+			[5 * M, 5 * M],
+			1,
+		);
+		editor.select("w1");
+		editor.selectFloor(floor);
+		expect(editor.floor).toBe(floor);
+		expect(editor.selection.ids).toEqual([]);
+
+		mapFloor(editor, null);
+		expect(editor.floor).toBeNull();
+		const [id] = editor.selection.ids;
+		expect(id && editor.graph.entity(id)?.tags).toEqual({
+			indoor: "area",
+			level: "1",
+		});
+		expect(editor.history.editCount).toBe(1);
+		editor.history.undo();
+		expect(editor.history.editCount).toBe(0);
+	});
+
+	it("drops the unmapped floor when features are selected", () => {
+		const editor = roomAndDoor();
+		editor.selectFloor({
+			level: 0,
+			at: [0, 0],
+			container: "w1",
+			cutOut: [],
+			rings: [],
+			area: 1,
+		});
+		editor.select("n1");
+		expect(editor.floor).toBeNull();
 	});
 });

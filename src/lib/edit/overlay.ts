@@ -5,7 +5,13 @@
  * 18 (iD's junctions); and the untagged member ways of a selected or hovered relation, which
  * the indoor layers don't draw, as thin lines.
  */
-import type { Feature, FeatureCollection, LineString, Point } from "geojson";
+import type {
+	Feature,
+	FeatureCollection,
+	LineString,
+	Point,
+	Polygon,
+} from "geojson";
 import type { EntityId, Loc, NodeId, Way, WayId } from "#lib/osm/entity.ts";
 import {
 	EARTH_RADIUS,
@@ -44,11 +50,36 @@ export interface CutProperties {
 	readonly "@id": "cut";
 }
 
+/** The unmapped floor selected (P5.4a), drawn as the selection. */
+export interface FloorProperties {
+	readonly "@role": "floor";
+	readonly "@id": "floor";
+}
+
 export type OverlayProperties =
 	| VertexProperties
 	| MidpointProperties
 	| MemberProperties
-	| CutProperties;
+	| CutProperties
+	| FloorProperties;
+
+/** The unmapped floor selected, as an overlay feature (none when there is none). */
+export function floorFeature(
+	rings: readonly (readonly Loc[])[] | undefined,
+): OverlayFeature[] {
+	return rings && rings.length > 0
+		? [
+				{
+					type: "Feature",
+					geometry: {
+						type: "Polygon",
+						coordinates: rings.map((ring) => ring.map((p) => [...p])),
+					},
+					properties: { "@role": "floor", "@id": "floor" },
+				},
+			]
+		: [];
+}
 
 /** A cut line or a lasso being drawn, as an overlay feature (none under two points). */
 export function cutFeature(cut: readonly Loc[]): OverlayFeature[] {
@@ -63,7 +94,10 @@ export function cutFeature(cut: readonly Loc[]): OverlayFeature[] {
 			];
 }
 
-export type OverlayFeature = Feature<Point | LineString, OverlayProperties>;
+export type OverlayFeature = Feature<
+	Point | LineString | Polygon,
+	OverlayProperties
+>;
 
 export interface OverlayOptions {
 	readonly selected: readonly EntityId[];
@@ -84,7 +118,7 @@ const TILE_SIZE = 512;
 export function overlayFeatures(
 	graph: Graph,
 	{ selected, hover, zoom, nodesInView }: OverlayOptions,
-): FeatureCollection<Point | LineString, OverlayProperties> {
+): FeatureCollection<OverlayFeature["geometry"], OverlayProperties> {
 	const features: OverlayFeature[] = [];
 	const vertices = new Set<NodeId>();
 	const addVertices = (way: Way) => {
