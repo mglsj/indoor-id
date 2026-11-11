@@ -1,4 +1,5 @@
 <script lang="ts">
+	import List from "@lucide/svelte/icons/list";
 	/**
 	 * The viewer (V.1): indoor data from Overpass on the shared map shell, read-only, with no
 	 * account. A click selects a feature and shows its details; the floor numbering setting
@@ -10,6 +11,7 @@
 	import { untrack } from "svelte";
 	import { Overpass } from "#lib/api/overpass.ts";
 	import { RecentUploads } from "#lib/api/recent-uploads.ts";
+	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
 	import { isForMap } from "#lib/edit/keys.ts";
@@ -29,6 +31,9 @@
 	import { Editor, setEditor } from "#lib/state/editor.svelte.ts";
 	import FeatureCard from "#lib/ui/FeatureCard.svelte";
 	import MapShell from "#lib/ui/MapShell.svelte";
+	import ViewerPanel from "#lib/ui/ViewerPanel.svelte";
+	import type { Place } from "#lib/view/places.ts";
+	import { roomUses } from "#lib/view/room-use.ts";
 
 	interface Props {
 		config: EditorConfig;
@@ -96,6 +101,29 @@
 	let camera = $state.raw<{ zoom: number; lat: number; lon: number }>();
 	let modes = $state.raw<ModeManager>();
 
+	/** The side panel (V.3): open from the start on wide screens. */
+	const PANEL_WIDTH = 320;
+	let panelOpen = $state(window.innerWidth >= 768);
+	const extent = $derived(camera ? (visibleExtent(map) ?? null) : null);
+
+	// Rooms coloured by their use, or the first point of interest inside them.
+	$effect(() => {
+		const layers = indoor;
+		if (layers) layers.setUses(roomUses(editor.features.byId.values()));
+	});
+
+	/** Shows a place from the panel: its level, the map on it, selected. */
+	function showPlace(place: Place) {
+		if (place.levels && !place.levels.includes(level)) {
+			level = place.levels[0] ?? level;
+		}
+		editor.select(place.id as EntityId);
+		map?.easeTo({
+			center: [place.loc[0], place.loc[1]],
+			zoom: Math.max(map.getZoom(), 19),
+		});
+	}
+
 	// Zoomed out, the centres of indoor spaces in view.
 	$effect(() => {
 		const area = camera && visibleExtent(map);
@@ -144,7 +172,21 @@
 	bind:camera
 	presentation="view"
 	{numbering}
+	left={panelOpen ? PANEL_WIDTH : 0}
 >
+	{#snippet controls()}
+		<div class="rounded-md bg-background shadow-md">
+			<Button
+				variant={panelOpen ? "secondary" : "outline"}
+				aria-pressed={panelOpen}
+				title={t(msg("view_places_toggle"))}
+				onclick={() => (panelOpen = !panelOpen)}
+			>
+				<List data-icon="inline-start" />
+				{t(msg("view_places"))}
+			</Button>
+		</div>
+	{/snippet}
 	{#snippet tools()}
 		<div class="rounded-md bg-background shadow-md">
 			<ToggleGroup.Root
@@ -170,7 +212,14 @@
 		</div>
 	{/snippet}
 
-	{#if editor.selected}
+	{#if panelOpen}
+		<div
+			class="absolute inset-y-0 left-0 z-30 max-w-full"
+			style:width="{PANEL_WIDTH}px"
+		>
+			<ViewerPanel {level} {extent} {websiteUrl} onshow={showPlace} />
+		</div>
+	{:else if editor.selected}
 		<div class="absolute bottom-10 left-4 z-30">
 			{#key editor.selected.id}
 				<FeatureCard

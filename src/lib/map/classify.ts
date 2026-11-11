@@ -190,6 +190,33 @@ export function iconFor(
 	return candidates.find((icon) => available.has(icon)) ?? null;
 }
 
+const TRACKS = new Set([
+	"rail",
+	"subway",
+	"light_rail",
+	"tram",
+	"narrow_gauge",
+	"monorail",
+	"funicular",
+]);
+
+/** The standard gauge, when a track doesn't say. */
+const STANDARD_GAUGE_MM = 1435;
+
+/**
+ * A railway track's gauge in metres, or null for anything else: the first of `gauge` (in
+ * millimetres, `1000;1435` for dual gauge), else standard gauge (V.3, stations).
+ */
+export function trackGauge(tags: Tags): number | null {
+	if (tags.railway === undefined || !TRACKS.has(tags.railway)) return null;
+	const first = Number.parseFloat(tags.gauge?.split(";")[0] ?? "");
+	const mm =
+		Number.isFinite(first) && first > 100 && first < 3000
+			? first
+			: STANDARD_GAUGE_MM;
+	return mm / 1000;
+}
+
 /** Text shown on the map: the name, or else the ref (e.g. a room number). */
 export function labelFor(tags: Tags): string | null {
 	return tags.name ?? tags.ref ?? null;

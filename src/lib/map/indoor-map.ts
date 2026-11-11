@@ -32,6 +32,8 @@ const SLOTS: Record<string, Slot> = {
 	"indoor-fill": "indoor-fill",
 	"indoor-outline": "indoor-lines",
 	"indoor-lines": "indoor-lines",
+	"indoor-rails-left": "indoor-lines",
+	"indoor-rails-right": "indoor-lines",
 };
 
 /** Outlines of the buildings, drawn only in floor plan mode to place plans against. */
@@ -60,6 +62,8 @@ export class IndoorMap {
 	#planMode = false;
 	#buildingsVisible = true;
 	#look: IndoorLook = { presentation: "edit", theme: "light" };
+	/** Rooms' uses (V.3), as the feature state `use`. */
+	#uses: ReadonlyMap<string, string> = new Map();
 
 	constructor(map: MapLibreMap) {
 		this.#map = map;
@@ -153,6 +157,23 @@ export class IndoorMap {
 			"visibility",
 			visibility(this.#planMode && this.#buildingsVisible),
 		);
+	}
+
+	/** Colours rooms by use in the viewer: `use` by feature id (`view/room-use.ts`). */
+	setUses(uses: ReadonlyMap<string, string>): void {
+		const before = this.#uses;
+		this.#uses = uses;
+		if (!this.#ready) return;
+		for (const id of before.keys()) {
+			if (!uses.has(id)) {
+				this.#map.setFeatureState({ source: INDOOR_SOURCE, id }, { use: null });
+			}
+		}
+		for (const [id, use] of uses) {
+			if (before.get(id) !== use) {
+				this.#map.setFeatureState({ source: INDOOR_SOURCE, id }, { use });
+			}
+		}
 	}
 
 	/** Outlines the selected features, by `@id`. */
@@ -274,6 +295,9 @@ export class IndoorMap {
 		);
 		this.#ready = true;
 		this.#applyPlanMode();
+		for (const [id, use] of this.#uses) {
+			map.setFeatureState({ source: INDOOR_SOURCE, id }, { use });
+		}
 		this.#mark("selected", [], this.#selected);
 		this.#mark("hover", [], this.#hover);
 	}

@@ -65,3 +65,32 @@ export type Theme = "light" | "dark";
 export function indoorColors(theme: Theme): IndoorColors {
 	return theme === "dark" ? DARK_INDOOR_COLORS : INDOOR_COLORS;
 }
+
+/**
+ * Fills of rooms by use in the viewer (V.3, `view/room-use.ts`): soft hues that keep labels
+ * readable, each with a darker set for dark maps.
+ */
+export const USE_COLORS = {
+	light: {
+		food: "#f3c98b",
+		shop: "#eeb0a6",
+		toilets: "#a9c9ef",
+		health: "#f2a0a8",
+		education: "#c9b6e8",
+		office: "#bcd6b4",
+		worship: "#e6d29a",
+		service: "#d9cdb8",
+		platform: "#c9d2d8",
+	},
+	dark: {
+		food: "#7a5a2c",
+		shop: "#74443d",
+		toilets: "#34557a",
+		health: "#733a42",
+		education: "#53457a",
+		office: "#3f5a39",
+		worship: "#6b5d2c",
+		service: "#5a5246",
+		platform: "#46525a",
+	},
+} as const;

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { arrowOf, classify, doorWidth, iconFor, labelFor } from "./classify.ts";
+import {
+	arrowOf,
+	classify,
+	doorWidth,
+	iconFor,
+	labelFor,
+	trackGauge,
+} from "./classify.ts";
 
 describe("classify", () => {
 	it.each([
@@ -155,5 +162,16 @@ describe("doorWidth", () => {
 		expect(doorWidth({ width: "wide" })).toBeNull();
 		expect(doorWidth({ width: "0.1" })).toBeNull();
 		expect(doorWidth({ width: "90" })).toBeNull();
+	});
+});
+
+describe("trackGauge", () => {
+	it("reads a track's gauge in metres, standard gauge when unknown", () => {
+		expect(trackGauge({ railway: "rail", gauge: "1000" })).toBe(1);
+		expect(trackGauge({ railway: "subway", gauge: "1435;1000" })).toBe(1.435);
+		expect(trackGauge({ railway: "tram" })).toBe(1.435);
+		expect(trackGauge({ railway: "rail", gauge: "standard" })).toBe(1.435);
+		expect(trackGauge({ railway: "platform" })).toBeNull();
+		expect(trackGauge({ highway: "footway" })).toBeNull();
 	});
 });

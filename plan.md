@@ -40,7 +40,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | R5     | Map shell split (review)                   | Done        |
 | P5.4a  | Autosave and restore                       | Done        |
 | LN     | License notices                            | Done        |
-| V      | Viewer mode (V.1–V.3)                      | V.1 done    |
+| V      | Viewer mode (V.1–V.3)                      | Done        |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
 | P5.4b  | Rebase before upload, conflicts            | Not started |
 | W2     | Wiki conformance, November research        | Not started |
@@ -225,6 +225,11 @@ already exists).
 
 2. **V.2 Discovery.** Count bubbles or a heatmap of indoor features below zoom 16 (indoor=,
    OpenLevelUp).
+   Done ✅ (2026-11-11): from zoom 12 to the data zoom, `Overpass.indoorCentres` (rooms, areas
+   and corridors as `out ids center`) in zoom-12 tiles through `state/discovery.svelte.ts`
+   (`MapLoader` is now generic over what it downloads), drawn by `map/discovery-layer.ts` as
+   MapLibre cluster bubbles with counts; `edit/modes/view.ts` opens a bubble on click (zooms to
+   where it splits) before browsing.
 3. **V.3 Side panel.** Search over names and refs, a room list by level and place details
    (OpenIndoorMaps, OpenLevelUp); rooms coloured by use, counting POIs inside them (a shop node
    in an untagged room). The rule, from osm-simple3d-editor: a room or `indoor=area` with no
@@ -236,6 +241,20 @@ already exists).
    fire_hydrant` (Maki and Temaki lack the first two) and `amenity=dryer|washing_machine`
    (forum #169). Stations: `indoor=area` + `railway=platform` drawn as a platform, tracks
    inside the building as two rails by `gauge`.
+   Done ✅ (2026-11-11): `ui/ViewerPanel.svelte` (open from the start on screens 768 px wide or
+   more, a "Places" toggle) with the selected feature's card, a search over names and refs
+   (accents and case ignored, numbers sorted as numbers) and the named places on the shown
+   level in view, from `view/places.ts`; a click switches level, centres and selects.
+   `view/room-use.ts` gives rooms and areas a use (food, shop, toilets, health, education,
+   office, worship, service, platform) from their tags or, following the rule above, the
+   first point inside on their floor; `IndoorMap.setUses` sets it as feature state and the view
+   presentation fills by it (`USE_COLORS`, light and dark). Icons: OsmInEdit's set already had
+   `emergency_fire_extinguisher`, `_fire_hose` and `_fire_hydrant`; new SVGs for
+   `emergency_fire_alarm_box`, `emergency_first_aid_kit`, `amenity_dryer` and
+   `amenity_washing_machine`. Stations: platforms take the platform colour; railway tracks
+   (fetched by the viewer's query) carry `@rail-r17` (half the gauge, standard when unknown)
+   and the viewer draws their two rails (`indoor-rails-left|right`) instead of a centre line.
+   Tracks are drawn wherever they were loaded, not only inside buildings.
 
 Dropped: the temporary "view in 3D" link to osm-simple3d-editor, since 3D.1 follows V. Routing
 (a graph from `highway=footway`/`corridor`, doors, stairs and elevators with their levels;

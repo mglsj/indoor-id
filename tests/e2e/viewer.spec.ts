@@ -189,3 +189,60 @@ test("zoomed out, bubbles show where indoor data is, and a click zooms in", asyn
 		.poll(async () => (await camera(page)).zoom)
 		.toBeGreaterThan(before.zoom);
 });
+
+test("the side panel lists the places on the level and finds them by name or ref", async ({
+	page,
+}) => {
+	const upper = room(200, LON + 0.001, LAT, "1");
+	Object.assign((upper.at(-1) as { tags: Record<string, string> }).tags, {
+		name: "Café des arts",
+		ref: "B12",
+	});
+	await serveOverpass(page, [...building().slice(0, 5), ...upper]);
+	await page.goto(`/view#19/${LAT}/${LON}/0`);
+	await mapDrawn(page);
+	const panel = page.getByTestId("viewer-panel");
+	const list = panel.getByRole("list", { name: "Places" });
+	await expect(list.getByRole("button")).toHaveText(["Library"]);
+
+	await panel
+		.getByRole("searchbox", { name: "Search rooms and places" })
+		.fill("cafe");
+	await expect(list.getByRole("button")).toHaveText([
+		"Café des arts B12 Level 1",
+	]);
+	await list.getByRole("button").click();
+	await expect(page.getByTestId("level")).toHaveAttribute("data-level", "1");
+	await expect(
+		panel
+			.getByTestId("feature-card")
+			.getByRole("heading", { name: "Café des arts" }),
+	).toBeVisible();
+	expect(await hash(page)).toMatch(/\/1$/);
+});
+
+test("colours an untagged room by the point of interest inside it", async ({
+	page,
+}) => {
+	const elements = [
+		...room(100, LON, LAT, "0"),
+		{
+			type: "node",
+			id: 900,
+			lon: LON,
+			lat: LAT,
+			version: 1,
+			tags: { amenity: "cafe", level: "0" },
+		},
+	];
+	await serveOverpass(page, elements);
+	await page.goto(`/view#19/${LAT}/${LON}/0`);
+	await mapDrawn(page);
+	const { x, y } = await mapCenter(page);
+	await expectPixel(
+		page,
+		x,
+		y + 50,
+		blend([0xf3, 0xc9, 0x8b], 0.95, BACKGROUND),
+	);
+});

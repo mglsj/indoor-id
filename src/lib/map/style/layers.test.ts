@@ -166,3 +166,48 @@ describe("indoorLayers: presentation and theme", () => {
 		}
 	});
 });
+
+describe("indoorLayers: rooms by use", () => {
+	const fill = (
+		presentation: "edit" | "view",
+		theme: "light" | "dark" = "light",
+	) =>
+		JSON.stringify(
+			indoorLayers(0, { presentation, theme }).find(
+				(l) => l.id === "indoor-fill",
+			)?.paint,
+		);
+
+	it("fills rooms by their use in the viewer only", () => {
+		expect(fill("view")).toContain('["feature-state","use"]');
+		expect(fill("view")).toContain("#f3c98b");
+		expect(fill("view", "dark")).toContain("#7a5a2c");
+		expect(fill("edit")).not.toContain("feature-state");
+	});
+});
+
+describe("indoorLayers: tracks", () => {
+	const track = { "@kind": "line", "@lv": "*", "@rail-r17": "1.2" };
+
+	it("draws a track's two rails, shown only in the viewer", () => {
+		expect(drawnBy(0, "LineString", track)).toEqual([
+			"indoor-lines",
+			"indoor-rails-left",
+			"indoor-rails-right",
+		]);
+		const opacity = (presentation: "edit" | "view", id: string) => {
+			const layer = indoorLayers(0, { presentation }).find((l) => l.id === id);
+			return (layer?.paint as Record<string, unknown> | undefined)?.[
+				"line-opacity"
+			];
+		};
+		expect(opacity("edit", "indoor-rails-left")).toBe(0);
+		expect(opacity("view", "indoor-rails-left")).toBe(1);
+		expect(opacity("view", "indoor-lines")).toEqual([
+			"case",
+			["has", "@rail-r17"],
+			0,
+			1,
+		]);
+	});
+});

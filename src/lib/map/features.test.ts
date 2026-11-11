@@ -189,6 +189,19 @@ describe("buildFeatures", () => {
 		expect(Number(north?.properties["@door-r17"])).toBeCloseTo(1.507, 3);
 	});
 
+	it("gives a railway track half its gauge in pixels at zoom 17, for its rails", () => {
+		const track = feature(
+			[
+				node("n1", {}, [0, 0]),
+				node("n2", {}, [0.001, 0]),
+				way("w1", ["n1", "n2"], { railway: "rail", gauge: "1000" }),
+			],
+			"w1",
+		);
+		// 0.5 m on the equator: 0.5 m × 512 · 2^17 px / 40,075,017 m.
+		expect(Number(track?.properties["@rail-r17"])).toBeCloseTo(0.8373, 3);
+	});
+
 	it("uses the icon of the preset matched for the feature's geometry", () => {
 		const presets = new PresetIndex(
 			[

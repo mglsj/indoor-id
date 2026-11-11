@@ -148,5 +148,13 @@
 	"view_numbering_from_0": "G, 1, 2…",
 	"view_numbering_from_0_title": "The ground floor, then 1, 2… (UK, most of Europe)",
 	"view_numbering_from_1": "1, 2, 3…",
-	"view_numbering_from_1_title": "The ground floor is 1 (North America, Russia, East Asia)"
+	"view_numbering_from_1_title": "The ground floor is 1 (North America, Russia, East Asia)",
+	"view_places": "Places",
+	"view_places_toggle": "Show or hide the list of places",
+	"view_search": "Search rooms and places",
+	"view_on_level": "On this level, in view",
+	"view_results": "Found",
+	"view_no_places": "No named rooms or places here yet.",
+	"view_no_results": "Nothing found in the data loaded so far.",
+	"view_place_level": "Level {levels}"
 }

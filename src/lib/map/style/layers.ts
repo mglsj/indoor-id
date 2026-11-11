@@ -10,7 +10,7 @@ import type {
 	LayerSpecification,
 } from "../maplibre.ts";
 import { ARROW_IMAGE, BOTH_ARROWS_IMAGE } from "./arrows.ts";
-import { indoorColors, type Theme } from "./colors.ts";
+import { indoorColors, type Theme, USE_COLORS } from "./colors.ts";
 
 export const INDOOR_SOURCE = "osm";
 
@@ -26,6 +26,7 @@ const isLine: ExpressionSpecification = [
 	["literal", ["LineString", "MultiLineString"]],
 ];
 const isPoint: ExpressionSpecification = ["==", ["geometry-type"], "Point"];
+const isTrack: ExpressionSpecification = ["has", "@rail-r17"];
 
 /** Width growing with zoom like real-world sizes, from `at17` px at z17 to `at22` px at z22. */
 function width(at17: number, at22: number): ExpressionSpecification {
@@ -108,6 +109,24 @@ export interface IndoorStyleOptions {
 	readonly theme?: Theme;
 }
 
+/**
+ * In the viewer, a room's use (feature state `use`, set by `IndoorMap.setUses`) picks its fill
+ * before its kind does; the editor draws kinds only.
+ */
+function byUse(
+	presentation: Presentation,
+	theme: Theme,
+	byKind: ExpressionSpecification,
+): ExpressionSpecification {
+	if (presentation !== "view") return byKind;
+	return [
+		"match",
+		["coalesce", ["feature-state", "use"], ""],
+		...Object.entries(USE_COLORS[theme]).flat(),
+		byKind,
+	] as unknown as ExpressionSpecification;
+}
+
 export function indoorLayers(
 	level: number,
 	{
@@ -117,6 +136,27 @@ export function indoorLayers(
 	}: IndoorStyleOptions = {},
 ): LayerSpecification[] {
 	const C = indoorColors(theme);
+	/** One rail of the tracks, `side` 1 or -1 of the centre line, `@rail-r17` pixels at z17. */
+	const rail = (id: string, side: 1 | -1): LayerSpecification => ({
+		id,
+		type: "line",
+		source: INDOOR_SOURCE,
+		filter: onLevel(["all", isLine, isTrack]),
+		paint: {
+			"line-color": C.wall,
+			"line-width": width(0.5, 2),
+			"line-offset": [
+				"interpolate",
+				["exponential", 2],
+				["zoom"],
+				17,
+				["*", side, ["to-number", ["get", "@rail-r17"]]],
+				22,
+				["*", side * 32, ["to-number", ["get", "@rail-r17"]]],
+			],
+			"line-opacity": presentation === "view" ? 1 : 0,
+		},
+	});
 	const fillOpacity: ExpressionSpecification =
 		presentation === "view"
 			? ["match", kind, "building", 0.85, 0.95]
@@ -134,7 +174,7 @@ export function indoorLayers(
 			source: INDOOR_SOURCE,
 			filter: onLevel(isPolygon),
 			paint: {
-				"fill-color": [
+				"fill-color": byUse(presentation, theme, [
 					"match",
 					kind,
 					"building",
@@ -150,7 +190,7 @@ export function indoorLayers(
 					"wall",
 					C.wall,
 					C.area,
-				],
+				]),
 				"fill-opacity": fillOpacity,
 			},
 			layout: {
@@ -226,8 +266,12 @@ export function indoorLayers(
 					["literal", [0.6, 0.4]],
 					["literal", [1, 0]],
 				],
+				// The viewer draws tracks as their two rails instead.
+				"line-opacity": presentation === "view" ? ["case", isTrack, 0, 1] : 1,
 			},
 		},
+		rail("indoor-rails-left", 1),
+		rail("indoor-rails-right", -1),
 		{
 			id: "indoor-doors",
 			type: "circle",

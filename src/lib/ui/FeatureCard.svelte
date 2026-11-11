@@ -18,9 +18,17 @@
 		/** openstreetmap.org, or the instance the data comes from. */
 		websiteUrl: string;
 		onclose: () => void;
+		/** Classes for the card's box (its size and frame). */
+		class?: string;
 	}
 
-	let { entity, websiteUrl, onclose }: Props = $props();
+	let {
+		entity,
+		websiteUrl,
+		onclose,
+		class:
+			frame = "max-h-[min(32rem,calc(100vh-8rem))] w-80 max-w-[calc(100vw-2rem)] rounded-md shadow-lg ring-1 ring-foreground/10",
+	}: Props = $props();
 	const editor = getEditor();
 
 	const preset = $derived(editor.presetOf(entity));
@@ -45,7 +53,7 @@
 <aside
 	aria-label={title}
 	data-testid="feature-card"
-	class="flex max-h-[min(32rem,calc(100vh-8rem))] w-80 max-w-[calc(100vw-2rem)] flex-col rounded-md bg-background text-sm shadow-lg ring-1 ring-foreground/10"
+	class={["flex flex-col bg-background text-sm", frame]}
 >
 	<header class="flex items-start gap-2 border-b px-4 py-3">
 		<div class="min-w-0 flex-1">

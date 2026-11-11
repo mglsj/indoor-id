@@ -1,7 +1,7 @@
 /**
  * Read-only OSM data from Overpass for the viewer (V.1): no account and no OSM API quota.
  * `loadMap` asks only for what the indoor map draws (indoor features, anything with a level,
- * buildings, doors and entrances) and completes it downwards, so a room cut by a tile edge
+ * buildings, doors, entrances and railway tracks) and completes it downwards, so a room cut by a tile edge
  * comes whole, with every node, and a multipolygon with every member way. The answer is OSM
  * JSON with `out meta`, read like the OSM API's.
  * See https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL
@@ -31,10 +31,13 @@ const DRAWN = [
 	"entrance",
 ];
 
+const TRACKS = "rail|subway|light_rail|tram|narrow_gauge|monorail|funicular";
+
 /** The Overpass QL query of the indoor data in an area, with the members of what it finds. */
 export function indoorQuery(bbox: Bbox, timeout = 25): string {
 	const area = [bbox.south, bbox.west, bbox.north, bbox.east].join(",");
-	const sets = DRAWN.map((key) => `nwr["${key}"];`).join("");
+	// Tracks, for stations (V.3): their rails are drawn by gauge.
+	const sets = `${DRAWN.map((key) => `nwr["${key}"];`).join("")}way["railway"~"^(${TRACKS})$"];`;
 	// `>` takes ways' nodes and relations' members (and their nodes): never cut by the bbox.
 	return `[out:json][timeout:${timeout}][bbox:${area}];(${sets});(._;>;);out meta;`;
 }

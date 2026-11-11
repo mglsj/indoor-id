@@ -18,7 +18,7 @@ function fakeFetch(answer: () => Response) {
 describe("indoorQuery", () => {
 	it("asks for indoor data in the area (south, west, north, east) with its members", () => {
 		expect(indoorQuery(BBOX)).toBe(
-			'[out:json][timeout:25][bbox:48.1,2.1,48.2,2.2];(nwr["indoor"];nwr["level"];nwr["repeat_on"];nwr["building"];nwr["building:part"];nwr["door"];nwr["entrance"];);(._;>;);out meta;',
+			'[out:json][timeout:25][bbox:48.1,2.1,48.2,2.2];(nwr["indoor"];nwr["level"];nwr["repeat_on"];nwr["building"];nwr["building:part"];nwr["door"];nwr["entrance"];way["railway"~"^(rail|subway|light_rail|tram|narrow_gauge|monorail|funicular)$"];);(._;>;);out meta;',
 		);
 	});
 });

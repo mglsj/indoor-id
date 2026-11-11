@@ -32,6 +32,7 @@ import {
 	isBuildingOutline,
 	isRestricted,
 	labelFor,
+	trackGauge,
 } from "./classify.ts";
 import type { FilterSpecification } from "./maplibre.ts";
 
@@ -158,7 +159,8 @@ const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6378137;
 /**
  * Properties the style uses: `@kind`, and when relevant `@icon`, `@label`, `@restricted`,
  * `@building` for the building outlines floor plans are placed against, `@arrow` for lines
- * with a direction (P5.3.8) and `@door-r17`, a door's half width in pixels at zoom 17.
+ * with a direction (P5.3.8), `@door-r17`, a door's half width in pixels at zoom 17, and
+ * `@rail-r17`, half a railway track's gauge in pixels at zoom 17 (its rails, V.3).
  */
 function drawingProperties(
 	tags: Tags,
@@ -186,6 +188,13 @@ function drawingProperties(
 		const pixels =
 			((width / 2 / Math.cos(lat)) * WORLD_AT_17) / EARTH_CIRCUMFERENCE;
 		props["@door-r17"] = pixels.toFixed(3);
+	}
+	const gauge = type === "LineString" ? trackGauge(tags) : null;
+	if (gauge !== null && geometry.type === "LineString") {
+		const lat = ((geometry.coordinates[0]?.[1] ?? 0) * Math.PI) / 180;
+		const pixels =
+			((gauge / 2 / Math.cos(lat)) * WORLD_AT_17) / EARTH_CIRCUMFERENCE;
+		props["@rail-r17"] = pixels.toFixed(4);
 	}
 	return props;
 }
