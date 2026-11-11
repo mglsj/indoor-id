@@ -221,6 +221,9 @@ export class IndoorMap {
 				features: [],
 			},
 			promoteId: "@id",
+			// The indoor features are OSM data, under the ODbL: credit it whatever the basemap.
+			attribution:
+				'<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>',
 		});
 		this.#sent = new Map(this.#features?.byId ?? []);
 		this.#drawing = true;

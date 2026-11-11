@@ -39,6 +39,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | R4     | Fixes after P5.3 (review)                  | Done        |
 | R5     | Map shell split (review)                   | Done        |
 | P5.4a  | Autosave and restore                       | Done        |
+| LN     | License notices                            | Done        |
 | V      | Viewer mode (V.1–V.3)                      | Not started |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
 | P5.4b  | Rebase before upload, conflicts            | Not started |
@@ -186,7 +187,11 @@ from 1,183 to 1,047 lines; no behaviour change, the same unit and e2e tests pass
 
 ### V: Viewer mode — M–L
 
-After P5.4a (decided ✔), on R5's map shell, in three slices:
+After P5.4a (decided ✔), on R5's map shell, in three slices. Before V.1, one check from the
+forum (osm-simple3d-editor t/148767 #115, where "move with neighbours" moved other levels'
+features unnoticed): a test that dragging a node shared with a feature on another level either
+leaves that feature alone or says so; if it moves it silently, fix that first (Disconnect
+already exists).
 
 1. **V.1 Read-only route.** Data from Overpass through a `SyncApi` (only `loadMap` differs), so
    no account and no OSM API quota. The style gains a presentation switch (edit, view, 3D:
@@ -194,6 +199,10 @@ After P5.4a (decided ✔), on R5's map shell, in three slices:
    3D too. The selected building's full extent loaded once, so rooms cut at tile edges are
    complete. Overpass lags behind the API: after an upload, keep the uploaded versions and drop
    older entities from Overpass answers (osm-simple3d-editor dropped Overpass for this reason).
+   Floor numbering setting (osm-simple3d-editor `40063a9`): levels without `level:ref` or
+   `name` are labelled "Ground floor, 1, 2…" (counting from 0: UK, Europe, OSM `level`) or
+   "1, 2, 3…" (counting from 1: US, Canada, Russia), defaulting from the browser locale, kept in
+   the browser. Only labels change, never tags.
 2. **V.2 Discovery.** Count bubbles or a heatmap of indoor features below zoom 16 (indoor=,
    OpenLevelUp).
 3. **V.3 Side panel.** Search over names and refs, a room list by level and place details
@@ -201,7 +210,12 @@ After P5.4a (decided ✔), on R5's map shell, in three slices:
    in an untagged room). The rule, from osm-simple3d-editor: a room or `indoor=area` with no
    purpose tags takes its colour from the first POI inside it, leaving out doors and
    entrances, and for areas small things (ATMs, vending machines, benches, kiosks);
-   corridors never do.
+   corridors never do. Only points on the levels where the room has its floor count, and
+   `room=platform` is circulation, so a shop on a platform doesn't tint it (`9cc38ac`,
+   `21136c6`). Icons for `emergency=fire_extinguisher|fire_hose|fire_alarm_box|first_aid_kit|
+   fire_hydrant` (Maki and Temaki lack the first two) and `amenity=dryer|washing_machine`
+   (forum #169). Stations: `indoor=area` + `railway=platform` drawn as a platform, tracks
+   inside the building as two rails by `gauge`.
 
 Dropped: the temporary "view in 3D" link to osm-simple3d-editor, since 3D.1 follows V. Routing
 (a graph from `highway=footway`/`corridor`, doors, stairs and elevators with their levels;
@@ -241,7 +255,19 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
      `indoor=level` multipolygon, and the upper levels of a space with several levels
      (`level=0;1`). `ceiling=no` on a room open to the level above is being discussed in
      [t/149582](https://community.openstreetmap.org/t/indoor-tagging-lack-of-floor/149582):
-     read it once agreed, don't write it before.
+     read it once agreed, don't write it before. As of 2026-11-11 the thread agrees only that
+     stairwells, lift shafts and escalators are openings by default, so they cut the slab
+     without a drawn hole: an escalator's opening covers its whole incline, at least 5 m, unless
+     an inner ring of the floor already draws one (osm-simple3d-editor `9dea9eb`, `a4f6582`).
+   - Ceilings (osm-simple3d-editor `0f49886`, `a664abe`, `277d931`): a one-level room under an
+     opening of the level above keeps its own ceiling; rooms on several levels stay open; a room
+     lower than its level (`height`) gets a lid at its own height.
+   - Stairs and escalators (its `docs/indoor-stairs.md` and `src/edit/stairs-pair.ts`, ISC): a
+     flight is a `highway=steps` line (axis and `incline`) plus an optional stairs polygon
+     (perimeter), both with the same `level=lower;upper`. They pair without a relation: tags,
+     equal `level`, the line crossing the polygon from side to side (0.4 m tolerance), no other
+     flight of those levels inside. Width comes from the polygon, else `width`. Port as a pure
+     function; W2 can use it for "line and polygon levels differ".
    - Ranges stay ranges (`levels.ts`); don't port its parser, which expands ranges to integers.
    - Revised 2026-10-28 (its `src/osm/levels.ts` and real-data survey): `height` on
      `indoor=level` is that level's own height, not its floor elevation; a floor's elevation is
@@ -260,6 +286,9 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
      basement's outline; `building:levels:underground` must be a whole number of 0 or more.
      Entrances with a `level` sit at that level's floor.
 
+   Building shell for 3D.2: when `building:part`s cover the outline, the outline isn't drawn
+   (Simple 3D Buildings; Zkir in t/148767 #155).
+
    Renderer: fill-extrusion can't cut door openings into walls, slope escalators or put holes
    in slabs. osm-simple3d-editor does all three in a three.js custom layer, at the cost of a
    5,000-line layer with its own picking. Stay on fill-extrusion; revisit a custom layer
@@ -276,6 +305,10 @@ After 3D. Autosave, P5.4's first step, moved to P5.4a; steps 2 to 4 stay here.
    `MapLoader.invalidate(area)`; 409, 410 and 412 bodies parsed into entity ids; versions
    taken from the base when uploading; a conflict dialog (keep mine, take theirs, per entity).
 4. After upload, uploaded entities take the uploader and the time.
+
+Also: never delete a way that is still a member of a relation outside the edit (a split left a
+footway multipolygon unclosed in osm-simple3d-editor, `541cbc4`, `12ac4fd`); `delete.ts`
+checks loaded parents, and the rebase should check the relations it fetches too.
 
 Also: read the OSM API with `cache: "no-store"`, so the browser can't hand back an older
 version of an entity (osm-simple3d-editor issue #47), and warn when restored edits are based on
@@ -303,6 +336,18 @@ Proposed 2026-11-05, not yet scheduled (from the osm-simple3d-editor research ad
 - Degenerate rings: also require the ring to be narrow for its size, so small posts aren't
   flagged.
 
+Added 2026-11-11 (research addendum B, the forum and osm-simple3d-editor up to `02c2bfd`):
+
+- An `indoor=level` outline much smaller than the building at that level: warn, since 3D shows
+  the rest as a hole (forum #114).
+- `indoor=room|area` + `room=column`: fix to `indoor=column`.
+- `railway=platform` inside a building without `level`: warn, fix `level=0`.
+- An `entrance=*` inside the building, not on its level's outer wall: warn.
+- Duplicate nodes (same spot, not joined): warn with a merge fix, so no tool regresses the
+  way osm-simple3d-editor's "Merge into building" did (forum #139).
+- Features on different levels sharing a node: a hint at most, never an error (bridges and
+  skybridges do it on purpose; iD wishlist thread t/148649).
+
 ### P6: Parity and polish — M
 
 - Translations with Paraglide (one module per locale), starting from OsmInEdit's (en, fr, de,
@@ -319,8 +364,14 @@ Proposed 2026-11-05, not yet scheduled (from the osm-simple3d-editor research ad
 - Left over from geometry editing (from osm-simple3d-editor): a multipolygon left with one
   outer way and no holes becomes a tagged way again on upload; tracing along existing
   outlines; removing a way's last vertices deletes the way.
+- Floor plan import: say in the dialog that tracing a plan needs its owner's permission
+  (OSM's copyright rules; Fotoshi, t/148767 #145, allows looking at plan photos but not tracing
+  or overlaying them).
+- Inner-ring mode for offset and "cut out of the level outline" (osm-simple3d-editor
+  `76eadf2`, `6e898c1`): a quick way to draw the atrium holes 3D.3 reads.
 - Release 0.1 alpha: an e2e checklist of the features it ships with, and an announcement as a
-  new editor.
+  new editor. As of 2026-11-11 nobody on the OSM forum has discussed IndoorID; announcing it
+  could come as early as V.
 
 ### Decisions taken with the user ✔
 
@@ -338,6 +389,8 @@ Proposed 2026-11-05, not yet scheduled (from the osm-simple3d-editor research ad
 - 2026-11-05: IndoorID is presented as a new editor, not a rewrite. Version `0.1.0-alpha`
   (was shown as "2.0 preview"); OsmInEdit is credited as a source in the README and
   `LICENSE.md`, which keeps its ISC notice for the icons and help images that came from it.
+- 2026-11-11: before V, the plan takes in the forum recheck and osm-simple3d-editor's commits
+  to `02c2bfd` (research addendum B), and the license notices are completed (LN below).
 
 ## Testing strategy
 
@@ -366,3 +419,12 @@ Proposed 2026-11-05, not yet scheduled (from the osm-simple3d-editor research ad
 - ~~**License.**~~ Settled 2026-10-28 with the owner: ISC, and `package.json` says `ISC`.
   Since 2026-11-05 `LICENSE.md` names IndoorID's contributors, with OsmInEdit's notice under
   "Third-party notices" for the assets that came from it.
+- **LN, license notices (2026-11-11, done).** ISC, MIT, BSD and Apache all ask that their
+  notices travel with copies, and a deployed site is a copy. `LICENSE.md` now carries the full
+  ISC notices of iD (schema and code that follows it), osm-simple3d-editor (tools that follow
+  it, and the 3D ports to come) and OsmInEdit (also the style, hash and plan format), plus the
+  Inter font (OFL), the JPEG XL codec (libjxl BSD) and OSM's ODbL. `bun run build` writes
+  `build/licenses.md`: `LICENSE.md`, then every bundled package's notice (Vite's
+  `build.license`), then Inter's and `@jsquash/jxl`'s, which Vite doesn't see; the header links
+  it. The indoor map source credits "© OpenStreetMap contributors" whatever the basemap. When
+  porting more code from another project, add its notice to `LICENSE.md` in the same PR.
