@@ -11,6 +11,7 @@ import {
 	removeMembers as remove,
 } from "#lib/actions/members.ts";
 import type { OperationResult } from "#lib/edit/operations.ts";
+import { mapFloor as drawFloor } from "#lib/edit/unmapped-floor.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import { labelFor } from "#lib/map/classify.ts";
 import type {
@@ -137,4 +138,27 @@ export function performEdit(
 		return done.graph;
 	}, result.annotation);
 	editor.select(select);
+}
+
+/**
+ * Maps the unmapped floor selected as a feature of type `preset` (an `indoor=area` without
+ * one) in one step, and selects it.
+ */
+export function mapFloor(editor: Editor, preset: Preset | null): void {
+	const floor = editor.floor;
+	if (!floor || editor.history.locked) return;
+	// As an indoor feature on the level: a preset adds no `building` default.
+	const start = { indoor: "area", level: String(floor.level) };
+	const tags =
+		(preset &&
+			editor.catalog.presets?.changePreset(start, undefined, preset, "area")) ??
+		start;
+	let select: readonly EntityId[] = [];
+	editor.history.perform((graph) => {
+		const done = drawFloor(graph, floor, tags);
+		select = done.select;
+		return done.graph;
+	}, msg("undo_map_floor"));
+	editor.select(select);
+	if (preset) editor.catalog.recentPresets.add(preset.id, "area");
 }

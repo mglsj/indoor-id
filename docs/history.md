@@ -1232,3 +1232,60 @@ research doc):
   "Placeholder"); split new ways are never looked up on the server; members deleted in the
   session leave their relations; a moved node that ends up unused is deleted with
   `if-unused`; a multipolygon with an open ring is refused before upload.
+
+### P5.4a: Autosave and restore — M — done
+
+Before V and 3D (decided ✔). From P5.4's first step:
+
+- History saved to IndexedDB as per-step differences with their selection and labels, the base
+  versions of edited entities and `nextId`; a restore prompt on start; the `beforeunload`
+  guard stays.
+- Steps as differences over the base, so a downloaded tile is merged into the base once
+  instead of rebasing every step's graph (R4.4: 790 ms per tile under 10,000 steps).
+- Steps record the selection, so undo and redo select again as iD does (today undo leaves the
+  selection on deleted entities).
+- The open changeset id remembered, so a retry after a lost upload response checks it first
+  instead of duplicating data.
+- iD's format (`history.toJSON`) and a session lock so two tabs don't restore the same edits:
+  osm-simple3d-editor's lighter lock, one record per tab id (kept in `sessionStorage`, so a
+  reload finds it) plus a `localStorage` heartbeat every 5 s; a record silent for 20 s belongs
+  to a closed tab and a new tab may restore it.
+  Autosave done ✅ (the first PR; the unmapped floor follows as its own):
+  `osm/history-json.ts` saves the downloaded versions of the entities edited, then each step as
+  what it changed (`Step.changed`, kept when the step is made, so a save costs the edits, not
+  the data), its label and its selection; `restoreHistory` replays them and the data downloaded
+  since is merged on top (a newer version of an edited entity is a conflict). The next id isn't
+  saved: replaying gives one below every new entity. Downloads merge into the server data once
+  and each step is rebased when next shown: a tile under 10,000 steps went from 939 ms to 1.3 ms
+  (the conflict check asks the last step, which holds every entity edited in any).
+  `persist/autosave.ts`: one IndexedDB record per tab (`indoorid-edits`), the tab id in
+  `sessionStorage`, a `localStorage` heartbeat every 5 s, records silent for 20 s claimable in
+  one transaction. `state/autosave.svelte.ts` saves a second after each change and when the tab
+  is hidden, and nothing before the edits found on start are restored or discarded
+  (`ui/RestoreDialog.svelte`). Steps record the selection while current; undo and redo select it
+  again, without what the step doesn't have. A failed upload's changeset is kept
+  (`DataSync.failedChangeset`, autosaved too) and the next upload downloads it first
+  (`OsmApi.upload`'s `retryOf`): when it holds changes the upload went through, nothing is sent,
+  and the Save dialog offers Start over (`DataSync.discard`).
+
+- Then, as an editing feature: **unmapped floor** (from osm-simple3d-editor's lessons, not
+  built in P5.3): a click on floor outside any room selects the level outline minus its rooms,
+  corridors and areas; tagging it creates an `indoor=area` on the shown level, sharing nodes
+  with its neighbours.
+  Done ✅ (the second PR): `edit/unmapped-floor.ts`. `unmappedFloorAt` takes the map's
+  features: the smallest `indoor=level` outline on the shown level holding the click, else the
+  smallest building drawn there, minus the rooms, corridors, areas, walls and columns on that
+  level (`polyclip-ts`, MIT, a robust polygon difference; original corners come back exactly),
+  as connected pieces; the piece under the click is the floor, unless under 0.5 m² (a gap
+  between rooms). A click on a level outline's or building's fill, or on the empty map, selects
+  it (`BrowseOptions.floor`; a click on the outline itself still selects the outline): it is
+  drawn in the edit overlay and `ui/FloorPanel.svelte` shows its level and area, "Map as indoor
+  area" and the feature types. `Editor.floor` holds it, outside the selection and the history,
+  so nothing is drawn until a type is picked; it follows edits (found again where it was
+  clicked) and goes with a level change or a selection. `mapFloor` (one step, the new feature
+  selected) goes through the neighbours' nodes: a corner on a node's spot (1 cm) is that node,
+  nodes along a side (a corner two rooms share on a straight wall) are put in, and where a
+  room's side crosses another's a new node goes into both indoor ways (never a building
+  outline, as Split). Tags: the type's, `indoor=area` unless it sets `indoor`, the level, no
+  `area=yes`. A floor with holes is a multipolygon; a hole that is exactly one room's ring is
+  that room's way, not a copy.

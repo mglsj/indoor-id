@@ -3,7 +3,7 @@
  * `edit/overlay.ts`, in their own small source above the indoor layers (the "edit" slot), and
  * what a press on them grabs.
  */
-import type { FeatureCollection, LineString, Point } from "geojson";
+import type { FeatureCollection, LineString, Point, Polygon } from "geojson";
 import type { OverlayProperties } from "#lib/edit/overlay.ts";
 import type { Loc, NodeId, WayId } from "#lib/osm/entity.ts";
 import { slotId, slotsReady } from "./layer-slots.ts";
@@ -15,6 +15,8 @@ export const VERTEX_LAYER = `${SOURCE}-vertices`;
 export const MIDPOINT_LAYER = `${SOURCE}-midpoints`;
 const MEMBER_LAYER = `${SOURCE}-members`;
 const CUT_LAYER = `${SOURCE}-cut`;
+const FLOOR_FILL_LAYER = `${SOURCE}-floor-fill`;
+const FLOOR_LINE_LAYER = `${SOURCE}-floor-line`;
 
 /** How far from a vertex or midpoint a press still grabs it, in pixels. */
 const GRAB_TOLERANCE = 6;
@@ -30,7 +32,10 @@ export type OverlayGrab =
 			readonly loc: Loc;
 	  };
 
-type OverlayData = FeatureCollection<Point | LineString, OverlayProperties>;
+type OverlayData = FeatureCollection<
+	Point | LineString | Polygon,
+	OverlayProperties
+>;
 
 export class EditOverlay {
 	readonly #map: MapLibreMap;
@@ -102,7 +107,14 @@ export class EditOverlay {
 	remove(): void {
 		this.#removed = true;
 		if (!this.#ready) return;
-		for (const id of [VERTEX_LAYER, MIDPOINT_LAYER, MEMBER_LAYER, CUT_LAYER]) {
+		for (const id of [
+			VERTEX_LAYER,
+			MIDPOINT_LAYER,
+			MEMBER_LAYER,
+			CUT_LAYER,
+			FLOOR_FILL_LAYER,
+			FLOOR_LINE_LAYER,
+		]) {
 			if (this.#map.getLayer(id)) this.#map.removeLayer(id);
 		}
 		if (this.#map.getSource(SOURCE)) this.#map.removeSource(SOURCE);
@@ -115,6 +127,31 @@ export class EditOverlay {
 		const edit = slotId("edit");
 		const role = (r: OverlayProperties["@role"]) =>
 			["==", ["get", "@role"], r] as ["==", ["get", string], string];
+		// The unmapped floor selected (P5.4a): a light fill under a selection outline.
+		map.addLayer(
+			{
+				id: FLOOR_FILL_LAYER,
+				type: "fill",
+				source: SOURCE,
+				filter: role("floor"),
+				paint: { "fill-color": C.selection, "fill-opacity": 0.15 },
+			},
+			edit,
+		);
+		map.addLayer(
+			{
+				id: FLOOR_LINE_LAYER,
+				type: "line",
+				source: SOURCE,
+				filter: role("floor"),
+				paint: {
+					"line-color": C.selection,
+					"line-width": 2,
+					"line-dasharray": [2, 1],
+				},
+			},
+			edit,
+		);
 		map.addLayer(
 			{
 				id: MEMBER_LAYER,

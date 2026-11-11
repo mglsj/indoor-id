@@ -4,7 +4,7 @@
  * the selection; a Shift+click adds the feature to the selection or takes it out, a Shift+drag
  * draws a lasso. The edit overlay's vertices and midpoints come first: a click on a vertex
  * selects it, a press on one drags it (`drag`); a press on a selected feature moves the
- * selection whole (`move`).
+ * selection whole (`move`). A click on empty floor may select it instead (`floor`, P5.4a).
  */
 import type { Drag, MapPoint, Mode } from "../mode.ts";
 
@@ -28,6 +28,11 @@ export interface BrowseOptions {
 	readonly lasso?: (at: MapPoint) => Drag | null;
 	/** Where the pointer is on the map (where a paste goes), null once it left. */
 	readonly pointer?: (at: MapPoint | null) => void;
+	/**
+	 * Selects the unmapped floor at a click whose feature (`hit`, or null) is a level outline,
+	 * a building or nothing; true when it did, and the click selects nothing else.
+	 */
+	readonly floor?: (at: MapPoint, hit: string | null) => boolean;
 }
 
 export function browseMode({
@@ -41,9 +46,12 @@ export function browseMode({
 	move,
 	lasso,
 	pointer,
+	floor,
 }: BrowseOptions): Mode {
 	function click(at: MapPoint) {
-		const id = vertexAt?.(at.point) ?? hitTest(at.point);
+		const vertex = vertexAt?.(at.point) ?? null;
+		const id = vertex ?? hitTest(at.point);
+		if (!vertex && !at.shiftKey && floor?.(at, id)) return;
 		if (!at.shiftKey || !toggle) select(id);
 		// Shift+click on the empty map keeps the selection.
 		else if (id) toggle(id);

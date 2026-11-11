@@ -52,7 +52,12 @@
 		type Operation,
 		type OperationContext,
 	} from "#lib/edit/operations.ts";
-	import { cutFeature, overlayFeatures } from "#lib/edit/overlay.ts";
+	import {
+		cutFeature,
+		floorFeature,
+		overlayFeatures,
+	} from "#lib/edit/overlay.ts";
+	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
 	import { workerCodec } from "#lib/floorplans/codec.ts";
 	import {
@@ -99,6 +104,7 @@
 		type View as PlanView,
 	} from "#lib/state/floorplans.svelte.ts";
 	import { Session } from "#lib/state/session.svelte.ts";
+	import FloorPanel from "#lib/ui/FloorPanel.svelte";
 	import FloorPlansPanel from "#lib/ui/FloorPlansPanel.svelte";
 	import Inspector from "#lib/ui/Inspector.svelte";
 	import MapShell from "#lib/ui/MapShell.svelte";
@@ -409,6 +415,7 @@
 											: [];
 									},
 								}).features,
+								...floorFeature(editor.floor?.rings),
 								...cutFeature(cut),
 							],
 						},
@@ -433,6 +440,31 @@
 			if (editor.history.locked) return false;
 			const hit = indoorLayers.hitTest(point);
 			return hit !== null && editor.selection.has(hit as EntityId);
+		};
+
+		/**
+		 * A click on a level outline's or building's floor (not on its outline) or on the empty
+		 * map selects the unmapped floor there, when there is some (P5.4a).
+		 */
+		const selectFloorAt = (at: MapPoint, hit: string | null): boolean => {
+			if (hit !== null) {
+				const tags = editor.features.byId.get(hit)?.properties;
+				const container =
+					tags?.indoor === "level" ||
+					(tags?.indoor === undefined &&
+						tags?.building !== undefined &&
+						tags.building !== "no");
+				if (!container || indoorLayers.outlineAt(at.point) === hit)
+					return false;
+			}
+			const found = unmappedFloorAt(
+				editor.features.byId.values(),
+				at.lngLat,
+				level,
+			);
+			if (!found) return false;
+			editor.selectFloor(found);
+			return true;
 		};
 
 		const layers = new FloorPlanLayers(instance, floorplans.tiles);
@@ -484,6 +516,7 @@
 										onend: selectInLasso,
 									}),
 								pointer: (at) => (lastPointer = at?.lngLat ?? null),
+								floor: selectFloorAt,
 								hover: (id) => editor.selection.setHover(id as EntityId | null),
 								draggable: (point) =>
 									grabAt(point) !== null || selectedAt(point),
@@ -575,6 +608,21 @@
 	$effect(() => {
 		void level;
 		untrack(() => modes?.finish());
+	});
+
+	// The unmapped floor selected follows the edits made around it (an undo, a room drawn
+	// into it) and goes when the level changes or nothing of it is left.
+	$effect(() => {
+		const { byId } = editor.features;
+		const shown = level;
+		untrack(() => {
+			const floor = editor.floor;
+			if (!floor) return;
+			editor.floor =
+				floor.level === shown
+					? unmappedFloorAt(byId.values(), floor.at, shown)
+					: null;
+		});
 	});
 
 	/** Message from the alignment tool about the last click. */
@@ -708,7 +756,10 @@
 		return entities.length > 1 ? entities : null;
 	});
 	const panelOpen = $derived(
-		editor.selected !== null || several !== null || planMode,
+		editor.selected !== null ||
+			several !== null ||
+			editor.floor !== null ||
+			planMode,
 	);
 
 	/** The side panel, which covers the left of the map while it is open. */
@@ -989,6 +1040,8 @@
 				{#key several.map((e) => e.id).join(",")}
 					<MultiInspector entities={several} />
 				{/key}
+			{:else if editor.floor}
+				<FloorPanel floor={editor.floor} />
 			{:else}
 				<FloorPlansPanel
 					{floorplans}

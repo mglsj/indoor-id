@@ -139,7 +139,11 @@ runs the same commands.
   (`EditAutosave`: saves after changes, offers found edits with `ui/RestoreDialog.svelte`).
   `EditHistory` takes the `Selection`: steps record it, undo and redo select it again. A failed
   upload's changeset (`DataSync.failedChangeset`) is checked by the next upload (`retryOf`).
-  E2E tests open a second tab with `context.newPage()` and `blockExternal()`. Pure modules (`osm`, `levels`,
+  E2E tests open a second tab with `context.newPage()` and `blockExternal()`.
+- Unmapped floor (P5.4a): `edit/unmapped-floor.ts` (`unmappedFloorAt`: a level outline or
+  building minus the spaces on the level, with `polyclip-ts`; `mapFloor`: draws it through the
+  neighbours' nodes), held in `Editor.floor` (not a selection, not in the history), shown by
+  `ui/FloorPanel.svelte`; `commands.mapFloor` makes it a feature in one step. Pure modules (`osm`, `levels`,
   `actions`, `presets`, `validation`, `floorplans/georef`, `floorplans/plan-file`,
   `floorplans/tiling`) must not touch the DOM or Svelte.
 

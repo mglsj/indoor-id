@@ -7,6 +7,7 @@
 
 import { createContext } from "svelte";
 import type { MapLoaderOptions } from "#lib/api/map-loader.ts";
+import type { UnmappedFloor } from "#lib/edit/unmapped-floor.ts";
 import { FeatureStore, type StoredFeatures } from "#lib/map/feature-store.ts";
 import { AVAILABLE_ICONS } from "#lib/map/style/icons.ts";
 import type { Entity, EntityId } from "#lib/osm/entity.ts";
@@ -52,6 +53,12 @@ export class Editor {
 			: null,
 	);
 
+	/**
+	 * The unmapped floor selected (P5.4a): part of a level no room, corridor or area covers,
+	 * not a feature yet. Selecting features drops it.
+	 */
+	floor = $state.raw<UnmappedFloor | null>(null);
+
 	readonly #validator = new Validator();
 	/** The same checks on the downloaded data, to tell the issues an edit made. */
 	readonly #baseValidator = new Validator();
@@ -82,7 +89,14 @@ export class Editor {
 	/** Selects features; a field being typed in no longer folds into the last step. */
 	select(ids: EntityId | readonly EntityId[] | null): void {
 		this.history.endTyping();
+		this.floor = null;
 		this.selection.select(ids);
+	}
+
+	/** Selects an unmapped floor instead of features, or nothing (null). */
+	selectFloor(floor: UnmappedFloor | null): void {
+		this.select(null);
+		this.floor = floor;
 	}
 
 	geometryOf(entity: Entity): PresetGeometry {
