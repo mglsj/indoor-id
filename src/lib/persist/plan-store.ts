@@ -9,7 +9,8 @@
  * plans were imported from, by file id: a PDF once for all its pages; a plan saved without a
  * `source` has its file under its own id), `thumbnails`, `settings` (the building outlines'
  * place), `vectors` (a vector plan's paths, added in schema 4), `frames` (drawing frames set
- * by the user, by building id, added in schema 5: C.3). `images` holds the whole images of schemas 1 and 2 until each plan is converted, the
+ * by the user, by building id, added in schema 5: C.3), `guides` (construction guides by id,
+ * added in schema 6: C.5). `images` holds the whole images of schemas 1 and 2 until each plan is converted, the
  * first time its content loads.
  */
 import { type DBSchema, type IDBPDatabase, openDB } from "idb";
@@ -127,6 +128,24 @@ export interface FrameStore {
 	saveFrame(building: string, frame: StoredFrame | null): Promise<void>;
 }
 
+/** A construction guide (C.5): an endless line on a level, never in OSM. */
+export interface StoredGuide {
+	readonly id: string;
+	readonly origin: readonly [number, number];
+	/** Degrees counterclockwise from east. */
+	readonly angle: number;
+	readonly level: number;
+	/** The building or level outline it was placed in. */
+	readonly building?: string;
+}
+
+/** Construction guides kept next to the floor plans (C.5). */
+export interface GuideStore {
+	loadGuides(): Promise<StoredGuide[]>;
+	saveGuides(guides: readonly StoredGuide[]): Promise<void>;
+	deleteGuides(ids: readonly string[]): Promise<void>;
+}
+
 /** A raster's description as stored, its tiles apart. */
 interface RasterRecord {
 	readonly unit: number;
@@ -146,6 +165,7 @@ interface Schema extends DBSchema {
 	settings: { key: string; value: StoredBuildings };
 	vectors: { key: string; value: VectorContent };
 	frames: { key: string; value: StoredFrame };
+	guides: { key: string; value: StoredGuide };
 	/** Schemas 1 and 2: whole images, until converted. */
 	images: { key: string; value: Blob };
 }
@@ -166,7 +186,7 @@ const CONTENT_STORES = [
 	"vectors",
 ] as const;
 
-export class IndexedDbPlanStore implements PlanStore, FrameStore {
+export class IndexedDbPlanStore implements PlanStore, FrameStore, GuideStore {
 	readonly #name: string;
 	#db: Promise<IDBPDatabase<Schema>> | undefined;
 
@@ -184,14 +204,17 @@ export class IndexedDbPlanStore implements PlanStore, FrameStore {
 		if (this.#db) return this.#db;
 		let gaveUp = false;
 		const opening = new Promise<IDBPDatabase<Schema>>((resolve, reject) => {
-			openDB<Schema>(this.#name, 5, {
+			openDB<Schema>(this.#name, 6, {
 				// Each store is made if missing, whatever version the database says it is at:
 				// version 2 added "settings", version 3 the content stores. "images" stays for the
-				// plans not converted yet; version 4 added "vectors", version 5 "frames".
+				// plans not converted yet; version 4 added "vectors", version 5 "frames", version 6 "guides".
 				upgrade(db) {
 					const stores = db.objectStoreNames;
 					if (!stores.contains("plans")) {
 						db.createObjectStore("plans", { keyPath: "id" });
+					}
+					if (!stores.contains("guides")) {
+						db.createObjectStore("guides", { keyPath: "id" });
 					}
 					for (const store of [
 						"images",
@@ -363,6 +386,20 @@ export class IndexedDbPlanStore implements PlanStore, FrameStore {
 		const db = await this.#open();
 		if (frame) await db.put("frames", frame, building);
 		else await db.delete("frames", building);
+	}
+
+	async loadGuides(): Promise<StoredGuide[]> {
+		return (await this.#open()).getAll("guides");
+	}
+
+	async saveGuides(guides: readonly StoredGuide[]): Promise<void> {
+		const tx = (await this.#open()).transaction("guides", "readwrite");
+		await Promise.all([...guides.map((g) => tx.store.put(g)), tx.done]);
+	}
+
+	async deleteGuides(ids: readonly string[]): Promise<void> {
+		const tx = (await this.#open()).transaction("guides", "readwrite");
+		await Promise.all([...ids.map((id) => tx.store.delete(id)), tx.done]);
 	}
 
 	async saveStack(

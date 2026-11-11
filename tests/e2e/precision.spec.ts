@@ -362,3 +362,81 @@ test("resting on a corner lines a new corner up with it", async ({ page }) => {
 		/^37\.\d\d m · 90°$/,
 	);
 });
+
+test("M measures between two clicks, shown until the next measure", async ({
+	page,
+}) => {
+	await metric(page);
+	const { x, y } = await emptyMap(page);
+	await page.keyboard.press("m");
+	await expect(page.getByTestId("draw-hint")).toContainText("measure");
+	await page.mouse.click(x - 100, y);
+	await page.mouse.click(x + 100, y);
+	await page.mouse.move(x, y + 150);
+	await expect(page.getByTestId("measure-side")).toHaveText(/^19\.9\d m · 0°$/);
+	// Nothing was drawn.
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+});
+
+test("a guide at a typed distance from a side is snapped to, and kept", async ({
+	page,
+}) => {
+	await metric(page);
+	const { x, y } = await roomMap(page);
+	await page.keyboard.press("m");
+	await page.keyboard.press("Tab");
+	await expect(page.getByTestId("draw-hint")).toContainText("guide");
+	// The room's north side, then 2 m north of it.
+	await page.mouse.click(x, y - 223);
+	await page.mouse.move(x, y - 300);
+	await page.keyboard.type("2");
+	await page.keyboard.press("Enter");
+	await page.keyboard.press("Escape");
+	await expect(page.getByTestId("draw-hint")).toBeHidden();
+
+	// A side drawn straight up east of the room stops on the guide, 20 px above the side.
+	await page.keyboard.press("2");
+	await page.mouse.click(x + 250, y - 100);
+	await page.mouse.move(x + 251, y - 241);
+	await expect(page.getByTestId("inference")).toHaveText("Intersection");
+	await expect(page.getByTestId("measure-pointer")).toHaveText(
+		/^14\.2\d m · 90°$/,
+	);
+	await page.keyboard.press("Escape");
+
+	await expect.poll(() => storedGuides(page)).toBe(1);
+	await page.reload();
+	await camera(page);
+	await page.getByRole("button", { name: "Snapping…" }).click();
+	await expect(page.getByTestId("guides-count")).toHaveText(
+		"Guides on this level: 1",
+	);
+	await page.getByRole("button", { name: "Clear this level's guides" }).click();
+	await expect(page.getByTestId("guides-count")).toHaveText(
+		"Guides on this level: 0",
+	);
+});
+
+/** How many construction guides IndexedDB holds. */
+function storedGuides(page: Page): Promise<number> {
+	return page.evaluate(
+		() =>
+			new Promise((resolve, reject) => {
+				const open = indexedDB.open("indoorid-floorplans");
+				open.onerror = () => reject(open.error);
+				open.onsuccess = () => {
+					const db = open.result;
+					if (!db.objectStoreNames.contains("guides")) {
+						db.close();
+						resolve(0);
+						return;
+					}
+					const count = db.transaction("guides").objectStore("guides").count();
+					count.onsuccess = () => {
+						db.close();
+						resolve(count.result);
+					};
+				};
+			}),
+	);
+}

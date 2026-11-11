@@ -75,6 +75,8 @@ export type SnapTarget =
 	| { readonly kind: "plan"; readonly loc: Loc }
 	/** A crossing of the grid (C.3). */
 	| { readonly kind: "grid"; readonly loc: Loc }
+	/** A point on a construction guide (C.5). */
+	| { readonly kind: "guide"; readonly loc: Loc }
 	/** On a direction line, nothing else there. */
 	| {
 			readonly kind: "angle";
@@ -113,6 +115,11 @@ export interface SnapCandidates {
 	readonly from?: Loc;
 	/** Snap to where two sides cross without a node (C.4). */
 	readonly crossings?: boolean;
+	/**
+	 * Construction guides (C.5), snapped to like sides: a point on one, where one crosses a
+	 * side, another guide or a direction line.
+	 */
+	readonly guides?: readonly DirectionLine[];
 }
 
 type ScreenPoint = { readonly x: number; readonly y: number };
@@ -184,6 +191,7 @@ function pointCandidates(
 		grid,
 		from,
 		crossings,
+		guides = [],
 	}: SnapCandidates,
 	project: (loc: Loc) => ScreenPoint,
 	distance: number,
@@ -278,6 +286,41 @@ function pointCandidates(
 			}
 		}
 	}
+	for (const [i, guide] of guides.entries()) {
+		const foot = screenFoot(point, guide, project);
+		const d = screenDistance(foot);
+		if (d < distance) {
+			scored.push({
+				target: { kind: "guide", loc: foot },
+				score: d + PRIORITY.segment * PRIORITY_STEP,
+			});
+		}
+		for (const segment of segments) {
+			const crossing = crossSegment(guide, segment);
+			if (!crossing) continue;
+			const dc = screenDistance(crossing);
+			if (dc >= distance) continue;
+			scored.push({
+				target: {
+					kind: "segment",
+					segment,
+					loc: crossing,
+					mark: "intersection",
+				},
+				score: dc + PRIORITY.crossing * PRIORITY_STEP,
+			});
+		}
+		for (const other of guides.slice(i + 1)) {
+			const crossing = crossLines(guide, other);
+			if (!crossing) continue;
+			const dc = screenDistance(crossing);
+			if (dc >= distance) continue;
+			scored.push({
+				target: { kind: "intersection", loc: crossing, guides: [] },
+				score: dc + PRIORITY.crossing * PRIORITY_STEP,
+			});
+		}
+	}
 	const vertex = nearest(point, planVertices, (v) => v, project, distance);
 	if (vertex) {
 		scored.push({
@@ -303,7 +346,7 @@ function pointCandidates(
 function lineCandidates(
 	point: ScreenPoint,
 	pointer: Loc,
-	{ lines = [], segments = [], grid }: SnapCandidates,
+	{ lines = [], segments = [], grid, guides = [] }: SnapCandidates,
 	project: (loc: Loc) => ScreenPoint,
 	distance: number,
 ): Scored[] {
@@ -336,6 +379,23 @@ function lineCandidates(
 					segment,
 					loc: crossing,
 					mark: "intersection",
+					guides: [guideAlong(line, crossing)],
+				},
+				score: dc + PRIORITY.crossing * PRIORITY_STEP,
+			});
+		}
+	}
+	// Where a direction crosses a construction guide.
+	for (const line of caught) {
+		for (const guide of guides) {
+			const crossing = crossLines(line, guide);
+			if (!crossing) continue;
+			const dc = screenDistance(crossing);
+			if (dc >= distance) continue;
+			scored.push({
+				target: {
+					kind: "intersection",
+					loc: crossing,
 					guides: [guideAlong(line, crossing)],
 				},
 				score: dc + PRIORITY.crossing * PRIORITY_STEP,
@@ -439,6 +499,22 @@ function crossSides(p: Segment, q: Segment): Loc | null {
 	const u = (ax * ey - ay * ex) / denominator;
 	if (s <= 0 || s >= 1 || u <= 0 || u >= 1) return null;
 	return fromLocal(p.a.loc, [s * ex, s * ey]);
+}
+
+/** The point of the line nearest a screen point, worked out on screen (the map may turn). */
+function screenFoot(
+	point: ScreenPoint,
+	line: DirectionLine,
+	project: (loc: Loc) => ScreenPoint,
+): Loc {
+	const [dx, dy] = direction(line);
+	const ahead = fromLocal(line.origin, [dx * 100, dy * 100]);
+	const o = project(line.origin);
+	const a = project(ahead);
+	const ex = a.x - o.x;
+	const ey = a.y - o.y;
+	const t = ((point.x - o.x) * ex + (point.y - o.y) * ey) / (ex * ex + ey * ey);
+	return fromLocal(line.origin, [dx * 100 * t, dy * 100 * t]);
 }
 
 /** The point of the line nearest `loc`. */

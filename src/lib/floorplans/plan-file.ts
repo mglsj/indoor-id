@@ -77,12 +77,24 @@ export interface ArchivedPlan {
 	readonly building?: string;
 }
 
+/** A construction guide (C.5) in a plan file: an endless line on a level. */
+export interface ArchivedGuide {
+	readonly origin: readonly [number, number];
+	/** Degrees counterclockwise from east. */
+	readonly angle: number;
+	readonly level: number;
+	/** The building or level outline it was placed in. */
+	readonly building?: string;
+}
+
 export interface PlanArchive {
 	/** Bottom first. */
 	readonly plans: readonly ArchivedPlan[];
 	/** The files the plans come from, by path. */
 	readonly files: ReadonlyMap<string, Uint8Array>;
 	readonly buildings?: PlanFileBuildings;
+	/** Construction guides placed against the plans; files from before have none. */
+	readonly guides?: readonly ArchivedGuide[];
 }
 
 /** Writes a version 2 plan file. Files are stored as they are: they are compressed already. */
@@ -90,6 +102,7 @@ export function writePlanArchive({
 	plans,
 	files,
 	buildings,
+	guides,
 }: PlanArchive): Uint8Array {
 	const manifest = JSON.stringify(
 		{
@@ -97,6 +110,7 @@ export function writePlanArchive({
 			version: VERSION,
 			plans,
 			...(buildings ? { buildings } : {}),
+			...(guides?.length ? { guides } : {}),
 		},
 		null,
 		2,
@@ -189,7 +203,39 @@ export function readPlanArchive(
 		files.set(source.file, file);
 	}
 	const buildings = buildingsOf(data.buildings);
-	return { plans, files, ...(buildings ? { buildings } : {}) };
+	const guides = guidesOf(data.guides);
+	return {
+		plans,
+		files,
+		...(buildings ? { buildings } : {}),
+		...(guides.length ? { guides } : {}),
+	};
+}
+
+/** The guides a manifest carries, each checked; broken ones are left out. */
+function guidesOf(value: unknown): ArchivedGuide[] {
+	if (!Array.isArray(value)) return [];
+	return value.flatMap((guide): ArchivedGuide[] => {
+		if (!isRecord(guide)) return [];
+		const { origin, angle, level, building } = guide;
+		if (
+			!Array.isArray(origin) ||
+			origin.length !== 2 ||
+			!origin.every((v) => typeof v === "number" && Number.isFinite(v)) ||
+			typeof angle !== "number" ||
+			!Number.isFinite(angle) ||
+			!Number.isInteger(level)
+		)
+			return [];
+		return [
+			{
+				origin: [origin[0] as number, origin[1] as number],
+				angle,
+				level: level as number,
+				...(typeof building === "string" ? { building } : {}),
+			},
+		];
+	});
 }
 
 function checkVersion(version: unknown): void {

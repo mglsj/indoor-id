@@ -13,6 +13,14 @@
 		onturn(): void;
 		onnorth(): void;
 	}
+
+	/** The shown level's construction guides (C.5): how many, shown or not, cleared. */
+	export interface GuideControls {
+		readonly count: number;
+		readonly shown: boolean;
+		onshow(shown: boolean): void;
+		onclear(): void;
+	}
 </script>
 
 <script lang="ts">
@@ -39,11 +47,12 @@
 	interface Props {
 		precision: PrecisionSettings;
 		frame?: FrameControls;
+		guides?: GuideControls;
 		/** The menu opened or closed (the frame is worked out while it is open). */
 		onopenchange?: (open: boolean) => void;
 	}
 
-	let { precision, frame, onopenchange }: Props = $props();
+	let { precision, frame, guides, onopenchange }: Props = $props();
 	let open = $state(false);
 	let angleText = $state("");
 	let minorText = $state("");
@@ -308,6 +317,34 @@
 							>{t(msg("frame_north"))}</Button
 						>
 					</div>
+				</section>
+			{/if}
+			{#if guides}
+				<Separator />
+				<section class="flex flex-col gap-2" aria-labelledby="{id}-guides">
+					<h3 id="{id}-guides" class="font-medium">
+						{t(msg("guides_section"))}
+					</h3>
+					<p class="text-xs text-muted-foreground" data-testid="guides-count">
+						{t(msg("guides_count", { count: String(guides.count) }))}
+					</p>
+					<div class="flex items-center gap-2">
+						<Checkbox
+							id="{id}-guides-shown"
+							checked={guides.shown}
+							onCheckedChange={(on) => guides.onshow(on === true)}
+						/>
+						<Label for="{id}-guides-shown">{t(msg("guides_show"))}</Label>
+					</div>
+					{#if guides.count > 0}
+						<Button
+							variant="outline"
+							size="sm"
+							class="self-start"
+							onclick={() => guides.onclear()}
+							>{t(msg("guides_clear"))}</Button
+						>
+					{/if}
 				</section>
 			{/if}
 		</Popover.Content>

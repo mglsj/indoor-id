@@ -12,6 +12,7 @@
 		PlanBuilding,
 		View,
 	} from "#lib/state/floorplans.svelte.ts";
+	import type { Guides } from "#lib/state/guides.svelte.ts";
 	import PlanFiles from "#lib/ui/PlanFiles.svelte";
 	import PlanList from "#lib/ui/PlanList.svelte";
 	import PlanTools from "#lib/ui/PlanTools.svelte";
@@ -34,6 +35,8 @@
 		buildings?: readonly PlanBuilding[];
 		/** The name of a plan's building, by its OSM id, when it is known. */
 		buildingName?: (id: string) => string | undefined;
+		/** Construction guides, exported and imported with the plans (C.5). */
+		guides?: Guides;
 	}
 
 	let {
@@ -46,6 +49,7 @@
 		onshowlevel,
 		buildings = [],
 		buildingName,
+		guides,
 	}: Props = $props();
 </script>
 
@@ -69,7 +73,7 @@
 	<Separator />
 	<ScrollArea class="min-h-0 flex-1">
 		<div class="flex flex-col gap-4 p-4">
-			<PlanFiles {floorplans} {decoders} {getView} {level} />
+			<PlanFiles {floorplans} {decoders} {getView} {level} {guides} />
 			{#if floorplans.storageError}
 				<Alert.Root variant="destructive">
 					<CircleAlert />

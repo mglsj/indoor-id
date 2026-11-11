@@ -7,7 +7,7 @@
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import type { Loc } from "#lib/osm/entity.ts";
 import { bearingOf, type Frame, lengthOf, normalizeAngle } from "./frame.ts";
-import type { Inference, SnapTarget } from "./snap.ts";
+import type { Guide, Inference, SnapTarget } from "./snap.ts";
 import type { TypedInput } from "./typed.ts";
 
 /** A length (and an angle) shown on the map. */
@@ -31,6 +31,8 @@ export interface Feedback {
 	readonly input?: TypedInput;
 	/** Corners armed for tracking (C.4), marked on the map. */
 	readonly armed?: readonly Loc[];
+	/** Lines a tool draws besides the snap's guides: a measure, a guide being placed (C.5). */
+	readonly lines?: readonly Guide[];
 }
 
 /** Shows feedback, or hides it (null). */
@@ -69,6 +71,7 @@ export function inferenceLabel(target: SnapTarget | null): Message | undefined {
 	const kind =
 		"guides" in target ? target.guides?.find((g) => g.kind)?.kind : undefined;
 	if (kind) return INFERENCE_LABELS[kind];
+	if (target.kind === "guide") return msg("inference_guide");
 	if (target.kind === "segment" && target.mark === "midpoint")
 		return msg("inference_midpoint");
 	if (
