@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { changeTags } from "#lib/actions/change-tags.ts";
 import { type Bbox, OsmApiError } from "#lib/api/osm-api.ts";
+import type { UploadedChanges } from "#lib/api/recent-uploads.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import type { Entity } from "#lib/osm/entity.ts";
 import { node } from "#lib/osm/fixtures.ts";
@@ -85,6 +86,35 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 		expect(history.graph).toBe(uploaded);
 		expect(history.canUndo).toBe(false);
 		expect(selection.ids).toEqual(["n100"]);
+	});
+
+	it("says what an upload changed on the server", async () => {
+		const history = new EditHistory(Graph.fromEntities([]));
+		const changes: UploadedChanges[] = [];
+		const sync = new DataSync({
+			api: {
+				loadMap: async () => [],
+				loadRelation: async () => [],
+				upload: async () => ({
+					graph: Graph.fromEntities([node("n100", { amenity: "bench" })]),
+					idMap: new Map([["n-1", "n100"]]),
+					notDeleted: [],
+					changesetId: 42,
+				}),
+			},
+			minZoom: 16,
+			history,
+			selection: new Selection(),
+			onupload: (c) => changes.push(c),
+		});
+		history.perform(
+			(graph) => graph.replace(node("n-1", { amenity: "bench" })),
+			msg("undo_change_tags"),
+		);
+		await sync.upload({ comment: "Bench" });
+		expect(changes).toEqual([
+			{ written: [node("n100", { amenity: "bench" })], deleted: [] },
+		]);
 	});
 
 	it("asks a retry to check the changeset of the upload that failed", async () => {

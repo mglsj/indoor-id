@@ -22,8 +22,12 @@ export interface EditorConfig {
 	wikipedia_api_url?: string;
 	/** OSM wiki API, for tag documentation; wiki.openstreetmap.org by default. */
 	osm_wiki_api_url?: string;
+	/** Overpass API for the viewer, without `/interpreter`; overpass-api.de by default. */
+	overpass_url?: string;
 	/** URL of a MapLibre style used as the default basemap. */
 	basemap_style: string;
+	/** The basemap in dark mode; `basemap_style` when unset. */
+	basemap_style_dark?: string;
 	/** Minimal zoom at which OSM data is downloaded. */
 	data_min_zoom: number;
 	map_initial_zoom: number;
@@ -39,6 +43,8 @@ const OPTIONAL_URLS = [
 	"wikidata_api_url",
 	"wikipedia_api_url",
 	"osm_wiki_api_url",
+	"overpass_url",
+	"basemap_style_dark",
 ] as const;
 
 const DEFAULTS = {

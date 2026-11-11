@@ -5,6 +5,10 @@
 import { MAX_CHANGESET_CHANGES } from "#lib/api/changeset.ts";
 import { MapLoader, type MapLoaderOptions } from "#lib/api/map-loader.ts";
 import { type Bbox, type OsmApi, OsmApiError } from "#lib/api/osm-api.ts";
+import {
+	type UploadedChanges,
+	uploadedChanges,
+} from "#lib/api/recent-uploads.ts";
 import { MessageError, msg } from "#lib/i18n/messages.ts";
 import type { Entity, EntityId, RelationId } from "#lib/osm/entity.ts";
 import type { Tags } from "#lib/osm/tags.ts";
@@ -40,6 +44,10 @@ export interface DataSyncOptions {
 	readonly selection: Selection;
 	/** When downloaded data is handed over (the next frame by default). */
 	readonly schedule?: MapLoaderOptions["schedule"];
+	/** How tiles are downloaded, for an API other than OSM's (Overpass). */
+	readonly loader?: Pick<MapLoaderOptions, "zoom" | "concurrency" | "tooLarge">;
+	/** What each upload changed on the server (for `RecentUploads`). */
+	readonly onupload?: (changes: UploadedChanges) => void;
 }
 
 export class DataSync {
@@ -50,14 +58,24 @@ export class DataSync {
 	readonly #history: EditHistory;
 	readonly #selection: Selection;
 	readonly #loader: MapLoader;
+	readonly #onupload: DataSyncOptions["onupload"];
 	#loads = 0;
 	/** The upload under way, if any. */
 	#uploading: Promise<unknown> | null = null;
 	/** Bumped by each upload that started a new history. */
 	#generation = 0;
 
-	constructor({ api, minZoom, history, selection, schedule }: DataSyncOptions) {
+	constructor({
+		api,
+		minZoom,
+		history,
+		selection,
+		schedule,
+		loader,
+		onupload,
+	}: DataSyncOptions) {
 		this.#api = api;
+		this.#onupload = onupload;
 		this.#minZoom = minZoom;
 		this.#history = history;
 		this.#selection = selection;
@@ -65,6 +83,7 @@ export class DataSync {
 			download: (bbox) => api.loadMap(bbox),
 			onData: (entities) => this.#receive(entities),
 			schedule,
+			...loader,
 		});
 	}
 
@@ -124,7 +143,8 @@ export class DataSync {
 		}
 		this.#history.lock();
 		this.#loader.pause();
-		const uploading = this.#api.upload(this.#history.graph, changesetTags, {
+		const graph = this.#history.graph;
+		const uploading = this.#api.upload(graph, changesetTags, {
 			retryOf: this.failedChangeset,
 		});
 		this.#uploading = uploading;
@@ -136,6 +156,7 @@ export class DataSync {
 				throw error;
 			});
 			this.failedChangeset = undefined;
+			this.#onupload?.(uploadedChanges(graph, result));
 			this.#generation++;
 			this.#loader.reset();
 			this.#selection.remap(result.idMap);

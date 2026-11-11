@@ -21,6 +21,7 @@
 	import { splitAreas, splitTargets } from "#lib/actions/split-areas.ts";
 	import { OsmApi } from "#lib/api/osm-api.ts";
 	import { OsmWikibase } from "#lib/api/osm-wikibase.ts";
+	import { RecentUploads } from "#lib/api/recent-uploads.ts";
 	import { Taginfo } from "#lib/api/taginfo.ts";
 	import { searchWikipedia, Wikidata } from "#lib/api/wikidata.ts";
 	import { Badge } from "#lib/components/shadcn/badge/index.ts";
@@ -142,9 +143,12 @@
 			getToken: () => session.token(),
 			createdBy: `IndoorID ${__GIT_HASH__}`,
 		});
+		const recentUploads = new RecentUploads();
 		const editor = new Editor({
 			api,
 			minZoom: config.data_min_zoom,
+			// The viewer lays them over Overpass answers until Overpass catches up.
+			onupload: (changes) => recentUploads.record(changes),
 			catalog: {
 				services: {
 					taginfo: new Taginfo({ baseUrl: config.taginfo_url }),
@@ -508,7 +512,9 @@
 								toggle: (id) => editor.selection.toggle(id as EntityId),
 								move: (at) =>
 									selectedAt(at.point)
-										? featureDrag(editor.selection.ids, at, editor.history)
+										? featureDrag(editor.selection.ids, at, editor.history, {
+												onhint: (hint) => (dragHint = hint),
+											})
 										: null,
 								lasso: (at) =>
 									lassoDrag(at.lngLat, {

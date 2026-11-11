@@ -16,7 +16,11 @@ import type { Preset, PresetGeometry } from "#lib/presets/presets.ts";
 import type { Issue } from "#lib/validation/validate.ts";
 import { Validator } from "#lib/validation/validator.ts";
 import { Catalog, type CatalogOptions } from "./catalog.svelte.ts";
-import { DataSync, type SyncApi } from "./data-sync.svelte.ts";
+import {
+	DataSync,
+	type DataSyncOptions,
+	type SyncApi,
+} from "./data-sync.svelte.ts";
 import { EditHistory } from "./edit-history.svelte.ts";
 import { Selection } from "./selection.svelte.ts";
 
@@ -30,6 +34,10 @@ export interface EditorOptions {
 	readonly catalog?: Catalog | CatalogOptions;
 	/** When downloaded data is handed over (the next frame by default). */
 	readonly schedule?: MapLoaderOptions["schedule"];
+	/** How tiles are downloaded (`DataSyncOptions.loader`). */
+	readonly loader?: DataSyncOptions["loader"];
+	/** What each upload changed on the server. */
+	readonly onupload?: DataSyncOptions["onupload"];
 }
 
 export class Editor {
@@ -63,7 +71,14 @@ export class Editor {
 	/** The same checks on the downloaded data, to tell the issues an edit made. */
 	readonly #baseValidator = new Validator();
 
-	constructor({ api, minZoom, catalog, schedule }: EditorOptions) {
+	constructor({
+		api,
+		minZoom,
+		catalog,
+		schedule,
+		loader,
+		onupload,
+	}: EditorOptions) {
 		this.catalog = catalog instanceof Catalog ? catalog : new Catalog(catalog);
 		const store = new FeatureStore();
 		this.features = $derived(
@@ -78,6 +93,8 @@ export class Editor {
 			history: this.history,
 			selection: this.selection,
 			schedule,
+			loader,
+			onupload,
 		});
 	}
 

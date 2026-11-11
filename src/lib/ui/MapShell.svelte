@@ -5,9 +5,11 @@
 	 * download status. Pages add their controls and panels through the snippets; the editor
 	 * (`EditorView`) adds modes, drawing, floor plans and upload on top.
 	 */
+	import { mode } from "mode-watcher";
 	import type { Snippet } from "svelte";
 	import type { Place } from "#lib/api/nominatim.ts";
 	import type { EditorConfig } from "#lib/config.ts";
+	import type { FloorNumbering } from "#lib/levels/floor-numbering.ts";
 	import { setBackground } from "#lib/map/background.ts";
 	import {
 		formatHash,
@@ -17,6 +19,7 @@
 	import type { ImageryEntry } from "#lib/map/imagery.ts";
 	import { IndoorMap } from "#lib/map/indoor-map.ts";
 	import type { Map as MapLibreMap } from "#lib/map/maplibre.ts";
+	import type { Presentation } from "#lib/map/style/layers.ts";
 	import { visibleExtent } from "#lib/map/view.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
 	import ImageryPicker from "#lib/ui/ImageryPicker.svelte";
@@ -24,7 +27,6 @@
 	import MapView from "#lib/ui/MapView.svelte";
 	import SearchPlace from "#lib/ui/SearchPlace.svelte";
 	import { goto } from "$app/navigation";
-	import { resolve } from "$app/paths";
 
 	type Camera = Omit<View, "level">;
 
@@ -42,6 +44,10 @@
 		left?: number;
 		/** Floor plan tiles drawn, for the e2e tests' `data-plan-tiles`. */
 		planTiles?: number;
+		/** Indoor data drawn for editing (translucent) or viewing (V.1). */
+		presentation?: Presentation;
+		/** How unnamed levels are labelled in the switcher; their numbers when unset. */
+		numbering?: FloorNumbering;
 		/** A background was picked (null: none). */
 		onbackground?: (entry: ImageryEntry | null) => void;
 		/** Controls under the place search. */
@@ -62,6 +68,8 @@
 		indoor = $bindable(),
 		left = 0,
 		planTiles,
+		presentation = "edit",
+		numbering,
 		onbackground,
 		controls,
 		tools,
@@ -80,6 +88,12 @@
 		if (!instance) return;
 		const layers = new IndoorMap(instance);
 		indoor = layers;
+		$effect(() =>
+			layers.setLook({
+				presentation,
+				theme: mode.current === "dark" ? "dark" : "light",
+			}),
+		);
 		$effect(() => layers.setFeatures(editor.features));
 		$effect(() => layers.setLevel(level));
 		$effect(() => layers.setSelected(editor.selection.ids));
@@ -109,7 +123,11 @@
 	$effect(() => {
 		if (hash && hash !== lastHash) {
 			lastHash = hash;
-			void goto(resolve(hash), { replace: true, shallow: true });
+			// On this page: the editor's is `/`, the viewer's `/view`.
+			void goto(new URL(hash, location.href), {
+				replace: true,
+				shallow: true,
+			});
 		}
 	});
 
@@ -160,7 +178,9 @@
 <svelte:window onhashchange={onHashChange} />
 
 <MapView
-	styleUrl={config.basemap_style}
+	styleUrl={mode.current === "dark"
+		? (config.basemap_style_dark ?? config.basemap_style)
+		: config.basemap_style}
 	initialCamera={fromUrl ?? {
 		zoom: config.map_initial_zoom,
 		lat: config.map_initial_latlng[0],
@@ -194,7 +214,7 @@
 </div>
 
 <div class="absolute top-4 right-4 z-10">
-	<LevelControl bind:level levels={levelsInView} />
+	<LevelControl bind:level levels={levelsInView} {numbering} />
 </div>
 
 {#if statusMessage}

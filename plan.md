@@ -40,7 +40,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | R5     | Map shell split (review)                   | Done        |
 | P5.4a  | Autosave and restore                       | Done        |
 | LN     | License notices                            | Done        |
-| V      | Viewer mode (V.1–V.3)                      | Not started |
+| V      | Viewer mode (V.1–V.3)                      | Done        |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
 | P5.4b  | Rebase before upload, conflicts            | Not started |
 | W2     | Wiki conformance, November research        | Not started |
@@ -203,8 +203,33 @@ already exists).
    `name` are labelled "Ground floor, 1, 2…" (counting from 0: UK, Europe, OSM `level`) or
    "1, 2, 3…" (counting from 1: US, Canada, Russia), defaulting from the browser locale, kept in
    the browser. Only labels change, never tags.
+   Done ✅ (2026-11-11). The pre-V.1 check: dragging a vertex already said what it moves
+   ("Moving this point moves 2 features on levels 0;1", unit and e2e tested); moving a
+   selected feature whole stretched features on other levels silently, so `featureDrag` now
+   shows `othersHint` ("Also moves features not selected (1, on levels 1)") through
+   `featuresUsing` in `node-drag.ts`. V.1: `/view` (`ui/ViewerView.svelte` on `MapShell`, the
+   header from `ui/AppPage.svelte` links both pages at the same hash) reads `api/overpass.ts`
+   (indoor, `level`, `repeat_on`, building, part, door and entrance features, then `(._;>;)`,
+   so ways and multipolygons come whole and the selected building's extent needs no extra
+   query); tiles at zoom 15, two at a time, from zoom 16, never split. A click shows
+   `ui/FeatureCard.svelte` (preset, name, levels, tags, link to osm.org). `indoorLayers(level,
+   { presentation, theme })` with `edit`/`view` (fill opacity 0.8 or 0.95) and
+   `INDOOR_COLORS`/`DARK_INDOOR_COLORS`, following mode-watcher in both pages; an optional
+   `basemap_style_dark` is chosen when the map is created. `api/recent-uploads.ts`: each
+   upload's written and deleted entities (`DataSync`'s `onupload`) kept in localStorage for an
+   hour and laid over Overpass answers. `levels/floor-numbering.ts`: `from-0` (G, 1, 2) or
+   `from-1` (1, 2, 3; regions US, CA, RU, BY, KZ, CN, JP, KR, TW by the locale's likely
+   region), a toggle in the viewer kept in localStorage; `LevelControl` takes `numbering`.
+   Left for later: a dark basemap swap while the page is open (the style is chosen once, since
+   `setStyle` drops the custom layers).
+
 2. **V.2 Discovery.** Count bubbles or a heatmap of indoor features below zoom 16 (indoor=,
    OpenLevelUp).
+   Done ✅ (2026-11-11): from zoom 12 to the data zoom, `Overpass.indoorCentres` (rooms, areas
+   and corridors as `out ids center`) in zoom-12 tiles through `state/discovery.svelte.ts`
+   (`MapLoader` is now generic over what it downloads), drawn by `map/discovery-layer.ts` as
+   MapLibre cluster bubbles with counts; `edit/modes/view.ts` opens a bubble on click (zooms to
+   where it splits) before browsing.
 3. **V.3 Side panel.** Search over names and refs, a room list by level and place details
    (OpenIndoorMaps, OpenLevelUp); rooms coloured by use, counting POIs inside them (a shop node
    in an untagged room). The rule, from osm-simple3d-editor: a room or `indoor=area` with no
@@ -216,6 +241,20 @@ already exists).
    fire_hydrant` (Maki and Temaki lack the first two) and `amenity=dryer|washing_machine`
    (forum #169). Stations: `indoor=area` + `railway=platform` drawn as a platform, tracks
    inside the building as two rails by `gauge`.
+   Done ✅ (2026-11-11): `ui/ViewerPanel.svelte` (open from the start on screens 768 px wide or
+   more, a "Places" toggle) with the selected feature's card, a search over names and refs
+   (accents and case ignored, numbers sorted as numbers) and the named places on the shown
+   level in view, from `view/places.ts`; a click switches level, centres and selects.
+   `view/room-use.ts` gives rooms and areas a use (food, shop, toilets, health, education,
+   office, worship, service, platform) from their tags or, following the rule above, the
+   first point inside on their floor; `IndoorMap.setUses` sets it as feature state and the view
+   presentation fills by it (`USE_COLORS`, light and dark). Icons: OsmInEdit's set already had
+   `emergency_fire_extinguisher`, `_fire_hose` and `_fire_hydrant`; new SVGs for
+   `emergency_fire_alarm_box`, `emergency_first_aid_kit`, `amenity_dryer` and
+   `amenity_washing_machine`. Stations: platforms take the platform colour; railway tracks
+   (fetched by the viewer's query) carry `@rail-r17` (half the gauge, standard when unknown)
+   and the viewer draws their two rails (`indoor-rails-left|right`) instead of a centre line.
+   Tracks are drawn wherever they were loaded, not only inside buildings.
 
 Dropped: the temporary "view in 3D" link to osm-simple3d-editor, since 3D.1 follows V. Routing
 (a graph from `highway=footway`/`corridor`, doors, stairs and elevators with their levels;

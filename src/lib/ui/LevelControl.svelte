@@ -6,6 +6,10 @@
 	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import {
+		type FloorNumbering,
+		numberedEntry,
+	} from "#lib/levels/floor-numbering.ts";
+	import {
 		fullLabel,
 		type LevelEntry,
 		shortLabel,
@@ -18,16 +22,24 @@
 		 * levels step by one and no list shows.
 		 */
 		levels?: readonly LevelEntry[];
+		/** How unnamed levels are labelled (the viewer's setting); their numbers when unset. */
+		numbering?: FloorNumbering;
 	}
 
-	let { level = $bindable(), levels = [] }: Props = $props();
+	let { level = $bindable(), levels: given = [], numbering }: Props = $props();
+
+	const label = (entry: LevelEntry) =>
+		numbering ? numberedEntry(entry, numbering) : entry;
+	const levels = $derived(given.map(label));
 
 	const numbers = $derived(levels.map((e) => e.level));
 	const above = $derived(numbers.find((l) => l > level));
 	const below = $derived(numbers.findLast((l) => l < level));
 	const descending = $derived([...levels].reverse());
 	/** The level shown, named when the data in view names it. */
-	const current = $derived(levels.find((e) => e.level === level) ?? { level });
+	const current = $derived(
+		levels.find((e) => e.level === level) ?? label({ level }),
+	);
 
 	const upTarget = $derived(levels.length > 0 ? above : level + 1);
 	const downTarget = $derived(levels.length > 0 ? below : level - 1);
