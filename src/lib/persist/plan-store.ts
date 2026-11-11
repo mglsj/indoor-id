@@ -8,7 +8,8 @@
  * pyramid level), `tiles` (`[plan, level, x, y]` → the encoded tile), `originals` (the files
  * plans were imported from, by file id: a PDF once for all its pages; a plan saved without a
  * `source` has its file under its own id), `thumbnails`, `settings` (the building outlines'
- * place), `vectors` (a vector plan's paths, added in schema 4). `images` holds the whole images of schemas 1 and 2 until each plan is converted, the
+ * place), `vectors` (a vector plan's paths, added in schema 4), `frames` (drawing frames set
+ * by the user, by building id, added in schema 5: C.3). `images` holds the whole images of schemas 1 and 2 until each plan is converted, the
  * first time its content loads.
  */
 import { type DBSchema, type IDBPDatabase, openDB } from "idb";
@@ -112,6 +113,20 @@ export interface PlanStore {
 	): Promise<void>;
 }
 
+/** A drawing frame the user set for a building (C.3): never in OSM. */
+export interface StoredFrame {
+	readonly angle: number;
+	/** Where the grid starts; the building's south-west corner when not set. */
+	readonly origin?: readonly [number, number];
+}
+
+/** Drawing frames kept per building (C.3), next to the floor plans. */
+export interface FrameStore {
+	loadFrames(): Promise<Map<string, StoredFrame>>;
+	/** Keeps a building's frame, or forgets it (null: automatic again). */
+	saveFrame(building: string, frame: StoredFrame | null): Promise<void>;
+}
+
 /** A raster's description as stored, its tiles apart. */
 interface RasterRecord {
 	readonly unit: number;
@@ -130,6 +145,7 @@ interface Schema extends DBSchema {
 	thumbnails: { key: string; value: Blob };
 	settings: { key: string; value: StoredBuildings };
 	vectors: { key: string; value: VectorContent };
+	frames: { key: string; value: StoredFrame };
 	/** Schemas 1 and 2: whole images, until converted. */
 	images: { key: string; value: Blob };
 }
@@ -150,7 +166,7 @@ const CONTENT_STORES = [
 	"vectors",
 ] as const;
 
-export class IndexedDbPlanStore implements PlanStore {
+export class IndexedDbPlanStore implements PlanStore, FrameStore {
 	readonly #name: string;
 	#db: Promise<IDBPDatabase<Schema>> | undefined;
 
@@ -168,10 +184,10 @@ export class IndexedDbPlanStore implements PlanStore {
 		if (this.#db) return this.#db;
 		let gaveUp = false;
 		const opening = new Promise<IDBPDatabase<Schema>>((resolve, reject) => {
-			openDB<Schema>(this.#name, 4, {
+			openDB<Schema>(this.#name, 5, {
 				// Each store is made if missing, whatever version the database says it is at:
 				// version 2 added "settings", version 3 the content stores. "images" stays for the
-				// plans not converted yet; version 4 added "vectors".
+				// plans not converted yet; version 4 added "vectors", version 5 "frames".
 				upgrade(db) {
 					const stores = db.objectStoreNames;
 					if (!stores.contains("plans")) {
@@ -185,6 +201,7 @@ export class IndexedDbPlanStore implements PlanStore {
 						"originals",
 						"thumbnails",
 						"vectors",
+						"frames",
 					] as const) {
 						if (!stores.contains(store)) db.createObjectStore(store);
 					}
@@ -330,6 +347,22 @@ export class IndexedDbPlanStore implements PlanStore {
 
 	async saveBuildings(buildings: StoredBuildings): Promise<void> {
 		await (await this.#open()).put("settings", buildings, "buildings");
+	}
+
+	async loadFrames(): Promise<Map<string, StoredFrame>> {
+		const db = await this.#open();
+		const tx = db.transaction("frames");
+		const [keys, values] = await Promise.all([
+			tx.store.getAllKeys(),
+			tx.store.getAll(),
+		]);
+		return new Map(keys.map((key, i) => [key, values[i] as StoredFrame]));
+	}
+
+	async saveFrame(building: string, frame: StoredFrame | null): Promise<void> {
+		const db = await this.#open();
+		if (frame) await db.put("frames", frame, building);
+		else await db.delete("frames", building);
 	}
 
 	async saveStack(

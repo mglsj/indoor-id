@@ -235,6 +235,22 @@ describe("IndexedDbPlanStore (schema 4)", () => {
 	});
 });
 
+describe("IndexedDbPlanStore: frames (schema 5)", () => {
+	it("keeps a building's frame, and forgets it when set back to automatic", async () => {
+		const store = freshStore();
+		await store.saveFrame("w1", { angle: 12.5, origin: [1, 2] });
+		await store.saveFrame("w2", { angle: -30 });
+		expect(await store.loadFrames()).toEqual(
+			new Map([
+				["w1", { angle: 12.5, origin: [1, 2] }],
+				["w2", { angle: -30 }],
+			]),
+		);
+		await store.saveFrame("w1", null);
+		expect([...(await store.loadFrames()).keys()]).toEqual(["w2"]);
+	});
+});
+
 describe("IndexedDbPlanStore: other tabs", () => {
 	it("fails at once when an older version is held open elsewhere, and tries again after", async () => {
 		const store = freshStore();

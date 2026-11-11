@@ -181,3 +181,50 @@ describe("snapAt with direction lines", () => {
 		expect(target?.loc[1]).toBeCloseTo(0, 6);
 	});
 });
+
+describe("snapAt with a grid", () => {
+	/** A north grid every 0.1° (10 px on this flat screen). */
+	const grid = { frame: { origin: [0, 0] as Loc, angle: 0 }, step: 11_119.5 };
+	const pointer = (x: number, y: number) => unproject({ x, y });
+
+	it("snaps to the nearest crossing", () => {
+		const target = snapAt(
+			{ x: 21, y: -38 },
+			{ grid },
+			project,
+			8,
+			pointer(21, -38),
+		);
+		expect(target?.kind).toBe("grid");
+		expect(target?.loc[0]).toBeCloseTo(0.2, 3);
+		expect(target?.loc[1]).toBeCloseTo(0.4, 3);
+	});
+
+	it("a side beats the grid", () => {
+		const target = snapAt(
+			{ x: 21, y: 2 },
+			{ grid, segments: [side] },
+			project,
+			8,
+			pointer(21, 2),
+		);
+		expect(target?.kind).toBe("segment");
+	});
+
+	it("where a direction line crosses a grid line", () => {
+		// A grid every 0.3°: 45° from [0, 0] crosses its lines x = 0.3 and y = 0.3 at (0.3, 0.3).
+		const target = snapAt(
+			{ x: 29, y: -28 },
+			{
+				grid: { ...grid, step: 11_119.5 * 3 },
+				lines: [{ origin: [0, 0], angle: 45 }],
+			},
+			project,
+			8,
+			pointer(29, -28),
+		);
+		expect(target?.kind).toBe("intersection");
+		expect(target?.loc[0]).toBeCloseTo(0.3, 3);
+		expect(target?.loc[1]).toBeCloseTo(0.3, 3);
+	});
+});

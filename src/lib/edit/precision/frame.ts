@@ -44,6 +44,11 @@ export function normalizeAngle(degrees: number): number {
 	return ((((degrees + 180) % 360) + 360) % 360) - 180;
 }
 
+/** An angle folded to [-45, 45): the same axes, as a frame's angle. */
+export function foldAngle(degrees: number): number {
+	return ((((degrees + 45) % 90) + 90) % 90) - 45;
+}
+
 /** The direction from `a` to `b` on the ground, in degrees counterclockwise from east. */
 export function bearingOf(a: Point, b: Point): number {
 	const [x, y] = local(a, b);

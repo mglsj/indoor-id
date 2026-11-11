@@ -58,6 +58,21 @@ describe("PrecisionSettings", () => {
 		expect(settings.enabled).toBe(true);
 	});
 
+	it("keeps the grid hidden at first, then shown with its spacing", () => {
+		const saved = storage();
+		const settings = new PrecisionSettings(saved);
+		expect(settings.grid).toBe(false);
+		settings.toggleGrid();
+		expect(settings.setGridSpacing(1, 0.5)).toBe(false);
+		expect(settings.setGridSpacing(0.6, 6)).toBe(true);
+		const again = new PrecisionSettings(saved);
+		expect([again.grid, again.gridMinor, again.gridMajor]).toEqual([
+			true,
+			0.6,
+			6,
+		]);
+	});
+
 	it("ignores what it can't read", () => {
 		const settings = new PrecisionSettings(
 			storage({

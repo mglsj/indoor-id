@@ -26,6 +26,7 @@ export type MarkKind =
 	| "midpoint"
 	| "intersection"
 	| "plan"
+	| "grid"
 	| "angle"
 	| "lock";
 
@@ -127,7 +128,7 @@ export class GuideLayer {
 						"case",
 						mark(["node", "intersection"]),
 						7,
-						mark(["midpoint", "plan"]),
+						mark(["midpoint", "plan", "grid"]),
 						5,
 						4,
 					],

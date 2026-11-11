@@ -42,7 +42,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | LN     | License notices                            | Done         |
 | V      | Viewer mode (V.1–V.3)                      | Done         |
 | T      | One theme, background pane                 | Done         |
-| C      | CAD-style precision (C.0–C.6)              | C.0–C.2 done |
+| C      | CAD-style precision (C.0–C.6)              | C.0–C.3 done |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started  |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
@@ -428,6 +428,17 @@ corner is previewed before Enter), `edit/rectangle.ts` and `edit/modes/rectangle
 switches two corners / side and width before the second click). A mode that handles a key now
 has its default prevented (Tab, quotes, Enter on a focused toolbar button). The side variant's
 second corner doesn't join nodes yet.
+
+Landed with C.3: `edit/precision/grid.ts` (`gridLines` in the frame, thinned by
+`drawnSpacing` below 8 px; `nearestCrossing`, `nearestGridLines`), grid snaps in `snapAt`
+(crossings, and an angle line crossing a grid line, both at the plan-vertex priority),
+`map/grid-layer.ts`, `state/frames.svelte.ts` (`Frames`: automatic `outlineFrame`, or set, by
+the outline's id) on a `frames` store in plan-store schema 5, and `edit/modes/frame-pick.ts`
+("Align to a side" and "Move the origin" click on the map). The frame section sits in the
+snapping menu: typed angle, align, origin, each visible plan's angle on the shown level, reset,
+turn the map to the frame and north up. The frame in view is the selection's building, else the
+map centre's. The grid is drawn only while shown (`G`, kept in the precision settings). Not
+done: setting the frame by two clicks (aligning to a side covers it).
 
 Order inside C: C.0 and C.1 together first (one PR each), then C.2, then C.3; C.4 to C.6 can
 be reordered after users have tried C.1–C.3.
