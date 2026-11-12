@@ -116,6 +116,7 @@
 	}: Props = $props();
 
 	const editor = getEditor();
+	if (fromUrl?.building) editor.scope.enter(fromUrl.building);
 	let lastHash = "";
 	const settings = new BackgroundSettings(browserStorage());
 	background = settings;
@@ -138,7 +139,20 @@
 		if (!instance) return;
 		const layers = new IndoorMap(instance);
 		indoor = layers;
-		$effect(() => layers.setLook({ presentation, fill: settings.areaFill }));
+		$effect(() =>
+			layers.setLook({
+				presentation,
+				fill: settings.areaFill,
+				// Building mode (B.1): the map fades indoor features, a building what is outside.
+				scope:
+					presentation === "edit"
+						? editor.scope.current
+							? "building"
+							: "map"
+						: undefined,
+			}),
+		);
+		$effect(() => layers.setInside(editor.inside));
 		// iD's "Highlight changes", in the editor.
 		$effect(() =>
 			layers.setEdited(
@@ -198,7 +212,14 @@
 	});
 
 	// Keep the URL hash in sync with the map camera and the shown level.
-	const hash = $derived(camera && formatHash({ ...camera, level }));
+	const hash = $derived(
+		camera &&
+			formatHash({
+				...camera,
+				level,
+				...(editor.scope.id && { building: editor.scope.id }),
+			}),
+	);
 	$effect(() => {
 		if (hash && hash !== lastHash) {
 			lastHash = hash;
@@ -237,6 +258,8 @@
 		const view = parseHash(location.hash);
 		if (!view) return;
 		level = view.level;
+		if (view.building) editor.scope.enter(view.building);
+		else editor.scope.leave();
 		map?.jumpTo({ center: [view.lon, view.lat], zoom: view.zoom });
 	}
 

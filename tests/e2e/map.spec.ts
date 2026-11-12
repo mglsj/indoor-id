@@ -82,6 +82,21 @@ test("dragging the map updates the hash", async ({ page }) => {
 	await expect.poll(() => hash(page)).not.toBe("#19/48.13/-1.69/0");
 });
 
+test("keeps the building entered in the hash (B.0)", async ({ page }) => {
+	await page.goto("/#19/48.13/-1.69/0&building=w123");
+	await camera(page);
+
+	// Kept through a level change, while the building's data isn't loaded.
+	await page.getByRole("button", { name: "Level up" }).click();
+	await expect.poll(() => hash(page)).toBe("#19/48.13/-1.69/1&building=w123");
+
+	// Left by a hash without it.
+	await page.evaluate(() => (location.hash = "#19/48.13/-1.69/1"));
+	await expect(page.getByTestId("level")).toHaveText("1");
+	await page.getByRole("button", { name: "Level up" }).click();
+	await expect.poll(() => hash(page)).toBe("#19/48.13/-1.69/2");
+});
+
 test("reports a basemap that cannot be loaded, and still shows indoor data", async ({
 	page,
 }) => {

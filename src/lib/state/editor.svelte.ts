@@ -22,6 +22,7 @@ import {
 	type SyncApi,
 } from "./data-sync.svelte.ts";
 import { EditHistory } from "./edit-history.svelte.ts";
+import { BuildingScope } from "./scope.svelte.ts";
 import { Selection } from "./selection.svelte.ts";
 
 export type { LoadStatus } from "./data-sync.svelte.ts";
@@ -48,6 +49,13 @@ export class Editor {
 	});
 	readonly catalog: Catalog;
 	readonly sync: DataSync;
+	/** The building entered in building mode, or none in map mode (B). */
+	readonly scope = new BuildingScope(() => this.graph);
+	/**
+	 * The drawn features shown unfaded (B.1): in a building, those in it; on the map, indoor
+	 * features no building or level outline holds, which can't be entered.
+	 */
+	readonly inside: ReadonlySet<EntityId>;
 
 	/** The map's features, built again only for what each change touched. */
 	readonly features: StoredFeatures;
@@ -86,6 +94,11 @@ export class Editor {
 				icons: AVAILABLE_ICONS,
 				presets: this.catalog.presets ?? undefined,
 			}),
+		);
+		this.inside = $derived(
+			this.scope.current
+				? this.scope.members(this.features.byId.keys() as Iterable<EntityId>)
+				: (this.scope.unscoped(this.features.byId.values()) as Set<EntityId>),
 		);
 		this.sync = new DataSync({
 			api,

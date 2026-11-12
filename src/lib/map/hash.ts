@@ -1,16 +1,23 @@
 /**
- * URL hash holding the map view, in the format `#zoom/lat/lon/level`.
+ * URL hash holding the map view, in the format `#zoom/lat/lon/level`, then
+ * `&building=w123` when a building is entered (B.0).
  *
  * This is the format used by OsmInEdit (level is optional), so old links keep working.
  * Unlike OsmInEdit, fractional zooms and decimal levels (e.g. mezzanine `0.5`) are preserved.
  */
+import type { RelationId, WayId } from "#lib/osm/entity.ts";
 
 export interface MapView {
 	zoom: number;
 	lat: number;
 	lon: number;
 	level: number;
+	/** The building (or level outline) entered in building mode, if any. */
+	building?: WayId | RelationId;
 }
+
+/** A way or relation already on the server: new ones (negative) can't be linked to. */
+const BUILDING_ID = /^[wr][1-9]\d*$/;
 
 export const MIN_ZOOM = 0;
 export const MAX_ZOOM = 24;
@@ -29,7 +36,10 @@ function isFiniteNumber(value: number | undefined): value is number {
  * so callers can fall back to a default view.
  */
 export function parseHash(hash: string): MapView | null {
-	const parts = (hash.startsWith("#") ? hash.slice(1) : hash).split("/");
+	const [view = "", ...params] = (
+		hash.startsWith("#") ? hash.slice(1) : hash
+	).split("&");
+	const parts = view.split("/");
 	if (parts.length < 3 || parts.length > 4) return null;
 
 	const [zoom, lat, lon, level] = parts.map(toNumber);
@@ -43,7 +53,19 @@ export function parseHash(hash: string): MapView | null {
 	)
 		return null;
 
-	return { zoom, lat, lon, level: isFiniteNumber(level) ? level : 0 };
+	const building = params
+		.find((p) => p.startsWith("building="))
+		?.slice("building=".length);
+	return {
+		zoom,
+		lat,
+		lon,
+		level: isFiniteNumber(level) ? level : 0,
+		...(building &&
+			BUILDING_ID.test(building) && {
+				building: building as WayId | RelationId,
+			}),
+	};
 }
 
 /**
@@ -69,5 +91,6 @@ export function formatHash(view: MapView): `#${string}` {
 		// Exact: level 0.125 is a level of its own, not 0.13.
 		String(Object.is(view.level, -0) ? 0 : view.level),
 	];
-	return `#${parts.join("/")}`;
+	const building = view.building ? `&building=${view.building}` : "";
+	return `#${parts.join("/")}${building}`;
 }
