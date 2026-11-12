@@ -3,9 +3,12 @@
  * data loads (a link with `&building=`), and tells which features belong to it
  * (`edit/scope.ts`).
  */
-import { inScope, type Scope, scopeOf } from "#lib/edit/scope.ts";
+import { inScope, isMapFeature, type Scope, scopeOf } from "#lib/edit/scope.ts";
+import type { IndoorFeature } from "#lib/map/features.ts";
 import type { EntityId, RelationId, WayId } from "#lib/osm/entity.ts";
+import { extentOf } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
+import { Outlines } from "#lib/validation/outlines.ts";
 
 export type ScopeId = WayId | RelationId;
 
@@ -13,6 +16,8 @@ export class BuildingScope {
 	/** The way or relation entered, null in map mode. */
 	id = $state<ScopeId | null>(null);
 	readonly #graph: () => Graph;
+	/** Buildings and level outlines by position, for `unscoped`. */
+	readonly #outlines = new Outlines();
 	/** The scope last worked out, for this graph and id. */
 	#cache: { graph: Graph; id: ScopeId; scope: Scope | null } | null = null;
 
@@ -49,9 +54,68 @@ export class BuildingScope {
 		this.id = null;
 	}
 
+	/** Of these features, those in the scope entered; none in map mode. */
+	members(ids: Iterable<EntityId>): Set<EntityId> {
+		const scope = this.current;
+		const inside = new Set<EntityId>();
+		if (!scope) return inside;
+		const graph = this.#graph();
+		for (const id of ids) if (inScope(graph, scope, id)) inside.add(id);
+		return inside;
+	}
+
+	/**
+	 * Of these features, the indoor ones that no building or level outline holds (by the middle
+	 * of their extent): map mode leaves them unfaded, since there is no building to enter.
+	 */
+	unscoped(features: Iterable<IndoorFeature>): Set<string> {
+		this.#outlines.update(this.#graph());
+		const loose = new Set<string>();
+		for (const feature of features) {
+			if (isMapFeature(feature.properties)) continue;
+			const extent = extentOf(coordinates(feature.geometry));
+			if (!extent) continue;
+			const middle: [number, number] = [
+				(extent.west + extent.east) / 2,
+				(extent.south + extent.north) / 2,
+			];
+			const held = this.#outlines
+				.at(middle)
+				.some((o) => o.building || o.indoor === "level");
+			if (!held) loose.add(feature.properties["@id"]);
+		}
+		return loose;
+	}
+
+	/** Whether the outline entered draws this way: locked in building mode. */
+	isOutline(id: EntityId): boolean {
+		const scope = this.current;
+		return (
+			scope !== null && (scope.id === id || scope.ways.includes(id as never))
+		);
+	}
+
 	/** Whether a feature belongs to the scope entered; false in map mode. */
 	contains(id: EntityId): boolean {
 		const scope = this.current;
 		return scope ? inScope(this.#graph(), scope, id) : false;
+	}
+}
+
+/** Every position of a GeoJSON geometry. */
+function coordinates(geometry: IndoorFeature["geometry"]): [number, number][] {
+	switch (geometry.type) {
+		case "Point":
+			return [geometry.coordinates as [number, number]];
+		case "LineString":
+		case "MultiPoint":
+			return geometry.coordinates as [number, number][];
+		case "Polygon":
+		case "MultiLineString":
+			return geometry.coordinates.flat() as [number, number][];
+		case "MultiPolygon":
+			return geometry.coordinates.flat(2) as [number, number][];
+		default:
+			return [];
 	}
 }

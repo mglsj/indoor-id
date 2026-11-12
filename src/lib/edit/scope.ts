@@ -12,6 +12,7 @@ import {
 	type Loc,
 	type Relation,
 	type Way,
+	type WayId,
 } from "#lib/osm/entity.ts";
 import {
 	distanceToLine,
@@ -23,6 +24,7 @@ import {
 	wayLocs,
 } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
+import { entityExtent } from "#lib/osm/relations.ts";
 import type { Tags } from "#lib/osm/tags.ts";
 
 /** What was entered: a building, or a level outline standing in for one. */
@@ -34,6 +36,8 @@ export interface Scope {
 	readonly kind: ScopeKind;
 	/** Its outer rings (closed, first position repeated last). */
 	readonly rings: readonly (readonly Loc[])[];
+	/** The ways drawing them: the outline, locked in building mode. */
+	readonly ways: readonly WayId[];
 	readonly extent: Extent;
 }
 
@@ -98,11 +102,12 @@ export function scopeOf(graph: Graph, id: EntityId): Scope | null {
 	if (!kind) return null;
 	const ways = outerWays(graph, entity);
 	if (!ways || ways.length === 0) return null;
-	const rings = ways
-		.map((way) => wayLocs(graph, way))
-		.filter((ring) => ring.length >= 4);
+	const drawn = ways.filter((way) => wayLocs(graph, way).length >= 4);
+	const rings = drawn.map((way) => wayLocs(graph, way));
 	const extent = extentOf(rings.flat());
-	return extent && rings.length > 0 ? { id, kind, rings, extent } : null;
+	return extent && rings.length > 0
+		? { id, kind, rings, ways: drawn.map((way) => way.id), extent }
+		: null;
 }
 
 /** Whether a position is inside the scope, on a wall, or outside. */
@@ -204,4 +209,41 @@ export function scopeAt(graph: Graph, loc: Loc): Scope | null {
 		}
 	}
 	return best?.scope ?? bestLevel?.scope ?? null;
+}
+
+/**
+ * The building (or level outline) a feature belongs to, for entering it from a click on the
+ * feature in map mode: the scope at the middle of its extent, else at one of its nodes, that
+ * holds it; null for indoor data outside any.
+ */
+export function scopeFor(graph: Graph, id: EntityId): Scope | null {
+	const entity = graph.entity(id);
+	if (!entity) return null;
+	const locs: Loc[] = [];
+	if (entity.type === "node") locs.push(entity.loc);
+	else {
+		const extent = entityExtent(graph, id);
+		if (extent)
+			locs.push([
+				(extent.west + extent.east) / 2,
+				(extent.south + extent.north) / 2,
+			]);
+		if (entity.type === "way") locs.push(...wayLocs(graph, entity));
+	}
+	for (const loc of locs) {
+		const scope = scopeAt(graph, loc);
+		if (scope && inScope(graph, scope, id)) return scope;
+	}
+	return null;
+}
+
+/**
+ * Whether a drawn feature is one map mode works on (B.1): a building or building part, or an
+ * entrance. Everything else is indoor, worked on inside a building. Reads the map features'
+ * properties (`@kind`, tags), as the style's fading does.
+ */
+export function isMapFeature(properties: Record<string, unknown>): boolean {
+	return (
+		properties["@kind"] === "building" || properties.entrance !== undefined
+	);
 }

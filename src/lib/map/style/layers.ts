@@ -188,6 +188,50 @@ export interface IndoorStyleOptions {
 	readonly presentation?: Presentation;
 	/** How areas are filled while editing; the viewer fills them whole. */
 	readonly fill?: AreaFill;
+	/**
+	 * Building mode (B.1): in map mode indoor features are faded (unless their feature state
+	 * `inside` says no building holds them), in building mode what is outside the building
+	 * entered (feature state `inside` false). Unset: nothing faded.
+	 */
+	readonly scope?: ScopeLook;
+}
+
+/** Which features the editor's scope fades: indoor ones on the map, the rest in a building. */
+export type ScopeLook = "map" | "building";
+
+/** How much of its opacity a faded feature keeps. */
+export const FADED_OPACITY = 0.3;
+
+/** In map mode, buildings and entrances are the features worked on. */
+const mapFeature: ExpressionSpecification = [
+	"any",
+	["==", kind, "building"],
+	["has", "entrance"],
+];
+
+/** The factor a feature's opacity is multiplied by in this scope look (1 when unfaded). */
+export function scopeFade(
+	scope: ScopeLook | undefined,
+): ExpressionSpecification | 1 {
+	const inside: ExpressionSpecification = [
+		"boolean",
+		["feature-state", "inside"],
+		false,
+	];
+	// On the map, `inside` marks indoor data no building holds (nothing to enter).
+	if (scope === "map")
+		return ["case", ["any", mapFeature, inside], 1, FADED_OPACITY];
+	if (scope === "building") return ["case", inside, 1, FADED_OPACITY];
+	return 1;
+}
+
+/** An opacity multiplied by the scope's fade. */
+function faded(
+	opacity: number | ExpressionSpecification,
+	fade: ExpressionSpecification | 1,
+): number | ExpressionSpecification {
+	if (fade === 1) return opacity;
+	return opacity === 1 ? fade : ["*", opacity, fade];
 }
 
 /**
@@ -213,8 +257,10 @@ export function indoorLayers(
 		textFont = LABEL_FONT,
 		presentation = "edit",
 		fill = "partial",
+		scope,
 	}: IndoorStyleOptions = {},
 ): LayerSpecification[] {
+	const fade = scopeFade(presentation === "edit" ? scope : undefined);
 	const C = INDOOR_COLORS;
 	const E = EDIT_COLORS;
 	const editing = presentation === "edit";
@@ -262,7 +308,7 @@ export function indoorLayers(
 			paint: editing
 				? {
 						"fill-color": byKind(E, "fill"),
-						"fill-opacity": fill === "full" ? 1 : 0,
+						"fill-opacity": fill === "full" ? fade : 0,
 					}
 				: {
 						"fill-color": byUse(presentation, [
@@ -314,7 +360,7 @@ export function indoorLayers(
 			filter: onLevel(isPolygon),
 			paint: {
 				"fill-color": byKind(E, "fill"),
-				"fill-opacity": editing && fill === "partial" ? 1 : 0,
+				"fill-opacity": editing && fill === "partial" ? fade : 0,
 			},
 		},
 		{
@@ -356,6 +402,7 @@ export function indoorLayers(
 							],
 							[0.6, 6],
 						),
+				"line-opacity": faded(1, fade),
 			},
 		},
 		{
@@ -415,7 +462,8 @@ export function indoorLayers(
 					["literal", [1, 0]],
 				],
 				// The viewer draws tracks as their two rails instead.
-				"line-opacity": presentation === "view" ? ["case", isTrack, 0, 1] : 1,
+				"line-opacity":
+					presentation === "view" ? ["case", isTrack, 0, 1] : faded(1, fade),
 			},
 		},
 		rail("indoor-rails-left", 1),
@@ -460,6 +508,8 @@ export function indoorLayers(
 					C.passageStroke,
 				],
 				"circle-stroke-width": 1,
+				"circle-opacity": faded(1, fade),
+				"circle-stroke-opacity": faded(1, fade),
 			},
 		},
 		{
@@ -482,6 +532,7 @@ export function indoorLayers(
 				"icon-allow-overlap": true,
 				"icon-ignore-placement": true,
 			},
+			paint: { "icon-opacity": faded(1, fade) },
 		},
 		{
 			// Points with neither an icon nor a name still show, and can be selected.
@@ -500,6 +551,8 @@ export function indoorLayers(
 				"circle-color": C.point,
 				"circle-stroke-color": C.pointStroke,
 				"circle-stroke-width": 1,
+				"circle-opacity": faded(1, fade),
+				"circle-stroke-opacity": faded(1, fade),
 			},
 		},
 		{
@@ -536,8 +589,9 @@ export function indoorLayers(
 					"case",
 					["boolean", ["feature-state", "nearPointer"], false],
 					0,
-					1,
+					faded(1, fade),
 				],
+				"icon-opacity": faded(1, fade),
 			},
 		},
 		{

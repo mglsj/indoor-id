@@ -273,5 +273,10 @@
 	"frame_north": "North up",
 	"frame_plan": "Angle of {name}",
 	"frame_pick_align": "Click a side to align the drawing frame to it. Escape gives up.",
-	"frame_pick_origin": "Click where the grid should start. Escape gives up."
+	"frame_pick_origin": "Click where the grid should start. Escape gives up.",
+	"building_edit_indoor": "Edit indoor",
+	"building_edit_indoor_hint": "Work inside this building: its rooms, doors and levels",
+	"building_done": "Done",
+	"building_done_hint": "Back to the map (Escape)",
+	"building_editing": "Inside {name}"
 }

@@ -38,8 +38,12 @@ describe("BuildingScope: the building entered", () => {
 		expect(scope.current?.kind).toBe("building");
 		expect(scope.contains("w2")).toBe(true);
 		expect(scope.contains("n9")).toBe(false);
+		expect(scope.members(["w1", "w2", "n9"])).toEqual(new Set(["w1", "w2"]));
+		expect(scope.isOutline("w1")).toBe(true);
+		expect(scope.isOutline("w2")).toBe(false);
 		scope.leave();
 		expect(scope.id).toBeNull();
+		expect(scope.members(["w2"]).size).toBe(0);
 		expect(scope.contains("w2")).toBe(false);
 	});
 
@@ -58,5 +62,21 @@ describe("BuildingScope: the building entered", () => {
 		graph = data();
 		expect(scope.current?.id).toBe("w1");
 		expect(scope.contains("w2")).toBe(true);
+	});
+
+	it("tells indoor data that no building holds, which map mode leaves unfaded", () => {
+		const scope = new BuildingScope(() => data());
+		const feature = (id: string, kind: string, loc: Loc) => ({
+			type: "Feature" as const,
+			properties: { "@id": id, "@lv": "*", "@kind": kind },
+			geometry: { type: "Point" as const, coordinates: [...loc] },
+		});
+		expect(
+			scope.unscoped([
+				feature("n7", "poi", at(5, 5)),
+				feature("n9", "poi", at(50, 50)),
+				feature("w1", "building", at(10, 5)),
+			]),
+		).toEqual(new Set(["n9"]));
 	});
 });

@@ -5,6 +5,7 @@
  * draws a lasso. The edit overlay's vertices and midpoints come first: a click on a vertex
  * selects it, a press on one drags it (`drag`); a press on a selected feature moves the
  * selection whole (`move`). A click on empty floor may select it instead (`floor`, P5.4a).
+ * In a building, Escape with nothing selected leaves it (`leave`, B.1).
  */
 import type { Drag, MapPoint, Mode } from "../mode.ts";
 
@@ -33,6 +34,10 @@ export interface BrowseOptions {
 	 * a building or nothing; true when it did, and the click selects nothing else.
 	 */
 	readonly floor?: (at: MapPoint, hit: string | null) => boolean;
+	/** Whether something is selected (features or the floor): Escape clears it first. */
+	readonly hasSelection?: () => boolean;
+	/** Leaves the building entered (B.1), on Escape with nothing selected; true when it did. */
+	readonly leave?: () => boolean;
 }
 
 export function browseMode({
@@ -47,6 +52,8 @@ export function browseMode({
 	lasso,
 	pointer,
 	floor,
+	hasSelection,
+	leave,
 }: BrowseOptions): Mode {
 	function click(at: MapPoint) {
 		const vertex = vertexAt?.(at.point) ?? null;
@@ -100,6 +107,7 @@ export function browseMode({
 		},
 		key(event) {
 			if (event.key !== "Escape") return false;
+			if (leave && hasSelection && !hasSelection() && leave()) return true;
 			select(null);
 			return true;
 		},

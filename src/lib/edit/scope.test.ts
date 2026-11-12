@@ -4,7 +4,7 @@ import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { fromLocal } from "#lib/osm/geometry.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import type { Tags } from "#lib/osm/tags.ts";
-import { inScope, scopeAt, scopeOf } from "./scope.ts";
+import { inScope, isMapFeature, scopeAt, scopeFor, scopeOf } from "./scope.ts";
 
 const ORIGIN: Loc = [13.4, 52.5];
 /** A position `east` and `north` metres from the origin. */
@@ -224,5 +224,37 @@ describe("scopeAt: what 'Edit indoor here' enters", () => {
 
 	it("finds nothing on the open map", () => {
 		expect(scopeAt(street(), at(100, 100))).toBeNull();
+	});
+});
+
+describe("scopeFor: the building a click on an indoor feature enters", () => {
+	const graph = street([
+		...room("w10", 100, [at(1, 1), at(9, 1), at(9, 9), at(1, 9)]),
+		node("n402", { shop: "bakery", level: "0" }, at(35, 5)),
+		...room("w12", 300, [at(60, 0), at(70, 0), at(70, 10), at(60, 10)]),
+	]);
+
+	it("finds the building around a room or a point", () => {
+		expect(scopeFor(graph, "w10")?.id).toBe("w1");
+		expect(scopeFor(graph, "n402")?.id).toBe("w2");
+	});
+
+	it("finds none for indoor data outside any building", () => {
+		expect(scopeFor(graph, "w12")).toBeNull();
+	});
+});
+
+describe("Scope.ways: the outline locked in building mode", () => {
+	it("lists the outer ways entered", () => {
+		expect(scopeOf(street(), "w1")?.ways).toEqual(["w1"]);
+	});
+});
+
+describe("isMapFeature: what map mode picks", () => {
+	it("picks buildings, parts and entrances, not indoor features", () => {
+		expect(isMapFeature({ "@kind": "building", building: "yes" })).toBe(true);
+		expect(isMapFeature({ "@kind": "door", entrance: "main" })).toBe(true);
+		expect(isMapFeature({ "@kind": "door", door: "yes" })).toBe(false);
+		expect(isMapFeature({ "@kind": "room", indoor: "room" })).toBe(false);
 	});
 });

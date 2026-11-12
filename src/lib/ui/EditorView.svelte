@@ -3,6 +3,7 @@
 	import ClipboardPaste from "@lucide/svelte/icons/clipboard-paste";
 	import Combine from "@lucide/svelte/icons/combine";
 	import Copy from "@lucide/svelte/icons/copy";
+	import DoorOpen from "@lucide/svelte/icons/door-open";
 	import FileImage from "@lucide/svelte/icons/file-image";
 	import Grid2x2Check from "@lucide/svelte/icons/grid-2x2-check";
 	import Layers2 from "@lucide/svelte/icons/layers-2";
@@ -99,6 +100,7 @@
 		type SnapTarget,
 		snapAt,
 	} from "#lib/edit/precision/snap.ts";
+	import { isMapFeature, scopeFor, scopeOf } from "#lib/edit/scope.ts";
 	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 	import { tooLargeToEdit } from "#lib/edit/visibility.ts";
 	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
@@ -156,6 +158,7 @@
 		PrecisionSettings,
 		setPrecision,
 	} from "#lib/state/precision.svelte.ts";
+	import type { ScopeId } from "#lib/state/scope.svelte.ts";
 	import { Session } from "#lib/state/session.svelte.ts";
 	import FloorPanel from "#lib/ui/FloorPanel.svelte";
 	import FloorPlansPanel from "#lib/ui/FloorPlansPanel.svelte";
@@ -264,6 +267,35 @@
 	 * features can't be selected or edited.
 	 */
 	let planMode = $state(false);
+
+	/** The selected building or level outline, which "Edit indoor" enters (B.1). */
+	const enterable = $derived.by(() => {
+		const id = editor.selection.single;
+		if (!id || editor.scope.current || planMode) return null;
+		return scopeOf(editor.graph, id) ? (id as ScopeId) : null;
+	});
+
+	/** The name of the building entered, for the header chip. */
+	const scopeName = $derived.by(() => {
+		const scope = editor.scope.current;
+		if (!scope) return "";
+		const tags = editor.graph.entity(scope.id)?.tags ?? {};
+		return tags.name ?? tags.ref ?? tags["addr:housenumber"] ?? scope.id;
+	});
+
+	/** Enters a building or level outline (B.1): its features become the ones worked on. */
+	function enterBuilding(id: ScopeId) {
+		modes?.finish();
+		if (editor.scope.enter(id)) editor.select(null);
+	}
+
+	/** Back to the map, selecting the building left (B.1). */
+	function leaveBuilding() {
+		const id = editor.scope.id;
+		modes?.finish();
+		editor.scope.leave();
+		editor.select(id && editor.graph.entity(id) ? id : null);
+	}
 
 	function setPlanMode(on: boolean) {
 		planMode = on;
@@ -753,6 +785,38 @@
 			return true;
 		};
 
+		/**
+		 * What a click can pick (B.1). In a building: its features, not its outline (locked) and
+		 * nothing outside. On the map: buildings and entrances first, else an indoor feature, whose
+		 * building the click then enters (`selectOrEnter`).
+		 */
+		const pick = (point: { x: number; y: number }): string | null => {
+			if (editor.scope.current) {
+				return indoorLayers.hitTest(point, (p) => {
+					const id = p["@id"] as EntityId;
+					return editor.inside.has(id) && !editor.scope.isOutline(id);
+				});
+			}
+			return (
+				indoorLayers.hitTest(point, isMapFeature) ?? indoorLayers.hitTest(point)
+			);
+		};
+
+		/** Selects a feature; on the map, an indoor one enters its building first (B.1). */
+		const selectOrEnter = (id: EntityId | null) => {
+			const properties = id ? editor.features.byId.get(id)?.properties : null;
+			if (
+				id &&
+				properties &&
+				!editor.scope.current &&
+				!isMapFeature(properties)
+			) {
+				const scope = scopeFor(editor.graph, id);
+				if (scope) editor.scope.enter(scope.id as ScopeId);
+			}
+			editor.select(id);
+		};
+
 		const layers = new FloorPlanLayers(instance, floorplans.tiles);
 		const stopTiles = layers.onTiles((count) => (planTiles = count));
 		const marks = new PlanToolLayer(instance);
@@ -792,8 +856,15 @@
 					case "browse":
 						manager.setMode(
 							browseMode({
-								hitTest: (point) => indoorLayers.hitTest(point),
-								select: (id) => editor.select(id as EntityId | null),
+								hitTest: pick,
+								select: (id) => selectOrEnter(id as EntityId | null),
+								hasSelection: () =>
+									editor.selection.ids.length > 0 || editor.floor !== null,
+								leave: () => {
+									if (!editor.scope.id) return false;
+									leaveBuilding();
+									return true;
+								},
 								toggle: (id) => editor.selection.toggle(id as EntityId),
 								move: (at) => {
 									if (!selectedAt(at.point)) return null;
@@ -818,7 +889,9 @@
 										onend: selectInLasso,
 									}),
 								pointer: (at) => (lastPointer = at?.lngLat ?? null),
-								floor: selectFloorAt,
+								// The unmapped floor is building mode's (B.1).
+								floor: (at, hit) =>
+									editor.scope.current !== null && selectFloorAt(at, hit),
 								hover: (id) => editor.selection.setHover(id as EntityId | null),
 								draggable: (point) =>
 									grabAt(point) !== null || selectedAt(point),
@@ -1426,6 +1499,46 @@
 	onbackground={backgroundPicked}
 >
 	{#snippet controls()}
+		{#if !planMode && editor.scope.current}
+			<div
+				class="flex items-center gap-2 rounded-md bg-background py-1 pr-1 pl-3 shadow-md"
+				data-testid="building-scope"
+			>
+				<span class="max-w-48 truncate text-sm">
+					{t(msg("building_editing", { name: scopeName }))}
+				</span>
+				<Tooltip.Root>
+					<Tooltip.Trigger onclick={leaveBuilding}>
+						{#snippet child({ props })}
+							<Button {...props} size="sm" variant="outline">
+								{t(msg("building_done"))}
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content side="bottom">
+						{t(msg("building_done_hint"))}
+					</Tooltip.Content>
+				</Tooltip.Root>
+			</div>
+		{:else if enterable}
+			<div class="rounded-md bg-background shadow-md">
+				<Tooltip.Root>
+					<Tooltip.Trigger
+						onclick={() => enterable && enterBuilding(enterable)}
+					>
+						{#snippet child({ props })}
+							<Button {...props} variant="outline">
+								<DoorOpen data-icon="inline-start" />
+								{t(msg("building_edit_indoor"))}
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content side="bottom">
+						{t(msg("building_edit_indoor_hint"))}
+					</Tooltip.Content>
+				</Tooltip.Root>
+			</div>
+		{/if}
 		{#if !planMode}
 			<!-- Map controls sit on an opaque surface: shadcn's dark outline styles are translucent. -->
 			<div class="rounded-md bg-background shadow-md">

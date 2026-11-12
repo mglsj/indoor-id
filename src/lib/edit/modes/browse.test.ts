@@ -51,6 +51,31 @@ describe("browseMode", () => {
 	});
 });
 
+describe("browseMode in a building (B.1)", () => {
+	it("leaves the building on Escape once nothing is selected", () => {
+		let selection: string | null = "w1";
+		let left = 0;
+		const mode = browseMode({
+			hitTest: () => null,
+			select: (id) => {
+				selection = id;
+			},
+			hover: () => {},
+			hasSelection: () => selection !== null,
+			leave: () => {
+				left++;
+				return true;
+			},
+		});
+		const escapeKey = { key: "Escape" } as KeyboardEvent;
+		expect(mode.key?.(escapeKey)).toBe(true);
+		expect(selection).toBeNull();
+		expect(left).toBe(0);
+		expect(mode.key?.(escapeKey)).toBe(true);
+		expect(left).toBe(1);
+	});
+});
+
 describe("browseMode with Shift+click", () => {
 	it("adds what is clicked to the selection, or takes it out, and keeps it on the empty map", () => {
 		const toggled: string[] = [];

@@ -108,7 +108,20 @@
 		if (!instance) return;
 		const layers = new IndoorMap(instance);
 		indoor = layers;
-		$effect(() => layers.setLook({ presentation, fill: settings.areaFill }));
+		$effect(() =>
+			layers.setLook({
+				presentation,
+				fill: settings.areaFill,
+				// Building mode (B.1): the map fades indoor features, a building what is outside.
+				scope:
+					presentation === "edit"
+						? editor.scope.current
+							? "building"
+							: "map"
+						: undefined,
+			}),
+		);
+		$effect(() => layers.setInside(editor.inside));
 		// iD's "Highlight changes", in the editor.
 		$effect(() =>
 			layers.setEdited(

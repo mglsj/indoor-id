@@ -23,6 +23,7 @@ import {
 	INDOOR_SOURCE,
 	indoorLayers,
 	type Presentation,
+	type ScopeLook,
 	selectableLayers,
 } from "./style/layers.ts";
 
@@ -34,6 +35,8 @@ import {
 export interface IndoorLook {
 	readonly presentation: Presentation;
 	readonly fill?: AreaFill;
+	/** What the editor's scope fades (B.1); unset in the viewer. */
+	readonly scope?: ScopeLook;
 }
 
 /** The labels' layer: an area's label doesn't pick the area unless areas are filled whole. */
@@ -85,6 +88,8 @@ export class IndoorMap {
 	#nearPointer = new Set<string>();
 	/** Rooms' uses (V.3), as the feature state `use`. */
 	#uses: ReadonlyMap<string, string> = new Map();
+	/** The features in the building entered (B.1), as the feature state `inside`. */
+	#inside: ReadonlySet<string> = new Set();
 
 	constructor(map: MapLibreMap) {
 		this.#map = map;
@@ -190,7 +195,8 @@ export class IndoorMap {
 	setLook(look: IndoorLook): void {
 		if (
 			look.presentation === this.#look.presentation &&
-			look.fill === this.#look.fill
+			look.fill === this.#look.fill &&
+			look.scope === this.#look.scope
 		) {
 			return;
 		}
@@ -254,6 +260,28 @@ export class IndoorMap {
 				this.#map.setFeatureState({ source: INDOOR_SOURCE, id }, { use });
 			}
 		}
+	}
+
+	/**
+	 * Marks the features drawn unfaded (feature state `inside`, on the features and their
+	 * partial-fill bands): in building mode those in the building, on the map indoor data no
+	 * building holds.
+	 */
+	setInside(ids: ReadonlySet<string>): void {
+		const before = this.#inside;
+		this.#inside = ids;
+		if (!this.#ready) return;
+		this.#applyInside(before, ids);
+	}
+
+	#applyInside(before: ReadonlySet<string>, after: ReadonlySet<string>): void {
+		const set = (id: string, inside: boolean) => {
+			for (const source of [INDOOR_SOURCE, BAND_SOURCE]) {
+				this.#map.setFeatureState({ source, id }, { inside });
+			}
+		};
+		for (const id of before) if (!after.has(id)) set(id, false);
+		for (const id of after) if (!before.has(id)) set(id, true);
 	}
 
 	/** Highlights edited features (iD's "Highlight changes"): how each was edited, by `@id`. */
@@ -377,17 +405,20 @@ export class IndoorMap {
 	 * are filled whole, an area is found by its band or outline only (iD), not by a point
 	 * inside it or its label: working inside a large area doesn't select it.
 	 */
-	hitTest(point: { x: number; y: number }): string | null {
+	hitTest(
+		point: { x: number; y: number },
+		pickable?: (properties: Record<string, unknown>) => boolean,
+	): string | null {
 		const fill = this.#fill();
-		return this.#hit(
-			point,
-			selectableLayers(fill),
-			fill === "full"
-				? undefined
-				: (feature) =>
-						feature.layer.id !== LABELS_LAYER ||
-						feature.geometry.type === "Point",
-		);
+		return this.#hit(point, selectableLayers(fill), (feature) => {
+			if (
+				fill !== "full" &&
+				feature.layer.id === LABELS_LAYER &&
+				feature.geometry.type !== "Point"
+			)
+				return false;
+			return pickable ? pickable(feature.properties) : true;
+		});
 	}
 
 	/** The fill clicks follow: the viewer's areas are filled whole. */
@@ -479,6 +510,7 @@ export class IndoorMap {
 			map.setFeatureState({ source: INDOOR_SOURCE, id }, { use });
 		}
 		this.#applyEdited(new Map(), this.#edited);
+		this.#applyInside(new Set(), this.#inside);
 		this.#mark("selected", [], this.#selected);
 		this.#mark("hover", [], this.#hover);
 	}

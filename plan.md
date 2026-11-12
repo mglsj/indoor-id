@@ -45,7 +45,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | T      | One theme, background pane                 | Done         |
 | C      | CAD-style precision (C.0–C.6)              | C.0–C.6 done |
 | I      | iD's area fill, colours and safeguards     | Done         |
-| B      | Building mode: map and building scopes     | B.0 done     |
+| B      | Building mode: map and building scopes     | B.0–B.1 done |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
 | P6     | Parity and polish                          | Not started  |
@@ -592,6 +592,25 @@ Slices, each agreeing its test seams first:
    `selectFloorAt` only in building mode. E2E: the same facade click selects the building in
    map mode and the room in building mode; a click inside a building in map mode never selects
    the unmapped floor.
+   Done ✅ (2026-11-12, with the core of B.2): `indoorLayers(level, { scope })` multiplies each
+   indoor layer's opacity by `scopeFade` (`FADED_OPACITY` 0.3): on the map everything but
+   buildings, parts and entrances (`isMapFeature`) is faded, in a building everything whose
+   feature state `inside` isn't set. `IndoorMap.setInside` sets it on the features and their
+   bands from `editor.inside`: the building's members (`BuildingScope.members`), or on the map
+   the indoor features no building or level outline holds (`BuildingScope.unscoped`, by the
+   middle of their extent), which stay unfaded since there is nothing to enter.
+   `IndoorMap.hitTest(point, pickable)`: on the map buildings and entrances first, else any
+   feature, and a click on an indoor feature enters its building (`scopeFor`) and selects it;
+   in a building only its members, never its outline ways (`Scope.ways`, locked; still a snap
+   target). The unmapped floor is building mode's only. With the core of B.2: "Edit indoor" on
+   a selected building or level outline, a chip "Inside {name}" with Done, and Escape with
+   nothing selected leaves (`browseMode`'s `leave`), selecting the building left; entering or
+   leaving ends a drawing (`ModeManager.finish`). With areas filled whole (the e2e tests'
+   default), a click inside a building on the map picks the building; with iD's partial fill,
+   a click on a room's band enters. E2E: `building-mode.spec.ts`; `unmapped-floor.spec.ts`
+   opens inside its level outline (`&building=w300`).
+   Left for B.2: double-click to enter, fitting the camera and loading the whole building,
+   "Edit indoor here" on the empty map, the building panel.
 2. **B.2 Enter and leave — S–M.** Double-click and "Edit indoor", "Edit indoor here", fit the
    camera, load the extent (`DataSync` by bbox, as V's viewer does), Done and Escape; leaving
    ends a drawing or tool as a level change does (`Mode.finish`). The building panel.

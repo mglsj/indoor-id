@@ -24,7 +24,8 @@ async function levelWithRoom(page: Parameters<typeof serveOsm>[0]) {
 		e.type === "way" ? { ...e, tags: { indoor: "level", level: "0" } } : e,
 	);
 	await serveOsm(page, [...outline, ...room(100, LON - 0.0004, LAT, "0")]);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	// Inside the level outline (building mode, B.1): the empty floor is selected there.
+	await page.goto(`/#19/${LAT}/${LON}/0&building=w300`);
 	await camera(page);
 	await mapDrawn(page);
 }
