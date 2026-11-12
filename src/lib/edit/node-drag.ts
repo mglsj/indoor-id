@@ -11,11 +11,14 @@ import {
 	insertNodeInSegment,
 	moveNode,
 } from "#lib/actions/geometry.ts";
+import type { ShowFeedback } from "#lib/edit/precision/feedback.ts";
+import { lengthOf } from "#lib/edit/precision/frame.ts";
+import type { SnapTarget } from "#lib/edit/precision/snap.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import { featureLevels, unionOfLevels } from "#lib/levels/feature-levels.ts";
 import { formatLevels } from "#lib/levels/levels.ts";
-import type { SnapTarget } from "#lib/map/snap.ts";
 import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
+import { midpoint } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
 import { hasInterestingTags } from "#lib/osm/tags.ts";
@@ -48,11 +51,13 @@ export interface NodeDragOptions {
 	) => SnapTarget | null;
 	/** What the drag moves besides the node (shared vertices), or null when done. */
 	readonly onhint?: (hint: Message | null) => void;
+	/** Shows what the node snaps to and the lengths of the sides next to it (C.1). */
+	readonly show?: ShowFeedback;
 }
 
 export function nodeDrag(
 	grab: NodeGrab,
-	{ history, snap, onhint }: NodeDragOptions,
+	{ history, snap, onhint, show }: NodeDragOptions,
 ): Drag {
 	const start = history.graph;
 	const id = grab.kind === "vertex" ? grab.id : start.newId("node");
@@ -66,11 +71,25 @@ export function nodeDrag(
 		const snapped = snap(at, exclude);
 		return { loc: snapped?.loc ?? at.lngLat, snapped };
 	};
-	const done = () => onhint?.(null);
+	const done = () => {
+		onhint?.(null);
+		show?.(null);
+	};
 	if (grab.kind === "vertex") onhint?.(movesHint(start, id));
+	const neighbours = neighbourLocs(start, grab);
 	return {
 		cursor: "move",
-		move: (at) => history.preview(placed(target(at).loc)),
+		move(at) {
+			const { loc, snapped } = target(at);
+			history.preview(placed(loc));
+			show?.({
+				snap: snapped,
+				measures: neighbours.map((n) => ({
+					at: midpoint(n, loc),
+					length: lengthOf(n, loc),
+				})),
+			});
+		},
 		end(at) {
 			const { loc, snapped } = target(at);
 			const move = placed(loc);
@@ -91,6 +110,33 @@ export function nodeDrag(
 			done();
 		},
 	};
+}
+
+/** Where the corners next to the dragged node are: the ends of the sides that stretch. */
+function neighbourLocs(graph: Graph, grab: NodeGrab): Loc[] {
+	const ids = new Set<NodeId>();
+	if (grab.kind === "midpoint") {
+		ids.add(grab.a);
+		ids.add(grab.b);
+	} else {
+		for (const way of graph.parentWays(grab.id)) {
+			way.nodes.forEach((n, i) => {
+				if (n !== grab.id) return;
+				const closed =
+					way.nodes.length > 1 && way.nodes[0] === way.nodes.at(-1);
+				const last = way.nodes.length - 1;
+				const before =
+					i > 0 ? way.nodes[i - 1] : closed ? way.nodes[last - 1] : undefined;
+				const after =
+					i < last ? way.nodes[i + 1] : closed ? way.nodes[1] : undefined;
+				for (const m of [before, after]) if (m && m !== grab.id) ids.add(m);
+			});
+		}
+	}
+	return [...ids].flatMap((n) => {
+		const node = graph.entity(n);
+		return node?.type === "node" ? [node.loc] : [];
+	});
 }
 
 /** Joining the node dropped on `snapped`: into a node, or into a side's ways. */

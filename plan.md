@@ -19,34 +19,34 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 
 ## Status
 
-| Phase  | Scope                                      | Status      |
-| ------ | ------------------------------------------ | ----------- |
-| P0     | Scaffold, tooling, map, URL hash           | Done        |
-| P1     | Core data model (no UI)                    | Done        |
-| P2     | Fast read-only viewer                      | Done        |
-| P3     | Presets, validation, upload                | Done        |
-| P4     | Floor plans                                | Done        |
-| P4.1   | Floor plan layers, edit sessions, align UX | Done        |
-| P5.0–2 | Quick fixes, feature editor, fast core     | Done        |
-| R0     | Fixes and fast feedback (review)           | Done        |
-| R1     | Foundations for editing (review)           | Done        |
-| R2     | Floor plan content model (review)          | Done        |
-| P4.2   | Vector and light raster floor plans        | Done        |
-| R3     | Fixes from the October audit               | Done        |
-| W      | Wiki conformance                           | Done        |
-| L      | Level names in the switcher                | Done        |
-| P5.3   | Geometry editing                           | Done        |
-| R4     | Fixes after P5.3 (review)                  | Done        |
-| R5     | Map shell split (review)                   | Done        |
-| P5.4a  | Autosave and restore                       | Done        |
-| LN     | License notices                            | Done        |
-| V      | Viewer mode (V.1–V.3)                      | Done        |
-| T      | One theme, background pane                 | Done        |
-| C      | CAD-style precision (C.0–C.6)              | Not started |
-| 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started |
-| P5.4b  | Rebase before upload, conflicts            | Not started |
-| W2     | Wiki conformance, November research        | Not started |
-| P6     | Parity and polish                          | Not started |
+| Phase  | Scope                                      | Status       |
+| ------ | ------------------------------------------ | ------------ |
+| P0     | Scaffold, tooling, map, URL hash           | Done         |
+| P1     | Core data model (no UI)                    | Done         |
+| P2     | Fast read-only viewer                      | Done         |
+| P3     | Presets, validation, upload                | Done         |
+| P4     | Floor plans                                | Done         |
+| P4.1   | Floor plan layers, edit sessions, align UX | Done         |
+| P5.0–2 | Quick fixes, feature editor, fast core     | Done         |
+| R0     | Fixes and fast feedback (review)           | Done         |
+| R1     | Foundations for editing (review)           | Done         |
+| R2     | Floor plan content model (review)          | Done         |
+| P4.2   | Vector and light raster floor plans        | Done         |
+| R3     | Fixes from the October audit               | Done         |
+| W      | Wiki conformance                           | Done         |
+| L      | Level names in the switcher                | Done         |
+| P5.3   | Geometry editing                           | Done         |
+| R4     | Fixes after P5.3 (review)                  | Done         |
+| R5     | Map shell split (review)                   | Done         |
+| P5.4a  | Autosave and restore                       | Done         |
+| LN     | License notices                            | Done         |
+| V      | Viewer mode (V.1–V.3)                      | Done         |
+| T      | One theme, background pane                 | Done         |
+| C      | CAD-style precision (C.0–C.6)              | C.0–C.1 done |
+| 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started  |
+| P5.4b  | Rebase before upload, conflicts            | Not started  |
+| W2     | Wiki conformance, November research        | Not started  |
+| P6     | Parity and polish                          | Not started  |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
 
@@ -412,6 +412,16 @@ typed values and check the osmChange's coordinates within 1 cm (OSM keeps 7 deci
    - Offset a way (parallel copy at a typed distance; an inner-ring mode, already planned in
      P6 for atrium holes, moves here).
    - Square with a chosen frame: square the selection to the frame's axes, not only to itself.
+
+Landed with C.0 and C.1 (2026-11-11): `edit/precision/` (`frame.ts`, `snap.ts` moved from
+`map/snap.ts`, `angles.ts`, `feedback.ts`, `measure.ts`), `units/length.ts`,
+`map/guide-layer.ts`, `state/precision.svelte.ts` (localStorage), `ui/SnapMenu.svelte`,
+`ui/MeasureLabels.svelte` (HTML labels, not map text: the test basemap has no glyphs) and
+`ui/MeasurementSection.svelte`. The frame is `outlineFrame` of the level outline or building
+under the first corner (`containerAt` from `edit/unmapped-floor.ts`), north elsewhere. The
+IndexedDB store for frames and guides waits for C.3, the first slice that saves one. Snap kinds
+with a mark: node, midpoint, intersection (a direction line crossing a side or another line),
+segment, plan vertex, angle, lock; priority steps of 10 px, so point snaps always win.
 
 Order inside C: C.0 and C.1 together first (one PR each), then C.2, then C.3; C.4 to C.6 can
 be reordered after users have tried C.1–C.3.

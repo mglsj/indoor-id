@@ -41,7 +41,11 @@
 	import type { MapPoint } from "#lib/edit/mode.ts";
 	import { ModeManager } from "#lib/edit/mode-manager.ts";
 	import { browseMode } from "#lib/edit/modes/browse.ts";
-	import { drawPointMode, drawWayMode } from "#lib/edit/modes/draw.ts";
+	import {
+		drawPointMode,
+		drawWayMode,
+		type SnapConstraints,
+	} from "#lib/edit/modes/draw.ts";
 	import {
 		floorPlanMode,
 		floorPlanToolMode,
@@ -58,7 +62,19 @@
 		floorFeature,
 		overlayFeatures,
 	} from "#lib/edit/overlay.ts";
-	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
+	import type { Feedback } from "#lib/edit/precision/feedback.ts";
+	import {
+		type Frame,
+		northFrame,
+		outlineFrame,
+	} from "#lib/edit/precision/frame.ts";
+	import {
+		areaAround,
+		LINE_PIXELS,
+		type SnapTarget,
+		snapAt,
+	} from "#lib/edit/precision/snap.ts";
+	import { containerAt, unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
 	import { workerCodec } from "#lib/floorplans/codec.ts";
 	import {
@@ -78,6 +94,7 @@
 		planFrames,
 		toolFeatures,
 	} from "#lib/map/floorplan-layers.ts";
+	import { GuideLayer } from "#lib/map/guide-layer.ts";
 	import { parseHash, type MapView as View } from "#lib/map/hash.ts";
 	import type { IndoorMap } from "#lib/map/indoor-map.ts";
 	import {
@@ -85,7 +102,6 @@
 		type LngLatLike,
 		type Map as MapLibreMap,
 	} from "#lib/map/maplibre.ts";
-	import { areaAround, type SnapTarget, snapAt } from "#lib/map/snap.ts";
 	import {
 		visibleExtent as extentOfView,
 		projectLoc as project_,
@@ -104,11 +120,16 @@
 		isPlanOnLevel,
 		type View as PlanView,
 	} from "#lib/state/floorplans.svelte.ts";
+	import {
+		PrecisionSettings,
+		setPrecision,
+	} from "#lib/state/precision.svelte.ts";
 	import { Session } from "#lib/state/session.svelte.ts";
 	import FloorPanel from "#lib/ui/FloorPanel.svelte";
 	import FloorPlansPanel from "#lib/ui/FloorPlansPanel.svelte";
 	import Inspector from "#lib/ui/Inspector.svelte";
 	import MapShell from "#lib/ui/MapShell.svelte";
+	import MeasureLabels from "#lib/ui/MeasureLabels.svelte";
 	import MultiInspector from "#lib/ui/MultiInspector.svelte";
 	import PanelResizer from "#lib/ui/PanelResizer.svelte";
 	import {
@@ -120,6 +141,7 @@
 	import RepeatDialog from "#lib/ui/RepeatDialog.svelte";
 	import RestoreDialog from "#lib/ui/RestoreDialog.svelte";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
+	import SnapMenu from "#lib/ui/SnapMenu.svelte";
 	import UnsavedPlanDialog from "#lib/ui/UnsavedPlanDialog.svelte";
 	import { resolve } from "$app/paths";
 
@@ -164,6 +186,34 @@
 		return { session, editor, websiteUrl };
 	});
 	setEditor(editor);
+
+	/** Snapping, angle step and units (C.1), kept in this browser. */
+	const precision = setPrecision(
+		new PrecisionSettings(
+			(() => {
+				try {
+					return localStorage;
+				} catch {
+					return undefined;
+				}
+			})(),
+			navigator.language,
+		),
+	);
+	/** What the pointer snapped to and the lengths shown while drawing or dragging. */
+	let feedback = $state.raw<Feedback | null>(null);
+	const showFeedback = (shown: Feedback | null) => (feedback = shown);
+
+	/** The drawing frame at a position: its level outline's or building's, else north. */
+	function frameAt(loc: Loc): Frame {
+		const container = containerAt(
+			[...editor.features.byId.values()],
+			loc,
+			level,
+		);
+		const ring = container?.polygons.find((p) => p[0])?.[0];
+		return (ring && outlineFrame(ring)) ?? northFrame(loc);
+	}
 
 	// Edits are saved in this browser as they are made, and offered back on start.
 	const autosave = new EditAutosave(editor, new Autosave());
@@ -401,6 +451,8 @@
 			indoorLayers.setBuildingsVisible(floorplans.buildings.visible),
 		);
 		const overlay = new EditOverlay(instance);
+		const guides = new GuideLayer(instance);
+		$effect(() => guides.show(feedback));
 		$effect(() =>
 			overlay.setData(
 				planMode
@@ -538,6 +590,7 @@
 											history: editor.history,
 											snap: snapNode,
 											onhint: (hint) => (dragHint = hint),
+											show: showFeedback,
 										})
 									);
 								},
@@ -562,6 +615,11 @@
 								level,
 								snap: snapNode,
 								onfinish: drawingEnded,
+								precision: {
+									frameAt,
+									step: () => precision.step,
+									show: showFeedback,
+								},
 							}),
 						);
 						break;
@@ -604,6 +662,7 @@
 			manager.remove();
 			stopTiles();
 			overlay.remove();
+			guides.remove();
 			marks.remove();
 			layers.remove();
 		};
@@ -676,31 +735,51 @@
 	}
 
 	/**
-	 * Where a dragged node snaps (P5.3.2): onto a node, a side of a way, or a floor plan's
-	 * vertex within 8 px on the shown level, leaving out the nodes dragged and their sides.
-	 * Alt held: nowhere.
+	 * Where a dragged node or a drawn corner snaps (P5.3.2, C.1): onto a node, a side's
+	 * midpoint, a side of a way, or a floor plan's vertex within 8 px on the shown level,
+	 * leaving out the nodes dragged and their sides; then onto the drawing's direction lines,
+	 * alone or where they cross sides. Each kind as the snapping menu says; Alt held: nowhere.
 	 */
 	function snapNode(
 		at: MapPoint,
 		exclude: ReadonlySet<NodeId>,
 		keepSide: (side: Segment) => boolean = () => true,
+		constraints: SnapConstraints = {},
 	): SnapTarget | null {
 		if (!map || at.altKey) return null;
-		const area = areaAround(at.point, unprojectPoint);
+		const points = precision.snaps("points");
+		const lines = precision.snaps("angles") ? constraints.lines : undefined;
+		const reach = lines?.length ? LINE_PIXELS : undefined;
+		const area = areaAround(at.point, unprojectPoint, reach);
+		const segments =
+			points || precision.snaps("midpoints") || lines?.length
+				? editor.features
+						.segmentsNear(area, level)
+						.filter(
+							(s) =>
+								!exclude.has(s.a.id) && !exclude.has(s.b.id) && keepSide(s),
+						)
+				: [];
 		return snapAt(
 			at.point,
 			{
-				nodes: editor.features
-					.nodesNear(area, level)
-					.filter((n) => !exclude.has(n.id)),
-				segments: editor.features
-					.segmentsNear(area, level)
-					.filter(
-						(s) => !exclude.has(s.a.id) && !exclude.has(s.b.id) && keepSide(s),
-					),
-				planVertices: floorplans.verticesNear(area, level),
+				nodes: points
+					? editor.features
+							.nodesNear(area, level)
+							.filter((n) => !exclude.has(n.id))
+					: [],
+				// Sides for lines to cross even when points don't snap.
+				segments: points ? segments : [],
+				planVertices: precision.snaps("planVertices")
+					? floorplans.verticesNear(area, level)
+					: [],
+				midpoints: precision.snaps("midpoints"),
+				lines,
+				lock: constraints.lock,
 			},
 			projectLoc,
+			undefined,
+			at.lngLat,
 		);
 	}
 
@@ -821,6 +900,7 @@
 		{ combo: "2", run: () => draw("line") },
 		{ combo: "3", run: () => draw("area") },
 		{ combo: "X", run: () => draw("split") },
+		{ combo: "S", run: () => precision.toggle() },
 		{ combo: "Mod+Z", run: () => editor.history.undo() },
 		{ combo: "Mod+Shift+Z", run: () => editor.history.redo() },
 		{ combo: "Mod+Y", run: () => editor.history.redo() },
@@ -1000,6 +1080,9 @@
 					{@render drawButton("split", "Split", "X", Scissors)}
 				</ButtonGroup.Root>
 			</div>
+			<div class="rounded-md bg-background shadow-md">
+				<SnapMenu {precision} />
+			</div>
 			{#if operations.length > 0}
 				<div class="rounded-md bg-background shadow-md">
 					<ButtonGroup.Root aria-label="Edit selection">
@@ -1069,6 +1152,15 @@
 				oncommit={keepPanelWidth}
 			/>
 		</div>
+	{/if}
+
+	{#if feedback && feedback.measures.length > 0}
+		<MeasureLabels
+			measures={feedback.measures}
+			project={projectLoc}
+			units={precision.units}
+			{camera}
+		/>
 	{/if}
 
 	{#if drawing && !dragHint && !operationNote}

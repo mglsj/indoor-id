@@ -114,7 +114,7 @@ runs the same commands.
   before a slot from `map/layer-slots.ts` (`slotId("plans")`), never before another owner's
   layer.
 - Geometry editing (P5.3): `edit/overlay.ts` (vertices, midpoints, junctions, untagged members;
-  pure) drawn by `map/edit-overlay.ts` (`EditOverlay.grabAt`); `map/snap.ts` (`snapAt`: node,
+  pure) drawn by `map/edit-overlay.ts` (`EditOverlay.grabAt`); `edit/precision/snap.ts` (`snapAt`: node,
   side, plan vertex within 8 px, from `nodesNear`/`segmentsNear`); `edit/node-drag.ts` (drag a
   vertex, point or midpoint; joins with `actions/connect.ts`). A drag shows its moves with
   `history.preview(action)` and ends with one `commit` (or `cancelPreview`): never `perform`
@@ -130,6 +130,13 @@ runs the same commands.
   a selected feature moves the selection (`edit/feature-drag.ts`). Spatial checks (P5.3.9) are
   `validation/spatial.ts`; `BLOCKING_RULES` stop the upload; `Editor.editIssues` leaves out
   the warnings the downloaded data had (a second `Validator` on `graph.base()`).
+- Precision (C): `edit/precision/` holds the pure parts: `frame.ts` (`Frame`, `toFrame`/`fromFrame`,
+  `outlineFrame` of a building), `snap.ts` (`snapAt`: the snap pipeline, scored by kind; results carry
+  `guides`), `angles.ts` (direction lines for angle snapping), `feedback.ts` (what a mode shows:
+  the snap and `Measure`s), `measure.ts`. Lengths go through `units/length.ts` (`parseLength`,
+  `formatLength`), never hand-formatted. Settings (`S`, the snapping menu, units) are
+  `state/precision.svelte.ts`, read with `getPrecision()`. Modes report feedback through a
+  `show` callback; `map/guide-layer.ts` draws guides and marks, `ui/MeasureLabels.svelte` the lengths.
 - Viewer (V.1): `/view` is `ui/ViewerView.svelte` on `MapShell` (`presentation="view"`,
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`
   laid over its answers (the editor records each upload through `onupload`); a click shows
