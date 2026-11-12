@@ -128,3 +128,57 @@ test("the side panel measures the selected room", async ({ page }) => {
 	await expect(measurements).toContainText("m²");
 	await expect(measurements).toContainText("Perimeter");
 });
+
+/** Opens the new feature's panel past its type list, at its measurements. */
+async function measurements(page: Page) {
+	await page.getByRole("button", { name: "Back to the feature" }).click();
+	await page.getByRole("button", { name: "Measurements" }).click();
+	return page.getByTestId("measurements");
+}
+
+test("a typed length places the next corner, to the centimetre", async ({
+	page,
+}) => {
+	await metric(page);
+	const { x, y } = await emptyMap(page);
+	await page.keyboard.press("2");
+	await page.mouse.click(x - 100, y);
+	await page.mouse.move(x + 50, y - 60);
+	// Digits now go to the length, not to the tool shortcuts.
+	await page.keyboard.type("3.5");
+	await expect(page.getByTestId("typed-input")).toContainText("3.5");
+	await page.keyboard.press("Enter");
+	await expect(page.getByTestId("typed-input")).toBeHidden();
+	await page.keyboard.press("Enter");
+	await expect(page.getByTestId("edit-count")).toHaveText("3");
+	await expect(await measurements(page)).toContainText("3.50 m");
+});
+
+test("the rectangle tool takes a typed width;depth", async ({ page }) => {
+	await metric(page);
+	const { x, y } = await emptyMap(page);
+	await page.keyboard.press("4");
+	await expect(page.getByTestId("draw-hint")).toContainText("opposite");
+	await page.mouse.click(x, y);
+	await page.mouse.move(x + 80, y - 60);
+	await expect(page.getByTestId("measure-pointer")).toContainText(" × ");
+	await page.keyboard.type("4;3");
+	await page.keyboard.press("Enter");
+	// Four new nodes and the way.
+	await expect(page.getByTestId("edit-count")).toHaveText("5");
+	const measured = await measurements(page);
+	await expect(measured).toContainText("12.00 m²");
+	await expect(measured).toContainText("14.00 m");
+});
+
+test("the rectangle tool draws from a side after Tab", async ({ page }) => {
+	await metric(page);
+	const { x, y } = await emptyMap(page);
+	await page.getByRole("button", { name: "Draw rectangle" }).click();
+	await page.mouse.click(x, y);
+	await page.keyboard.press("Tab");
+	await expect(page.getByTestId("draw-hint")).toContainText("both ends");
+	await page.mouse.click(x + 100, y - 100);
+	await page.mouse.click(x + 150, y);
+	await expect(page.getByTestId("edit-count")).toHaveText("5");
+});

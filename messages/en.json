@@ -131,8 +131,8 @@
 	"drag_moves_others": "Also moves features not selected ({count}, on levels {levels})",
 	"drag_moves_others_no_level": "Also moves features not selected ({count})",
 	"draw_point_hint": "Click to add a point: on a room's side it becomes a door, on the building's outline an entrance. Escape to stop.",
-	"draw_line_hint": "Click to add corners. Click the last corner or press Enter to finish; Backspace removes the last corner, Escape stops.",
-	"draw_area_hint": "Click to add corners. Click the first or last corner or press Enter to finish; Backspace removes the last corner, Escape stops.",
+	"draw_line_hint": "Click to add corners, or type a length and press Enter (Tab for an angle). Click the last corner or press Enter to finish; Backspace removes the last corner, Escape stops.",
+	"draw_area_hint": "Click to add corners, or type a length and press Enter (Tab for an angle). Click the first or last corner or press Enter to finish; Backspace removes the last corner, Escape stops.",
 	"split_hint": "Click to draw a line across the rooms to split. Click the last point again or press Enter to split; Backspace removes the last point, Escape stops.",
 	"split_nothing": "The line doesn't cross a room, corridor or area on this level for more than 0.5 m",
 	"nav_view": "View",
@@ -195,5 +195,10 @@
 	"measure_length": "Length",
 	"measure_perimeter": "Perimeter",
 	"measure_area": "Area",
-	"measure_sides": "Sides"
+	"measure_sides": "Sides",
+	"typed_length": "Length",
+	"typed_angle": "Angle",
+	"undo_add_rectangle": "Draw a rectangle",
+	"draw_rectangle_hint": "Click a corner, then the opposite one, or type width;depth and Enter. Tab draws it from a side and a width instead.",
+	"draw_rectangle_side_hint": "Click both ends of a side, then the width, or type a length and Enter. Tab goes back to two corners."
 }

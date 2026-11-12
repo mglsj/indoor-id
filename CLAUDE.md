@@ -133,7 +133,8 @@ runs the same commands.
 - Precision (C): `edit/precision/` holds the pure parts: `frame.ts` (`Frame`, `toFrame`/`fromFrame`,
   `outlineFrame` of a building), `snap.ts` (`snapAt`: the snap pipeline, scored by kind; results carry
   `guides`), `angles.ts` (direction lines for angle snapping), `feedback.ts` (what a mode shows:
-  the snap and `Measure`s), `measure.ts`. Lengths go through `units/length.ts` (`parseLength`,
+  the snap and `Measure`s), `measure.ts`, `typed.ts` (values typed while drawing, C.2). The
+  rectangle tool is `edit/modes/rectangle.ts` on `edit/rectangle.ts`. Lengths go through `units/length.ts` (`parseLength`,
   `formatLength`), never hand-formatted. Settings (`S`, the snapping menu, units) are
   `state/precision.svelte.ts`, read with `getPrecision()`. Modes report feedback through a
   `show` callback; `map/guide-layer.ts` draws guides and marks, `ui/MeasureLabels.svelte` the lengths.

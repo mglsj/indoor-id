@@ -42,7 +42,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | LN     | License notices                            | Done         |
 | V      | Viewer mode (V.1–V.3)                      | Done         |
 | T      | One theme, background pane                 | Done         |
-| C      | CAD-style precision (C.0–C.6)              | C.0–C.1 done |
+| C      | CAD-style precision (C.0–C.6)              | C.0–C.2 done |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started  |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
@@ -422,6 +422,12 @@ under the first corner (`containerAt` from `edit/unmapped-floor.ts`), north else
 IndexedDB store for frames and guides waits for C.3, the first slice that saves one. Snap kinds
 with a mark: node, midpoint, intersection (a direction line crossing a side or another line),
 segment, plan vertex, angle, lock; priority steps of 10 px, so point snaps always win.
+
+Landed with C.2: `edit/precision/typed.ts` (`typeKey`, `parseTyped`, `typedCorner`; the typed
+corner is previewed before Enter), `edit/rectangle.ts` and `edit/modes/rectangle.ts` (`4`; Tab
+switches two corners / side and width before the second click). A mode that handles a key now
+has its default prevented (Tab, quotes, Enter on a focused toolbar button). The side variant's
+second corner doesn't join nodes yet.
 
 Order inside C: C.0 and C.1 together first (one PR each), then C.2, then C.3; C.4 to C.6 can
 be reordered after users have tried C.1–C.3.
