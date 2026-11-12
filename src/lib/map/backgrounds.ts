@@ -3,7 +3,7 @@
  * light in the dark theme, where a dark map is hard to read), Esri's imagery, a tile URL the
  * user enters, or a solid colour. The list is fixed: no index is
  * downloaded. Imagery can be moved by an offset in metres, as in iD, when it doesn't line up
- * with the data; `offsetTileParts` says which source tiles a shifted tile is drawn from.
+ * with the data; `tilesIn` and `inAncestor` say which tiles are drawn where.
  */
 import { EARTH_RADIUS } from "#lib/osm/geometry.ts";
 import type { RasterSourceSpecification } from "./maplibre.ts";
@@ -171,64 +171,83 @@ export interface Offset {
 export const NO_OFFSET: Offset = { east: 0, north: 0 };
 
 /**
- * The offset in pixels of tile `z/x/y` (`size` px wide): right and down. Web Mercator stretches
- * the ground by 1 / cos(latitude), taken at the tile's centre.
+ * An offset in world pixels (the Web Mercator world is `worldSize` pixels wide): right and
+ * down. Web Mercator stretches the ground by 1 / cos(latitude), taken at `lat` (the view's
+ * centre, so the imagery moves as one piece).
  */
 export function offsetPixels(
 	offset: Offset,
-	z: number,
-	y: number,
-	size = 256,
+	lat: number,
+	worldSize: number,
 ): [number, number] {
-	const n = 2 ** z;
-	const lat = Math.atan(Math.sinh(Math.PI * (1 - (2 * (y + 0.5)) / n)));
-	const pixelsPerMetre = (size * n) / (2 * Math.PI * EARTH_RADIUS);
-	const scale = pixelsPerMetre / Math.cos(lat);
+	const pixelsPerMetre = worldSize / (2 * Math.PI * EARTH_RADIUS);
+	const scale = pixelsPerMetre / Math.cos((lat * Math.PI) / 180);
 	return [offset.east * scale, -offset.north * scale];
 }
 
-/** A source tile drawn into a shifted tile, and where its top left corner goes. */
-export interface TilePart {
+/** A tile to draw: `x` may lie outside the world (a copy east or west), `column` is its tile. */
+export interface ViewTile {
+	readonly z: number;
 	readonly x: number;
 	readonly y: number;
-	readonly left: number;
-	readonly top: number;
+	/** `x` wrapped into the world: the tile to fetch. */
+	readonly column: number;
 }
 
 /**
- * The source tiles (up to four, fewer at the poles) that tile `z/x/y`, moved by `shift` pixels
- * right and down, is drawn from. Columns wrap around the antimeridian.
+ * The zoom `z` tiles covering a box in degrees (west may be under -180 and east over 180, on
+ * the world's copies), with `pad` more tiles on every side for an imagery moved by an offset.
  */
-export function offsetTileParts(
+export function tilesIn(
+	box: {
+		readonly west: number;
+		readonly south: number;
+		readonly east: number;
+		readonly north: number;
+	},
+	z: number,
+	pad = 1,
+): ViewTile[] {
+	const n = 2 ** z;
+	const column = (lon: number) => Math.floor(((lon + 180) / 360) * n);
+	const row = (lat: number) => {
+		const clamped = Math.max(-85.0511287798, Math.min(85.0511287798, lat));
+		const sin = Math.sin((clamped * Math.PI) / 180);
+		return Math.floor(
+			(0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * n,
+		);
+	};
+	const tiles: ViewTile[] = [];
+	const top = Math.max(0, row(box.north) - pad);
+	const bottom = Math.min(n - 1, row(box.south) + pad);
+	for (let y = top; y <= bottom; y++) {
+		for (let x = column(box.west) - pad; x <= column(box.east) + pad; x++) {
+			tiles.push({ z, x, y, column: ((x % n) + n) % n });
+		}
+	}
+	return tiles;
+}
+
+/**
+ * Where tile `z/x/y` lies in its ancestor at zoom `az`: the ancestor's column and row, and the
+ * part of it the tile covers (left, top and size, from 0 to 1).
+ */
+export function inAncestor(
 	z: number,
 	x: number,
 	y: number,
-	[dx, dy]: readonly [number, number],
-	size = 256,
-): TilePart[] {
-	const n = 2 ** z;
-	// The tile's top left corner in source pixels.
-	const ox = x * size - dx;
-	const oy = y * size - dy;
-	const columns = range(Math.floor(ox / size), Math.ceil((ox + size) / size));
-	const rows = range(Math.floor(oy / size), Math.ceil((oy + size) / size));
-	const parts: TilePart[] = [];
-	for (const row of rows) {
-		if (row < 0 || row >= n) continue;
-		for (const column of columns) {
-			parts.push({
-				x: ((column % n) + n) % n,
-				y: row,
-				left: column * size - ox,
-				top: row * size - oy,
-			});
-		}
-	}
-	return parts;
-}
-
-function range(from: number, to: number): number[] {
-	return Array.from({ length: Math.max(0, to - from) }, (_, i) => from + i);
+	az: number,
+): { x: number; y: number; left: number; top: number; size: number } {
+	const scale = 2 ** (z - az);
+	const ax = Math.floor(x / scale);
+	const ay = Math.floor(y / scale);
+	return {
+		x: ax,
+		y: ay,
+		left: x / scale - ax,
+		top: y / scale - ay,
+		size: 1 / scale,
+	};
 }
 
 /** The URL of tile `z/x/y` of a raster source, picking its server as MapLibre does. */

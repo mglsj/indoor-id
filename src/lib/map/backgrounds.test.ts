@@ -4,9 +4,10 @@ import {
 	displayPaint,
 	ESRI_IMAGERY,
 	imageryFor,
+	inAncestor,
 	offsetPixels,
-	offsetTileParts,
 	rasterSource,
+	tilesIn,
 	tileUrl,
 } from "./backgrounds.ts";
 
@@ -118,46 +119,70 @@ describe("imageryFor", () => {
 });
 
 describe("offsetPixels", () => {
-	it("moves one pixel per 156 543 m at zoom 0 on the equator", () => {
-		const [dx, dy] = offsetPixels({ east: 156543.03392804097, north: 0 }, 0, 0);
+	it("moves one pixel per 156 543 m at zoom 0 (a 256 px world) on the equator", () => {
+		const [dx, dy] = offsetPixels(
+			{ east: 156543.03392804097, north: 0 },
+			0,
+			256,
+		);
 		expect(dx).toBeCloseTo(1, 9);
 		expect(dy).toBeCloseTo(0, 9);
 	});
 
 	it("counts ground metres where Web Mercator stretches them", () => {
-		// Rennes (48.13° N) at zoom 20: a pixel is 0.09964 m on the ground.
+		// Rennes (48.13° N) at zoom 20 in 256 px tiles: a pixel is 0.09964 m on the ground.
 		const [dx, dy] = offsetPixels(
 			{ east: 0.0996432, north: 0.996432 },
-			20,
-			363933,
+			48.13,
+			256 * 2 ** 20,
 		);
 		expect(dx).toBeCloseTo(1, 3);
 		expect(dy).toBeCloseTo(-10, 2);
 	});
 });
 
-describe("offsetTileParts", () => {
-	it("draws an unmoved tile from itself", () => {
-		expect(offsetTileParts(3, 2, 5, [0, 0])).toEqual([
-			{ x: 2, y: 5, left: 0, top: 0 },
+describe("tilesIn", () => {
+	it("covers a box with a tile more on every side", () => {
+		// Zoom 2: columns of 90°, rows split at 0° and ±66.51°.
+		const tiles = tilesIn({ west: 10, south: 10, east: 20, north: 20 }, 2);
+		expect(tiles.map(({ x, y }) => `${x}/${y}`)).toEqual([
+			"1/0",
+			"2/0",
+			"3/0",
+			"1/1",
+			"2/1",
+			"3/1",
+			"1/2",
+			"2/2",
+			"3/2",
 		]);
 	});
 
-	it("draws a tile moved right and up from four source tiles", () => {
-		// Imagery moved 10 px right and 20 px up: the tile shows its left and lower neighbours.
-		expect(offsetTileParts(3, 2, 5, [10, -20])).toEqual([
-			{ x: 1, y: 5, left: -246, top: -20 },
-			{ x: 2, y: 5, left: 10, top: -20 },
-			{ x: 1, y: 6, left: -246, top: 236 },
-			{ x: 2, y: 6, left: 10, top: 236 },
+	it("wraps columns across the antimeridian and stops at the poles", () => {
+		const tiles = tilesIn({ west: 170, south: 80, east: 190, north: 85 }, 1, 0);
+		expect(tiles).toEqual([
+			{ z: 1, x: 1, y: 0, column: 1 },
+			{ z: 1, x: 2, y: 0, column: 0 },
 		]);
 	});
+});
 
-	it("wraps around the antimeridian and stops at the poles", () => {
-		expect(offsetTileParts(1, 0, 0, [5, 5])).toEqual([
-			{ x: 1, y: 0, left: -251, top: 5 },
-			{ x: 0, y: 0, left: 5, top: 5 },
-		]);
+describe("inAncestor", () => {
+	it("finds the part of a tile's ancestor it covers", () => {
+		expect(inAncestor(3, 5, 6, 1)).toEqual({
+			x: 1,
+			y: 1,
+			left: 0.25,
+			top: 0.5,
+			size: 0.25,
+		});
+		expect(inAncestor(3, 5, 6, 3)).toEqual({
+			x: 5,
+			y: 6,
+			left: 0,
+			top: 0,
+			size: 1,
+		});
 	});
 });
 
