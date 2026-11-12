@@ -141,7 +141,9 @@ runs the same commands.
   `state/frames.svelte.ts` (`Frames`, saved in the plan store), set in the snapping menu or with
   `edit/modes/frame-pick.ts`; `map/grid-layer.ts` draws the grid. Construction guides (C.5):
   `edit/precision/construction.ts`, `state/guides.svelte.ts` (`Guides`, also in plan files),
-  placed with `edit/modes/measure.ts` (`M`), drawn by `map/construction-layer.ts`. Modes report feedback through a
+  placed with `edit/modes/measure.ts` (`M`), drawn by `map/construction-layer.ts`. Precise
+  edits (C.6): `actions/transform.ts`, run by clicks or typed values in
+  `edit/modes/transform.ts` (operations of kind `"tool"`). Modes report feedback through a
   `show` callback; `map/guide-layer.ts` draws guides and marks, `ui/MeasureLabels.svelte` the lengths.
 - Viewer (V.1): `/view` is `ui/ViewerView.svelte` on `MapShell` (`presentation="view"`,
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`

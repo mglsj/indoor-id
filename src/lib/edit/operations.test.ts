@@ -58,19 +58,35 @@ function apply(id: Operation["id"], c: OperationContext) {
 describe("OPERATIONS", () => {
 	it("offers what applies to the selection", () => {
 		expect(offered(context([]))).toEqual([]);
+		const tools = ["move", "rotate", "scale"];
 		expect(offered(context(["w1"]))).toEqual([
 			"copy",
 			"disconnect",
 			"square",
 			"repeat",
+			...tools,
+			"side",
+			"offset",
+			"square-frame",
 			"delete",
 		]);
-		expect(offered(context(["n7"]))).toEqual(["copy", "repeat", "delete"]);
-		expect(offered(context(["n2"]))).toEqual(["copy", "disconnect", "delete"]);
+		expect(offered(context(["n7"]))).toEqual([
+			"copy",
+			"repeat",
+			...tools,
+			"delete",
+		]);
+		expect(offered(context(["n2"]))).toEqual([
+			"copy",
+			"disconnect",
+			...tools,
+			"delete",
+		]);
 		expect(offered(context(["w1", "w2"]))).toEqual([
 			"copy",
 			"merge",
 			"multipolygon",
+			...tools,
 			"delete",
 		]);
 		const clipboard = copyEntities(graph(), ["n7"]);

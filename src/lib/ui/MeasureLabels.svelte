@@ -20,6 +20,10 @@
 
 	let { measures, input, inference, project, units, camera }: Props = $props();
 
+	/** A scale factor to three places at most: 1.25, 0.5. */
+	const formatFactor = (factor: number) =>
+		String(Math.round(factor * 1000) / 1000);
+
 	const labels = $derived.by(() => {
 		void camera;
 		return measures.map((m) => {
@@ -29,7 +33,13 @@
 					? formatLength(m.length, units)
 					: `${formatLength(m.length, units)} × ${formatLength(m.depth, units)}`;
 			const text =
-				m.angle === undefined ? size : `${size} · ${formatAngle(m.angle)}`;
+				m.shows === "angle"
+					? formatAngle(m.angle ?? 0)
+					: m.shows === "factor"
+						? `× ${formatFactor(m.factor ?? 1)}`
+						: m.angle === undefined
+							? size
+							: `${size} · ${formatAngle(m.angle)}`;
 			return { x, y, text, pointer: m.pointer ?? false };
 		});
 	});
