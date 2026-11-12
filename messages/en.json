@@ -273,5 +273,10 @@
 	"frame_north": "North up",
 	"frame_plan": "Angle of {name}",
 	"frame_pick_align": "Click a side to align the drawing frame to it. Escape gives up.",
-	"frame_pick_origin": "Click where the grid should start. Escape gives up."
+	"frame_pick_origin": "Click where the grid should start. Escape gives up.",
+	"operation_straighten": "Straighten to 45°",
+	"undo_straighten": "Straightened to 45°",
+	"operation_symmetric": "Make symmetric",
+	"undo_symmetric": "Made symmetric",
+	"operation_symmetric_none": "No mirror line pairs every corner with a twin"
 }

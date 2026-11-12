@@ -22,6 +22,7 @@ import {
 	orthogonalizeRefusal,
 } from "#lib/actions/orthogonalize.ts";
 import { canRepeat } from "#lib/actions/repeat-levels.ts";
+import { makeSymmetric, straightenToFrame } from "#lib/actions/straighten.ts";
 import { squareToFrame } from "#lib/actions/transform.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
@@ -76,7 +77,9 @@ export interface Operation {
 		| "scale"
 		| "side"
 		| "offset"
-		| "square-frame";
+		| "square-frame"
+		| "straighten"
+		| "symmetric";
 	readonly label: Message;
 	/** Shortcuts, the first one shown. */
 	readonly keys: readonly string[];
@@ -363,6 +366,66 @@ const squareFrameOperation: Operation = {
 };
 
 /**
+ * The outline to straighten: one closed way selected, or the one closed outer way of a selected
+ * multipolygon (a building mapped as a relation).
+ */
+function singleOutline(
+	graph: Graph,
+	selected: readonly EntityId[],
+): WayId | null {
+	const [id] = selected;
+	const entity = selected.length === 1 && id ? graph.entity(id) : undefined;
+	if (entity?.type !== "relation") return singleClosedWay(graph, selected);
+	if (entity.tags.type !== "multipolygon") return null;
+	const outers = entity.members.filter(
+		(m) => m.role === "outer" && m.ref.startsWith("w"),
+	);
+	const [outer] = outers;
+	return outers.length === 1 && outer
+		? singleClosedWay(graph, [outer.ref])
+		: null;
+}
+
+/** Every side to a multiple of 45° from the frame, a hand-drawn outline made as drawn in CAD. */
+const straightenOperation: Operation = {
+	id: "straighten",
+	label: msg("operation_straighten"),
+	keys: ["A"],
+	available: ({ graph, selected }) => singleOutline(graph, selected) !== null,
+	disabled: () => null,
+	run: ({ graph, selected, frameAngle = 0 }) => {
+		const id = singleOutline(graph, selected) as WayId;
+		return {
+			kind: "edit",
+			edit: (g) => keep(selected)(straightenToFrame(id, frameAngle, 45)(g)),
+			annotation: msg("undo_straighten"),
+		};
+	},
+};
+
+/** A symmetric outline made exactly symmetric about the frame's axes or diagonals. */
+const symmetricOperation: Operation = {
+	id: "symmetric",
+	label: msg("operation_symmetric"),
+	keys: ["Y"],
+	available: ({ graph, selected }) => singleOutline(graph, selected) !== null,
+	disabled: ({ graph, selected, frameAngle = 0 }) => {
+		const id = singleOutline(graph, selected) as WayId;
+		return makeSymmetric(id, frameAngle)(graph) === graph
+			? msg("operation_symmetric_none")
+			: null;
+	},
+	run: ({ graph, selected, frameAngle = 0 }) => {
+		const id = singleOutline(graph, selected) as WayId;
+		return {
+			kind: "edit",
+			edit: (g) => keep(selected)(makeSymmetric(id, frameAngle)(g)),
+			annotation: msg("undo_symmetric"),
+		};
+	},
+};
+
+/**
  * The operation, refused while too little of the selection is in view (iD's `too_large`): what
  * moves, reshapes or deletes features needs them seen first.
  */
@@ -405,5 +468,7 @@ export const OPERATIONS: readonly Operation[] = [
 		),
 	),
 	inView(squareFrameOperation),
+	inView(straightenOperation),
+	inView(symmetricOperation),
 	inView(deleteOperation),
 ];
