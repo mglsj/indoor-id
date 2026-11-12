@@ -125,22 +125,18 @@ describe("indoorLayers", () => {
 	});
 });
 
-describe("indoorLayers: presentation and theme", () => {
+describe("indoorLayers: presentation", () => {
 	const paint = (layers: ReturnType<typeof indoorLayers>, id: string) =>
 		layers.find((l) => l.id === id)?.paint as Record<string, unknown>;
 
-	it("draws dark colours for a dark map", () => {
+	it("draws light colours: the map is always light", () => {
 		const view = { presentation: "view" } as const;
-		const light = JSON.stringify(paint(indoorLayers(0, view), "indoor-fill"));
-		const dark = JSON.stringify(
-			paint(indoorLayers(0, { ...view, theme: "dark" }), "indoor-fill"),
-		);
-		expect(light).toContain("#d6d1c7");
-		expect(dark).not.toContain("#d6d1c7");
-		expect(dark).toContain("#4a463f");
 		expect(
-			paint(indoorLayers(0, { theme: "dark" }), "indoor-labels")["text-color"],
-		).toBe("#eeeeee");
+			JSON.stringify(paint(indoorLayers(0, view), "indoor-fill")),
+		).toContain("#d6d1c7");
+		expect(paint(indoorLayers(0), "indoor-labels")["text-color"]).toBe(
+			"#333333",
+		);
 	});
 
 	it("draws rooms nearly opaque in the viewer", () => {
@@ -151,15 +147,11 @@ describe("indoorLayers: presentation and theme", () => {
 		).toEqual(["match", ["get", "@kind"], "building", 0.85, 0.95]);
 	});
 
-	it("edits with iD's colours: its building red, white bands on a dark map", () => {
-		const dark = JSON.stringify(
-			paint(indoorLayers(0, { theme: "dark" }), "indoor-fill-band"),
-		);
-		expect(dark).toContain("rgba(224, 110, 95, 0.3)");
-		expect(dark).toContain("rgba(255, 255, 255, 0.3)");
-		// White bands would vanish on the light map: grey ones instead.
-		const light = JSON.stringify(paint(indoorLayers(0), "indoor-fill-band"));
-		expect(light).not.toContain("rgba(255, 255, 255, 0.3)");
+	it("edits with iD's colours: its building red, grey bands on the light map", () => {
+		const bands = JSON.stringify(paint(indoorLayers(0), "indoor-fill-band"));
+		expect(bands).toContain("rgba(224, 110, 95, 0.3)");
+		// iD's white bands would vanish on the light map: grey ones instead.
+		expect(bands).not.toContain("rgba(255, 255, 255, 0.3)");
 	});
 
 	it("fills areas with a band inside their outline unless asked otherwise (iD)", () => {
@@ -200,26 +192,24 @@ describe("indoorLayers: presentation and theme", () => {
 		expect(selectableLayers("full")).toContain("indoor-fill");
 	});
 
-	it("is a valid style in every presentation and theme", () => {
+	it("is a valid style in every presentation", () => {
 		for (const presentation of ["edit", "view"] as const) {
-			for (const theme of ["light", "dark"] as const) {
-				const style: StyleSpecification = {
-					version: 8,
-					glyphs: "https://example.org/fonts/{fontstack}/{range}.pbf",
-					sources: {
-						[INDOOR_SOURCE]: {
-							type: "geojson",
-							data: { type: "FeatureCollection", features: [] },
-						},
-						[BAND_SOURCE]: {
-							type: "geojson",
-							data: { type: "FeatureCollection", features: [] },
-						},
+			const style: StyleSpecification = {
+				version: 8,
+				glyphs: "https://example.org/fonts/{fontstack}/{range}.pbf",
+				sources: {
+					[INDOOR_SOURCE]: {
+						type: "geojson",
+						data: { type: "FeatureCollection", features: [] },
 					},
-					layers: indoorLayers(0, { presentation, theme }),
-				};
-				expect(validateStyleMin(style)).toEqual([]);
-			}
+					[BAND_SOURCE]: {
+						type: "geojson",
+						data: { type: "FeatureCollection", features: [] },
+					},
+				},
+				layers: indoorLayers(0, { presentation }),
+			};
+			expect(validateStyleMin(style)).toEqual([]);
 		}
 		for (const fill of ["wireframe", "partial", "full"] as const) {
 			const style: StyleSpecification = {
@@ -264,20 +254,15 @@ describe("indoorLayers: edits and labels", () => {
 });
 
 describe("indoorLayers: rooms by use", () => {
-	const fill = (
-		presentation: "edit" | "view",
-		theme: "light" | "dark" = "light",
-	) =>
+	const fill = (presentation: "edit" | "view") =>
 		JSON.stringify(
-			indoorLayers(0, { presentation, theme }).find(
-				(l) => l.id === "indoor-fill",
-			)?.paint,
+			indoorLayers(0, { presentation }).find((l) => l.id === "indoor-fill")
+				?.paint,
 		);
 
 	it("fills rooms by their use in the viewer only", () => {
 		expect(fill("view")).toContain('["feature-state","use"]');
 		expect(fill("view")).toContain("#f3c98b");
-		expect(fill("view", "dark")).toContain("#7a5a2c");
 		expect(fill("edit")).not.toContain("feature-state");
 	});
 });

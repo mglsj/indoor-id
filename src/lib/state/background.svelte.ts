@@ -1,9 +1,11 @@
 /**
- * The background the user picked (the map, Esri imagery or a custom tile URL), the custom URL
- * and each imagery's offset, kept in this browser's storage as iD keeps them.
+ * The background the user picked (the map, Esri imagery, a custom tile URL or a solid colour),
+ * the custom URL, the solid colour and each imagery's offset, kept in this browser's storage
+ * as iD keeps them.
  */
 import {
 	type BackgroundId,
+	DEFAULT_SOLID_COLOR,
 	type Imagery,
 	type ImageryDisplay,
 	imageryFor,
@@ -18,7 +20,13 @@ const KEY = "indoorid.background";
 const FILL_KEY = "indoorid.area-fill";
 /** Whether edited features are highlighted, kept as iD keeps it. */
 const HIGHLIGHT_KEY = "indoorid.highlight-edits";
-const IDS: readonly BackgroundId[] = ["map", "esri", "esri-clarity", "custom"];
+const IDS: readonly BackgroundId[] = [
+	"map",
+	"esri",
+	"esri-clarity",
+	"custom",
+	"solid",
+];
 
 /** Offsets are kept to the centimetre, and within this many metres. */
 const MAX_OFFSET = 1000;
@@ -26,6 +34,7 @@ const MAX_OFFSET = 1000;
 interface Saved {
 	id: BackgroundId;
 	custom: string;
+	solid: string;
 	offsets: Record<string, Offset>;
 }
 
@@ -33,6 +42,8 @@ export class BackgroundSettings {
 	id = $state<BackgroundId>("map");
 	/** The custom tile URL, as typed. */
 	custom = $state("");
+	/** The colour shown in place of the map when `id` is "solid", as `#rrggbb`. */
+	solidColor = $state(DEFAULT_SOLID_COLOR);
 	#offsets = $state.raw<Record<string, Offset>>({});
 	/** How areas are filled while editing (iD's Map Data pane); partly at first, as iD. */
 	areaFill = $state<AreaFill>("partial");
@@ -57,11 +68,20 @@ export class BackgroundSettings {
 		if (saved) {
 			this.id = saved.id;
 			this.custom = saved.custom;
+			this.solidColor = saved.solid;
 			this.#offsets = saved.offsets;
 		}
 	}
 
-	/** The imagery shown, or null for the map alone (or a custom URL that can't be shown). */
+	/** The solid colour shown in place of the map, or null when the map is shown. */
+	readonly solid: string | null = $derived(
+		this.id === "solid" ? this.solidColor : null,
+	);
+
+	/**
+	 * The imagery shown, or null for the map, a solid colour or a custom URL that can't be
+	 * shown.
+	 */
 	readonly imagery: Imagery | null = $derived(imageryFor(this.id, this.custom));
 
 	/** The shown imagery's offset. */
@@ -87,6 +107,15 @@ export class BackgroundSettings {
 		this.custom = template.trim();
 		if (this.id !== "custom") this.#previous = this.id;
 		this.id = "custom";
+		this.#save();
+	}
+
+	/** Shows a solid colour (`#rrggbb`) in place of the map. */
+	setSolidColor(color: string) {
+		if (!isColor(color)) return;
+		this.solidColor = color.toLowerCase();
+		if (this.id !== "solid") this.#previous = this.id;
+		this.id = "solid";
 		this.#save();
 	}
 
@@ -140,6 +169,7 @@ export class BackgroundSettings {
 		const saved: Saved = {
 			id: this.id,
 			custom: this.custom,
+			solid: this.solidColor,
 			offsets: this.#offsets,
 		};
 		try {
@@ -154,6 +184,10 @@ function clamp({ east, north }: Offset): Offset {
 	const round = (value: number) =>
 		Math.round(Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, value)) * 100) / 100;
 	return { east: round(east), north: round(north) };
+}
+
+function isColor(value: unknown): value is string {
+	return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 }
 
 function readFill(storage: Storage | undefined): AreaFill {
@@ -181,6 +215,7 @@ function read(storage: Storage | undefined): Saved | null {
 				? (saved.id as BackgroundId)
 				: "map",
 			custom: typeof saved.custom === "string" ? saved.custom : "",
+			solid: isColor(saved.solid) ? saved.solid : DEFAULT_SOLID_COLOR,
 			offsets,
 		};
 	} catch {

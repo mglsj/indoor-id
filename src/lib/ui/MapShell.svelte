@@ -1,21 +1,25 @@
 <script lang="ts">
 	/**
 	 * The map every page shows (R5): the MapLibre map with the indoor features of `getEditor()`,
-	 * the shown level and its switcher, the URL hash, the background (the basemap in the theme's
-	 * colours, imagery, in a pane on the right), place search and the download status. Pages add their controls and panels through the snippets; the editor
+	 * the shown level and its switcher, the URL hash, the background (the light basemap, imagery
+	 * or a solid colour, chosen in a pane opened from the top right; the map stays light in the
+	 * dark theme), place search and the download status. Pages add their controls and panels
+	 * through the snippets; the editor
 	 * (`EditorView`) adds modes, drawing, floor plans and upload on top.
 	 */
 	import Layers from "@lucide/svelte/icons/layers";
-	import { mode } from "mode-watcher";
 	import type { Snippet } from "svelte";
 	import type { Place } from "#lib/api/nominatim.ts";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
 	import { msg, t } from "#lib/i18n/messages.ts";
 	import type { FloorNumbering } from "#lib/levels/floor-numbering.ts";
-	import { setBackground, setImageryDisplay } from "#lib/map/background.ts";
-	import { BASEMAP_STYLES, type Imagery } from "#lib/map/backgrounds.ts";
-	import { setBasemap } from "#lib/map/basemap.ts";
+	import {
+		setBackground,
+		setImageryDisplay,
+		setSolidBackground,
+	} from "#lib/map/background.ts";
+	import { BASEMAP_STYLE, type Imagery } from "#lib/map/backgrounds.ts";
 	import { editedFeatures } from "#lib/map/edited.ts";
 	import {
 		formatHash,
@@ -61,7 +65,7 @@
 		onbackground?: (imagery: Imagery | null) => void;
 		/** Controls under the place search. */
 		controls?: Snippet;
-		/** Controls under the background button. */
+		/** Controls under the place search and `controls`. */
 		tools?: Snippet;
 		/** Panels, hints and dialogs over the map. */
 		children?: Snippet;
@@ -94,7 +98,6 @@
 	let backgroundOpen = $state(false);
 	/** Its width in pixels (20rem). */
 	const PANE_WIDTH = 320;
-	const theme = $derived(mode.current === "dark" ? "dark" : "light");
 	/** Indoor features the map has drawn (for the e2e tests' `data-drawn`). */
 	let drawn = $state<number>();
 
@@ -104,13 +107,7 @@
 		if (!instance) return;
 		const layers = new IndoorMap(instance);
 		indoor = layers;
-		$effect(() =>
-			layers.setLook({
-				presentation,
-				theme,
-				fill: settings.areaFill,
-			}),
-		);
+		$effect(() => layers.setLook({ presentation, fill: settings.areaFill }));
 		// iD's "Highlight changes", in the editor.
 		$effect(() =>
 			layers.setEdited(
@@ -149,9 +146,9 @@
 		}
 	}
 
-	// The basemap follows the theme; the imagery and its offset follow the settings.
+	// The imagery, its offset and the solid colour follow the settings.
 	$effect(() => {
-		if (map) void setBasemap(map, BASEMAP_STYLES[theme]).catch(() => {});
+		if (map) void setSolidBackground(map, settings.solid);
 	});
 	$effect(() => {
 		if (map) void setBackground(map, settings.imagery, settings.offset);
@@ -229,8 +226,7 @@
 <svelte:window onhashchange={onHashChange} />
 
 <MapView
-	styleUrl={BASEMAP_STYLES[theme]}
-	dark={theme === "dark"}
+	styleUrl={BASEMAP_STYLE}
 	coveredRight={backgroundOpen ? PANE_WIDTH : 0}
 	initialCamera={fromUrl ?? {
 		zoom: config.map_initial_zoom,
@@ -255,6 +251,13 @@
 		baseUrl={config.nominatim_url}
 	/>
 	{@render controls?.()}
+	{@render tools?.()}
+</div>
+
+<div
+	class="absolute top-4 z-10 flex flex-col items-end gap-2"
+	style:right={backgroundOpen ? `calc(${PANE_WIDTH}px + 1rem)` : "1rem"}
+>
 	<div class="rounded-md bg-background shadow-md">
 		<Button
 			variant={backgroundOpen ? "secondary" : "outline"}
@@ -266,13 +269,6 @@
 			{t(msg("background"))}
 		</Button>
 	</div>
-	{@render tools?.()}
-</div>
-
-<div
-	class="absolute top-4 z-10"
-	style:right={backgroundOpen ? `calc(${PANE_WIDTH}px + 1rem)` : "1rem"}
->
 	<LevelControl bind:level levels={levelsInView} {numbering} />
 </div>
 

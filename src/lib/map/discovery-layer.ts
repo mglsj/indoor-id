@@ -11,7 +11,7 @@ import type {
 	LayerSpecification,
 	Map as MapLibreMap,
 } from "./maplibre.ts";
-import { indoorColors, type Theme } from "./style/colors.ts";
+import { INDOOR_COLORS } from "./style/colors.ts";
 import { LABEL_FONT } from "./style/layers.ts";
 
 export const DISCOVERY_SOURCE = "discovery";
@@ -28,12 +28,9 @@ export interface Bubble {
 /** The bubbles and their counts, shown up to (not at) `maxZoom`. */
 export function discoveryLayers(
 	maxZoom: number,
-	{
-		theme = "light",
-		textFont = LABEL_FONT,
-	}: { theme?: Theme; textFont?: string[] } = {},
+	{ textFont = LABEL_FONT }: { textFont?: string[] } = {},
 ): LayerSpecification[] {
-	const C = indoorColors(theme);
+	const C = INDOOR_COLORS;
 	const count: ExpressionSpecification = [
 		"coalesce",
 		["get", "point_count"],
@@ -78,7 +75,6 @@ export class DiscoveryLayer {
 		type: "FeatureCollection",
 		features: [],
 	};
-	#theme: Theme = "light";
 	#ready = false;
 	#removed = false;
 
@@ -93,20 +89,6 @@ export class DiscoveryLayer {
 	setData(data: GeoJSON.FeatureCollection): void {
 		this.#data = data;
 		if (this.#ready) void this.#source()?.setData(data);
-	}
-
-	setTheme(theme: Theme): void {
-		this.#theme = theme;
-		if (!this.#ready) return;
-		for (const layer of discoveryLayers(this.#maxZoom, { theme })) {
-			for (const [name, value] of Object.entries(layer.paint ?? {})) {
-				this.#map.setPaintProperty(
-					layer.id,
-					name as Parameters<MapLibreMap["setPaintProperty"]>[1],
-					value,
-				);
-			}
-		}
 	}
 
 	/** The bubble drawn at a screen point, or null. */
@@ -161,9 +143,7 @@ export class DiscoveryLayer {
 			clusterRadius: 50,
 			clusterMaxZoom: this.#maxZoom - 1,
 		});
-		for (const layer of discoveryLayers(this.#maxZoom, {
-			theme: this.#theme,
-		})) {
+		for (const layer of discoveryLayers(this.#maxZoom)) {
 			this.#map.addLayer(layer, slotId("indoor-top"));
 		}
 		this.#ready = true;

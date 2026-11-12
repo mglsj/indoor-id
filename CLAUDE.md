@@ -54,7 +54,8 @@ runs the same commands.
   `state/commands.ts`; issues come from `validation/validator.ts`, cached per entity), and
   `ui/MapShell.svelte` (R5: the map with its indoor layers, level switcher, URL hash,
   background, search and load status, for any page; backgrounds (T): `map/backgrounds.ts`, a
-  fixed list, `map/background.ts` with the imagery offset, `state/background.svelte.ts`,
+  fixed list, `map/background.ts` with the imagery offset (moved with `setTiles`, source tiles
+  cached) and the solid colour, `state/background.svelte.ts`,
   `ui/BackgroundPane.svelte` on the right) under `ui/EditorView.svelte` (the editor's modes,
   toolbar, side panel and dialogs; `map/view.ts` for the view extent and projections). Change how a tag is drawn in `classify.ts`, not
   in the style.
@@ -151,8 +152,9 @@ runs the same commands.
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`
   laid over its answers (the editor records each upload through `onupload`); a click shows
   `ui/FeatureCard.svelte`. Both pages render inside `ui/AppPage.svelte` (header, config).
-  `indoorLayers(level, { presentation, theme, fill })`: colours from `style/colors.ts`
-  (`indoorColors(theme)` for the viewer, iD's `editColors(theme)` for the editor), applied with
+  `indoorLayers(level, { presentation, fill })`: colours from `style/colors.ts`
+  (`INDOOR_COLORS` for the viewer, iD's `EDIT_COLORS` for the editor; the map is always light,
+  whatever the page's theme: a dark map was hard to read), applied with
   `IndoorMap.setLook`; the editor's area fill (iD's wireframe, partial or full) also decides what
   a click can pick (`selectableLayers`); the partial fill's band is built as a shape by
   `map/area-bands.ts` (`BandStore`, source `BAND_SOURCE`), not drawn as an inset line. Edited features are highlighted through the feature
@@ -202,8 +204,8 @@ runs the same commands.
   `bunx shadcn-svelte@latest add <name>`, then `bun run format`; don't hand-edit them) and the
   theme's semantic colours (`bg-background`, `text-muted-foreground`…), never raw palette colours
   or `dark:` overrides. Dark mode follows the system via `mode-watcher` (`.dark` class) until
-  the header's theme button picks one; the basemap (`map/basemap.ts`) and MapLibre's controls
-  (`app.css`) follow it. Controls
+  the header's theme button picks one; MapLibre's controls (`app.css`) follow it, the map itself
+  (basemap and indoor colours) stays light. Controls
   floating over the map sit on a `bg-background` wrapper: shadcn's dark outline and input styles
   are translucent. A `Command`'s input is named by the Command's `label`, not `aria-label`.
 - **Licenses**: code ported or translated from another project (iD, osm-simple3d-editor,

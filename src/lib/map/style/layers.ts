@@ -13,10 +13,9 @@ import { ARROW_IMAGE, BOTH_ARROWS_IMAGE } from "./arrows.ts";
 import {
 	type AreaFill,
 	type AreaPaint,
+	EDIT_COLORS,
 	type EditColors,
-	editColors,
-	indoorColors,
-	type Theme,
+	INDOOR_COLORS,
 	USE_COLORS,
 } from "./colors.ts";
 
@@ -187,8 +186,6 @@ export interface IndoorStyleOptions {
 	/** Fonts available from the basemap's glyph server. */
 	readonly textFont?: string[];
 	readonly presentation?: Presentation;
-	/** Colours for a light or dark basemap. */
-	readonly theme?: Theme;
 	/** How areas are filled while editing; the viewer fills them whole. */
 	readonly fill?: AreaFill;
 }
@@ -199,14 +196,13 @@ export interface IndoorStyleOptions {
  */
 function byUse(
 	presentation: Presentation,
-	theme: Theme,
 	byKind: ExpressionSpecification,
 ): ExpressionSpecification {
 	if (presentation !== "view") return byKind;
 	return [
 		"match",
 		["coalesce", ["feature-state", "use"], ""],
-		...Object.entries(USE_COLORS[theme]).flat(),
+		...Object.entries(USE_COLORS).flat(),
 		byKind,
 	] as unknown as ExpressionSpecification;
 }
@@ -216,12 +212,11 @@ export function indoorLayers(
 	{
 		textFont = LABEL_FONT,
 		presentation = "edit",
-		theme = "light",
 		fill = "partial",
 	}: IndoorStyleOptions = {},
 ): LayerSpecification[] {
-	const C = indoorColors(theme);
-	const E = editColors(theme);
+	const C = INDOOR_COLORS;
+	const E = EDIT_COLORS;
 	const editing = presentation === "edit";
 	const wireframe = editing && fill === "wireframe";
 	/** One rail of the tracks, `side` 1 or -1 of the centre line, `@rail-r17` pixels at z17. */
@@ -270,7 +265,7 @@ export function indoorLayers(
 						"fill-opacity": fill === "full" ? 1 : 0,
 					}
 				: {
-						"fill-color": byUse(presentation, theme, [
+						"fill-color": byUse(presentation, [
 							"match",
 							kind,
 							"building",

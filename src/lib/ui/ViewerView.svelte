@@ -7,7 +7,6 @@
 	 * laid over Overpass answers until Overpass catches up (`RecentUploads`). Zoomed out,
 	 * bubbles show where indoor data is (`Discovery`, V.2).
 	 */
-	import { mode } from "mode-watcher";
 	import { untrack } from "svelte";
 	import { Overpass } from "#lib/api/overpass.ts";
 	import { RecentUploads } from "#lib/api/recent-uploads.ts";
@@ -137,7 +136,6 @@
 		if (!instance || !layers) return;
 		const bubbles = new DiscoveryLayer(instance, dataZoom);
 		$effect(() => bubbles.setData(centresCollection(discovery.centres)));
-		$effect(() => bubbles.setTheme(mode.current === "dark" ? "dark" : "light"));
 		const manager = new ModeManager(instance);
 		modes = manager;
 		manager.setMode(

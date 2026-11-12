@@ -13,7 +13,7 @@ import type {
 	MapGeoJSONFeature,
 	Map as MapLibreMap,
 } from "./maplibre.ts";
-import type { AreaFill, Theme } from "./style/colors.ts";
+import type { AreaFill } from "./style/colors.ts";
 import { loadIconsOnDemand } from "./style/icons.ts";
 import {
 	BAND_SOURCE,
@@ -27,12 +27,12 @@ import {
 } from "./style/layers.ts";
 
 /**
- * How the indoor layers look: for editing or viewing, on a light or dark map, with areas filled
- * partly (iD's default), whole or not at all while editing.
+ * How the indoor layers look: for editing or viewing, with areas filled partly (iD's default),
+ * whole or not at all while editing. The map is always light (an accessibility choice): its
+ * colours don't follow the page's theme.
  */
 export interface IndoorLook {
 	readonly presentation: Presentation;
-	readonly theme: Theme;
 	readonly fill?: AreaFill;
 }
 
@@ -78,7 +78,7 @@ export class IndoorMap {
 	#hover: readonly string[] = [];
 	#planMode = false;
 	#buildingsVisible = true;
-	#look: IndoorLook = { presentation: "edit", theme: "light" };
+	#look: IndoorLook = { presentation: "edit" };
 	/** How features were edited, as the feature state `edited`. */
 	#edited: ReadonlyMap<string, EditKind> = new Map();
 	/** Labels hidden near the pointer. */
@@ -186,11 +186,10 @@ export class IndoorMap {
 		}
 	}
 
-	/** Draws the indoor data for editing or viewing, on a light or dark map: only paint changes. */
+	/** Draws the indoor data for editing or viewing: only paint changes. */
 	setLook(look: IndoorLook): void {
 		if (
 			look.presentation === this.#look.presentation &&
-			look.theme === this.#look.theme &&
 			look.fill === this.#look.fill
 		) {
 			return;

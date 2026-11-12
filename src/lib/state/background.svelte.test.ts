@@ -98,6 +98,25 @@ describe("BackgroundSettings", () => {
 		expect(again.imagery?.name).toBe("Esri World Imagery");
 	});
 
+	it("shows a solid colour in place of the map, and keeps it", () => {
+		const saved = storage();
+		const settings = new BackgroundSettings(saved);
+		expect(settings.solid).toBeNull();
+		settings.setSolidColor("#336699");
+		expect(settings.id).toBe("solid");
+		expect(settings.solid).toBe("#336699");
+		expect(settings.imagery).toBeNull();
+		settings.setSolidColor("red");
+		expect(settings.solid).toBe("#336699");
+
+		const again = new BackgroundSettings(saved);
+		expect(again.solid).toBe("#336699");
+		again.choose("map");
+		expect(again.solid).toBeNull();
+		again.swapPrevious();
+		expect(again.solid).toBe("#336699");
+	});
+
 	it("doesn't move the map", () => {
 		const settings = new BackgroundSettings(storage());
 		settings.nudge(5, 5);

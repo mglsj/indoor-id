@@ -1,23 +1,25 @@
 /**
- * The backgrounds the map offers: the OpenFreeMap vector map (its light or dark style, as the
- * theme), Esri's imagery, or a tile URL the user enters. The list is fixed: no index is
+ * The backgrounds the map offers: the OpenFreeMap vector map (its light style: the map stays
+ * light in the dark theme, where a dark map is hard to read), Esri's imagery, a tile URL the
+ * user enters, or a solid colour. The list is fixed: no index is
  * downloaded. Imagery can be moved by an offset in metres, as in iD, when it doesn't line up
  * with the data; `offsetTileParts` says which source tiles a shifted tile is drawn from.
  */
 import { EARTH_RADIUS } from "#lib/osm/geometry.ts";
 import type { RasterSourceSpecification } from "./maplibre.ts";
 
-/** The OpenFreeMap styles under the imagery, for each theme. */
-export const BASEMAP_STYLES = {
-	light: "https://tiles.openfreemap.org/styles/positron",
-	dark: "https://tiles.openfreemap.org/styles/dark",
-} as const;
+/** The OpenFreeMap style under the imagery. */
+export const BASEMAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
 
-export type BackgroundId = "map" | "esri" | "esri-clarity" | "custom";
+/** The vector map ("OpenFreeMap Light"), imagery, or a solid colour in place of the map. */
+export type BackgroundId = "map" | "esri" | "esri-clarity" | "custom" | "solid";
+
+/** The solid colour shown at first: the light map's land colour. */
+export const DEFAULT_SOLID_COLOR = "#f2f2ef";
 
 /** Imagery shown over the vector map. */
 export interface Imagery {
-	readonly id: Exclude<BackgroundId, "map">;
+	readonly id: Exclude<BackgroundId, "map" | "solid">;
 	/** Its name, as the changeset's `imagery_used` records it. */
 	readonly name: string;
 	readonly source: RasterSourceSpecification;
@@ -58,12 +60,12 @@ export function customImagery(template: string): Imagery | null {
 	return { id: "custom", name: `Custom (${trimmed})`, source };
 }
 
-/** The imagery shown for a background, null for the map alone. */
+/** The imagery shown for a background, null for the map alone or a solid colour. */
 export function imageryFor(
 	id: BackgroundId,
 	customTemplate: string,
 ): Imagery | null {
-	if (id === "map") return null;
+	if (id === "map" || id === "solid") return null;
 	if (id === "custom") return customImagery(customTemplate);
 	return ESRI_IMAGERY.find((imagery) => imagery.id === id) ?? null;
 }
