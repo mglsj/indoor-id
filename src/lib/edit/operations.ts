@@ -25,8 +25,10 @@ import { canRepeat } from "#lib/actions/repeat-levels.ts";
 import { squareToFrame } from "#lib/actions/transform.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
+import type { Extent } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { TransformTool } from "./modes/transform.ts";
+import { tooLargeToEdit } from "./visibility.ts";
 
 /** What an operation looks at. */
 export interface OperationContext {
@@ -39,6 +41,8 @@ export interface OperationContext {
 	readonly clipboard: Clipboard | null;
 	/** The drawing frame's angle at the selection (C.6), for squaring to it. */
 	readonly frameAngle?: number;
+	/** The map in view: operations that change the selection's shape or place need it seen. */
+	readonly view?: Extent;
 }
 
 export type OperationResult =
@@ -358,30 +362,48 @@ const squareFrameOperation: Operation = {
 	},
 };
 
+/**
+ * The operation, refused while too little of the selection is in view (iD's `too_large`): what
+ * moves, reshapes or deletes features needs them seen first.
+ */
+function inView(operation: Operation): Operation {
+	return {
+		...operation,
+		disabled: (context) =>
+			tooLargeToEdit(context.graph, context.selected, context.view)
+				? msg("operation_too_large")
+				: operation.disabled(context),
+	};
+}
+
 /** In the toolbar's order. */
 export const OPERATIONS: readonly Operation[] = [
 	copyOperation,
 	pasteOperation,
-	disconnectOperation,
-	squareOperation,
+	inView(disconnectOperation),
+	inView(squareOperation),
 	mergeOperation,
 	multipolygonOperation,
 	repeatOperation,
-	toolOperation("move", msg("operation_move"), "Shift+M", anything),
-	toolOperation("rotate", msg("operation_rotate"), "Shift+R", anything),
-	toolOperation("scale", msg("operation_scale"), "Shift+S", anything),
-	toolOperation(
-		"side",
-		msg("operation_move_side"),
-		"E",
-		(graph, selected) => singleWay(graph, selected) !== null,
+	inView(toolOperation("move", msg("operation_move"), "Shift+M", anything)),
+	inView(toolOperation("rotate", msg("operation_rotate"), "Shift+R", anything)),
+	inView(toolOperation("scale", msg("operation_scale"), "Shift+S", anything)),
+	inView(
+		toolOperation(
+			"side",
+			msg("operation_move_side"),
+			"E",
+			(graph, selected) => singleWay(graph, selected) !== null,
+		),
 	),
-	toolOperation(
-		"offset",
-		msg("operation_offset"),
-		"O",
-		(graph, selected) => singleWay(graph, selected) !== null,
+	inView(
+		toolOperation(
+			"offset",
+			msg("operation_offset"),
+			"O",
+			(graph, selected) => singleWay(graph, selected) !== null,
+		),
 	),
-	squareFrameOperation,
-	deleteOperation,
+	inView(squareFrameOperation),
+	inView(deleteOperation),
 ];

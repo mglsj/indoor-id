@@ -98,3 +98,90 @@ export const USE_COLORS = {
 		platform: "#46525a",
 	},
 } as const;
+
+/**
+ * How areas are filled while editing, as iD's Map Data pane: only their outlines, a band inside
+ * the outline (the default: imagery stays visible inside large areas), or the whole area.
+ */
+export type AreaFill = "wireframe" | "partial" | "full";
+
+export const AREA_FILLS: readonly AreaFill[] = ["wireframe", "partial", "full"];
+
+/** An area's outline colour and the colour of its fill or inner band, with its alpha. */
+export interface AreaPaint {
+	readonly stroke: string;
+	readonly fill: string;
+}
+
+/** The editor's colours, after iD's stylesheet (`css/25_areas.css`, `30_highways.css`…). */
+export interface EditColors {
+	readonly building: AreaPaint;
+	readonly room: AreaPaint;
+	readonly restricted: AreaPaint;
+	readonly space: AreaPaint;
+	readonly vertical: AreaPaint;
+	readonly column: AreaPaint;
+	readonly wall: AreaPaint;
+	/** Other areas, and indoor=level outlines: iD's default grey and white. */
+	readonly area: AreaPaint;
+	/** Walls drawn as lines (iD's barriers). */
+	readonly wallLine: string;
+	/** `highway=footway`, `path` and other walkable lines. */
+	readonly footway: string;
+	readonly corridor: string;
+	readonly steps: string;
+	/** Other lines: iD draws them white. */
+	readonly line: string;
+}
+
+/**
+ * On imagery and dark maps, iD's own colours: grey outlines with a white band for areas without
+ * a colour of their own (iD gives indoor features none), its building red, the pedestrian tan of
+ * platforms for open spaces, the green of steps for stairs and elevators.
+ */
+export const DARK_EDIT_COLORS: EditColors = {
+	building: { stroke: "rgb(224, 110, 95)", fill: "rgba(224, 110, 95, 0.3)" },
+	room: { stroke: "rgb(170, 170, 170)", fill: "rgba(255, 255, 255, 0.3)" },
+	restricted: {
+		stroke: "rgb(170, 170, 170)",
+		fill: "rgba(140, 140, 140, 0.5)",
+	},
+	space: { stroke: "rgb(221, 204, 170)", fill: "rgba(221, 204, 170, 0.3)" },
+	vertical: { stroke: "rgb(129, 210, 92)", fill: "rgba(129, 210, 92, 0.3)" },
+	column: { stroke: "rgb(170, 170, 170)", fill: "rgba(140, 140, 140, 0.5)" },
+	wall: { stroke: "rgb(221, 221, 221)", fill: "rgba(221, 221, 221, 0.5)" },
+	area: { stroke: "rgb(170, 170, 170)", fill: "rgba(255, 255, 255, 0.3)" },
+	wallLine: "rgb(221, 221, 221)",
+	footway: "rgb(153, 136, 136)",
+	corridor: "rgb(140, 208, 95)",
+	steps: "rgb(129, 210, 92)",
+	line: "rgb(255, 255, 255)",
+};
+
+/**
+ * The same hues on the light map, where iD's white bands and light outlines would vanish: greys
+ * and outlines darkened, bands a little stronger.
+ */
+export const LIGHT_EDIT_COLORS: EditColors = {
+	building: { stroke: "rgb(205, 85, 70)", fill: "rgba(224, 110, 95, 0.3)" },
+	room: { stroke: "rgb(125, 125, 125)", fill: "rgba(120, 120, 120, 0.22)" },
+	restricted: {
+		stroke: "rgb(110, 110, 110)",
+		fill: "rgba(90, 90, 90, 0.4)",
+	},
+	space: { stroke: "rgb(176, 150, 100)", fill: "rgba(200, 175, 125, 0.35)" },
+	vertical: { stroke: "rgb(80, 165, 45)", fill: "rgba(129, 210, 92, 0.4)" },
+	column: { stroke: "rgb(110, 110, 110)", fill: "rgba(90, 90, 90, 0.45)" },
+	wall: { stroke: "rgb(80, 80, 80)", fill: "rgba(80, 80, 80, 0.5)" },
+	area: { stroke: "rgb(140, 140, 140)", fill: "rgba(120, 120, 120, 0.18)" },
+	wallLine: "rgb(80, 80, 80)",
+	footway: "rgb(136, 110, 110)",
+	corridor: "rgb(95, 170, 50)",
+	steps: "rgb(80, 165, 45)",
+	line: "rgb(110, 110, 110)",
+};
+
+/** The editor's colours for a light or dark map. */
+export function editColors(theme: Theme): EditColors {
+	return theme === "dark" ? DARK_EDIT_COLORS : LIGHT_EDIT_COLORS;
+}

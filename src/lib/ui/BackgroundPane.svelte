@@ -7,19 +7,25 @@
 	import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 	import ArrowRight from "@lucide/svelte/icons/arrow-right";
 	import ArrowUp from "@lucide/svelte/icons/arrow-up";
+	import Move from "@lucide/svelte/icons/move";
 	import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 	import X from "@lucide/svelte/icons/x";
 	import { type Component, untrack } from "svelte";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
+	import { Checkbox } from "#lib/components/shadcn/checkbox/index.ts";
 	import * as Field from "#lib/components/shadcn/field/index.ts";
 	import { Input } from "#lib/components/shadcn/input/index.ts";
 	import * as RadioGroup from "#lib/components/shadcn/radio-group/index.ts";
-	import { msg, t } from "#lib/i18n/messages.ts";
+	import { Slider } from "#lib/components/shadcn/slider/index.ts";
+	import { formatCombo, isMac } from "#lib/edit/keys.ts";
+	import { type Message, msg, t } from "#lib/i18n/messages.ts";
 	import {
 		type BackgroundId,
 		customImagery,
 		ESRI_IMAGERY,
+		type ImageryDisplay,
 	} from "#lib/map/backgrounds.ts";
+	import type { AreaFill } from "#lib/map/style/colors.ts";
 	import {
 		type BackgroundSettings,
 		formatOffset,
@@ -28,10 +34,91 @@
 
 	interface Props {
 		settings: BackgroundSettings;
+		/** Whether the area fill is offered (the editor's; the viewer fills areas whole). */
+		showFill?: boolean;
+		/** Ground metres per screen pixel at the map's centre, for dragging the offset. */
+		metresPerPixel?: () => number;
 		onclose: () => void;
 	}
 
-	let { settings, onclose }: Props = $props();
+	let {
+		settings,
+		showFill = false,
+		metresPerPixel = () => 0,
+		onclose,
+	}: Props = $props();
+
+	const DISPLAY: {
+		name: keyof ImageryDisplay;
+		label: Message;
+		min: number;
+	}[] = [
+		{ name: "brightness", label: msg("imagery_brightness"), min: 0.25 },
+		{ name: "contrast", label: msg("imagery_contrast"), min: 0 },
+		{ name: "saturation", label: msg("imagery_saturation"), min: 0 },
+	];
+	const displayChanged = $derived(
+		DISPLAY.some(({ name }) => settings.display[name] !== 1),
+	);
+
+	/**
+	 * iD's drag to move the imagery: it follows a quarter of the pointer's moves, for fine
+	 * control. Moves are applied together every `DRAG_EVERY` ms: each one loads tiles again.
+	 */
+	const DRAG_SLOWDOWN = 4;
+	const DRAG_EVERY = 120;
+	let dragging: { id: number; x: number; y: number } | null = null;
+	let pending = { east: 0, north: 0 };
+	let flushTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function flushDrag() {
+		flushTimer = undefined;
+		if (pending.east === 0 && pending.north === 0) return;
+		offsetDraft = null;
+		settings.nudge(pending.east, pending.north);
+		pending = { east: 0, north: 0 };
+	}
+
+	function startDrag(event: PointerEvent) {
+		if (event.button !== 0 || !imageryShown) return;
+		dragging = { id: event.pointerId, x: event.clientX, y: event.clientY };
+		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		event.preventDefault();
+	}
+
+	function moveDrag(event: PointerEvent) {
+		if (!dragging || event.pointerId !== dragging.id) return;
+		const metres = metresPerPixel() / DRAG_SLOWDOWN;
+		pending.east += (event.clientX - dragging.x) * metres;
+		pending.north -= (event.clientY - dragging.y) * metres;
+		dragging = { ...dragging, x: event.clientX, y: event.clientY };
+		flushTimer ??= setTimeout(flushDrag, DRAG_EVERY);
+	}
+
+	function endDrag(event: PointerEvent) {
+		if (!dragging || event.pointerId !== dragging.id) return;
+		dragging = null;
+		clearTimeout(flushTimer);
+		flushDrag();
+	}
+
+	const FILLS: { fill: AreaFill; name: Message; hint: Message }[] = [
+		{
+			fill: "wireframe",
+			name: msg("area_fill_wireframe"),
+			hint: msg("area_fill_wireframe_hint"),
+		},
+		{
+			fill: "partial",
+			name: msg("area_fill_partial"),
+			hint: msg("area_fill_partial_hint"),
+		},
+		{
+			fill: "full",
+			name: msg("area_fill_full"),
+			hint: msg("area_fill_full_hint"),
+		},
+	];
 
 	/** Metres moved by a nudge button, and with Shift. */
 	const STEP = 0.5;
@@ -114,19 +201,27 @@
 	<div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-4">
 		<Field.Set>
 			<Field.Legend variant="label">{t(msg("background_choice"))}</Field.Legend>
+			{#if showFill}
+				<Field.Description>
+					{t(
+						msg("background_swap_hint", { key: formatCombo("Mod+B", isMac()) }),
+					)}
+				</Field.Description>
+			{/if}
 			<RadioGroup.Root
 				value={settings.id}
 				onValueChange={(id) => settings.choose(id as BackgroundId)}
 			>
 				{@render option(
+					"background",
 					"map",
 					t(msg("background_map")),
 					t(msg("background_map_hint")),
 				)}
 				{#each ESRI_IMAGERY as imagery (imagery.id)}
-					{@render option(imagery.id, imagery.name)}
+					{@render option("background", imagery.id, imagery.name)}
 				{/each}
-				{@render option("custom", t(msg("background_custom")))}
+				{@render option("background", "custom", t(msg("background_custom")))}
 			</RadioGroup.Root>
 			{#if settings.id === "custom"}
 				<Field.Field data-invalid={customInvalid || undefined}>
@@ -162,12 +257,65 @@
 		</Field.Set>
 
 		<Field.Set disabled={!imageryShown}>
+			<Field.Legend variant="label">{t(msg("imagery_display"))}</Field.Legend>
+			{#each DISPLAY as { name, label, min } (name)}
+				<Field.Field>
+					<div class="flex items-center justify-between">
+						<Field.Label for="imagery-{name}">{t(label)}</Field.Label>
+						<span class="text-sm text-muted-foreground tabular-nums"
+							>{Math.round(settings.display[name] * 100)}%</span
+						>
+					</div>
+					<Slider
+						id="imagery-{name}"
+						type="single"
+						{min}
+						max={2}
+						step={0.05}
+						disabled={!imageryShown}
+						value={settings.display[name]}
+						onValueChange={(value: number) => settings.setDisplay(name, value)}
+					/>
+				</Field.Field>
+			{/each}
+			<Button
+				variant="ghost"
+				size="sm"
+				class="self-end"
+				disabled={!imageryShown || !displayChanged}
+				onclick={() => {
+					for (const { name } of DISPLAY) settings.setDisplay(name, 1);
+				}}
+			>
+				<RotateCcw data-icon="inline-start" />
+				{t(msg("imagery_display_reset"))}
+			</Button>
+		</Field.Set>
+
+		<Field.Set disabled={!imageryShown}>
 			<Field.Legend variant="label">{t(msg("background_offset"))}</Field.Legend>
 			<Field.Description>
 				{imageryShown
 					? t(msg("background_offset_hint"))
 					: t(msg("background_offset_map"))}
 			</Field.Description>
+			<div
+				role="application"
+				aria-label={t(msg("background_offset_drag"))}
+				aria-disabled={!imageryShown}
+				data-testid="offset-drag"
+				class={[
+					"flex h-20 touch-none items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground select-none",
+					imageryShown ? "cursor-move bg-muted/50" : "opacity-50",
+				]}
+				onpointerdown={startDrag}
+				onpointermove={moveDrag}
+				onpointerup={endDrag}
+				onpointercancel={endDrag}
+			>
+				<Move class="mr-2 size-4" />
+				{t(msg("background_offset_drag"))}
+			</div>
 			<div class="flex items-center gap-1">
 				{#each NUDGES as nudge (nudge.key)}
 					{@const Icon = nudge.icon}
@@ -223,11 +371,40 @@
 				{/if}
 			</Field.Field>
 		</Field.Set>
+
+		{#if showFill}
+			<Field.Set>
+				<Field.Legend variant="label">{t(msg("area_fill"))}</Field.Legend>
+				<RadioGroup.Root
+					value={settings.areaFill}
+					onValueChange={(fill) => settings.setAreaFill(fill as AreaFill)}
+				>
+					{#each FILLS as { fill, name, hint } (fill)}
+						{@render option("area-fill", fill, t(name), t(hint))}
+					{/each}
+				</RadioGroup.Root>
+				<Field.Field orientation="horizontal">
+					<Checkbox
+						id="highlight-edits"
+						checked={settings.highlightEdits}
+						onCheckedChange={(on) => settings.setHighlightEdits(on === true)}
+					/>
+					<Field.Content>
+						<Field.Label for="highlight-edits" class="font-normal"
+							>{t(msg("highlight_edits"))}</Field.Label
+						>
+						<Field.Description
+							>{t(msg("highlight_edits_hint"))}</Field.Description
+						>
+					</Field.Content>
+				</Field.Field>
+			</Field.Set>
+		{/if}
 	</div>
 </aside>
 
-{#snippet option(value: BackgroundId, name: string, hint?: string)}
-	{@const id = `background-${value}`}
+{#snippet option(group: string, value: string, name: string, hint?: string)}
+	{@const id = `${group}-${value}`}
 	<Field.Field orientation="horizontal">
 		<RadioGroup.Item {value} {id} />
 		<Field.Content>

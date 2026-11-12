@@ -13,9 +13,10 @@
 	import type { EditorConfig } from "#lib/config.ts";
 	import { msg, t } from "#lib/i18n/messages.ts";
 	import type { FloorNumbering } from "#lib/levels/floor-numbering.ts";
-	import { setBackground } from "#lib/map/background.ts";
+	import { setBackground, setImageryDisplay } from "#lib/map/background.ts";
 	import { BASEMAP_STYLES, type Imagery } from "#lib/map/backgrounds.ts";
 	import { setBasemap } from "#lib/map/basemap.ts";
+	import { editedFeatures } from "#lib/map/edited.ts";
 	import {
 		formatHash,
 		parseHash,
@@ -25,6 +26,7 @@
 	import type { Map as MapLibreMap } from "#lib/map/maplibre.ts";
 	import type { Presentation } from "#lib/map/style/layers.ts";
 	import { visibleExtent } from "#lib/map/view.ts";
+	import { EARTH_RADIUS } from "#lib/osm/geometry.ts";
 	import { BackgroundSettings } from "#lib/state/background.svelte.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
 	import BackgroundPane from "#lib/ui/BackgroundPane.svelte";
@@ -43,6 +45,8 @@
 		map?: MapLibreMap;
 		/** The camera after the last move. */
 		camera?: Camera;
+		/** The background and area fill settings, for the editor's shortcuts. */
+		background?: BackgroundSettings;
 		/** The indoor features' layers on the map, once the map exists. */
 		indoor?: IndoorMap;
 		/** Pixels the left side covers (a side panel): the controls go right of it. */
@@ -71,6 +75,7 @@
 		map = $bindable(),
 		camera = $bindable(),
 		indoor = $bindable(),
+		background = $bindable(),
 		left = 0,
 		planTiles,
 		presentation = "edit",
@@ -83,7 +88,8 @@
 
 	const editor = getEditor();
 	let lastHash = "";
-	const background = new BackgroundSettings(browserStorage());
+	const settings = new BackgroundSettings(browserStorage());
+	background = settings;
 	/** The background pane, on the right of the map. */
 	let backgroundOpen = $state(false);
 	/** Its width in pixels (20rem). */
@@ -102,7 +108,16 @@
 			layers.setLook({
 				presentation,
 				theme,
+				fill: settings.areaFill,
 			}),
+		);
+		// iD's "Highlight changes", in the editor.
+		$effect(() =>
+			layers.setEdited(
+				presentation === "edit" && settings.highlightEdits
+					? editedFeatures(editor.graph)
+					: new Map(),
+			),
 		);
 		$effect(() => layers.setFeatures(editor.features));
 		$effect(() => layers.setLevel(level));
@@ -115,6 +130,16 @@
 			layers.remove();
 		};
 	});
+
+	/** Ground metres per CSS pixel at the map's centre (Web Mercator, 512 px tiles). */
+	function metresPerPixel(instance: MapLibreMap | undefined): number {
+		if (!instance) return 0;
+		const lat = (instance.getCenter().lat * Math.PI) / 180;
+		return (
+			(2 * Math.PI * EARTH_RADIUS * Math.cos(lat)) /
+			(512 * 2 ** instance.getZoom())
+		);
+	}
 
 	function browserStorage(): Storage | undefined {
 		try {
@@ -129,10 +154,13 @@
 		if (map) void setBasemap(map, BASEMAP_STYLES[theme]).catch(() => {});
 	});
 	$effect(() => {
-		if (map) void setBackground(map, background.imagery, background.offset);
+		if (map) void setBackground(map, settings.imagery, settings.offset);
 	});
 	$effect(() => {
-		onbackground?.(background.imagery);
+		if (map) setImageryDisplay(map, settings.display);
+	});
+	$effect(() => {
+		onbackground?.(settings.imagery);
 	});
 
 	/** The levels of the data in view, named, for the switcher; followed after each move. */
@@ -254,7 +282,9 @@
 		style:width="{PANE_WIDTH}px"
 	>
 		<BackgroundPane
-			settings={background}
+			{settings}
+			showFill={presentation === "edit"}
+			metresPerPixel={() => metresPerPixel(map)}
 			onclose={() => (backgroundOpen = false)}
 		/>
 	</div>

@@ -263,3 +263,40 @@ function bbox(z: number, x: number, y: number): number[] {
 	const north = world / 2 - y * size;
 	return [west, north - size, west + size, north];
 }
+
+/**
+ * How imagery is displayed, as iD's imagery display options: 1 is as served. Brightness from
+ * 0.25 to 2, contrast and saturation from 0 to 2.
+ */
+export interface ImageryDisplay {
+	readonly brightness: number;
+	readonly contrast: number;
+	readonly saturation: number;
+}
+
+export const PLAIN_DISPLAY: ImageryDisplay = {
+	brightness: 1,
+	contrast: 1,
+	saturation: 1,
+};
+
+/** MapLibre's raster paint for a display: brightness narrows or lifts the range of values. */
+export function displayPaint({
+	brightness,
+	contrast,
+	saturation,
+}: ImageryDisplay): {
+	"raster-brightness-min": number;
+	"raster-brightness-max": number;
+	"raster-contrast": number;
+	"raster-saturation": number;
+} {
+	const clamp = (value: number) => Math.max(-1, Math.min(1, value));
+	return {
+		"raster-brightness-min": Math.min(1, Math.max(0, brightness - 1)),
+		"raster-brightness-max": Math.min(1, brightness),
+		// MapLibre's contrast and saturation go from -1 to 1, 0 leaving the imagery as it is.
+		"raster-contrast": clamp(contrast - 1),
+		"raster-saturation": clamp(saturation - 1),
+	};
+}

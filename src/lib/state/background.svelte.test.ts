@@ -21,6 +21,57 @@ function storage(items: Record<string, string> = {}): Storage {
 }
 
 describe("BackgroundSettings", () => {
+	it("fills areas partly at first, and keeps the fill chosen", () => {
+		const saved = storage();
+		const settings = new BackgroundSettings(saved);
+		expect(settings.areaFill).toBe("partial");
+		settings.setAreaFill("full");
+		expect(new BackgroundSettings(saved).areaFill).toBe("full");
+		expect(
+			new BackgroundSettings(storage({ "indoorid.area-fill": "dotted" }))
+				.areaFill,
+		).toBe("partial");
+	});
+
+	it("swaps back to the background shown before (iD's Mod+B)", () => {
+		const settings = new BackgroundSettings(storage());
+		settings.swapPrevious();
+		expect(settings.id).toBe("map");
+		settings.choose("esri");
+		settings.swapPrevious();
+		expect(settings.id).toBe("map");
+		settings.swapPrevious();
+		expect(settings.id).toBe("esri");
+	});
+
+	it("keeps whether edits are highlighted, off at first", () => {
+		const saved = storage();
+		const settings = new BackgroundSettings(saved);
+		expect(settings.highlightEdits).toBe(false);
+		settings.setHighlightEdits(true);
+		expect(new BackgroundSettings(saved).highlightEdits).toBe(true);
+	});
+
+	it("keeps the imagery's display values in range", () => {
+		const settings = new BackgroundSettings(storage());
+		settings.setDisplay("brightness", 0.1);
+		settings.setDisplay("contrast", 3);
+		expect(settings.display).toEqual({
+			brightness: 0.25,
+			contrast: 2,
+			saturation: 1,
+		});
+	});
+
+	it("toggles the wireframe and back to the fill shown before (iD's W)", () => {
+		const settings = new BackgroundSettings(storage());
+		settings.setAreaFill("full");
+		settings.toggleWireframe();
+		expect(settings.areaFill).toBe("wireframe");
+		settings.toggleWireframe();
+		expect(settings.areaFill).toBe("full");
+	});
+
 	it("shows the map alone at first", () => {
 		const settings = new BackgroundSettings(storage());
 		expect(settings.id).toBe("map");

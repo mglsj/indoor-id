@@ -9,28 +9,43 @@ import { type Slot, slotId, slotsReady } from "./layer-slots.ts";
 import type {
 	FilterSpecification,
 	GeoJSONSource,
+	MapGeoJSONFeature,
 	Map as MapLibreMap,
 } from "./maplibre.ts";
-import type { Theme } from "./style/colors.ts";
+import type { AreaFill, Theme } from "./style/colors.ts";
 import { loadIconsOnDemand } from "./style/icons.ts";
 import {
+	EDITED_LINE_LAYER,
+	type EditKind,
+	FILL_BAND_LAYER,
 	INDOOR_SOURCE,
 	indoorLayers,
 	type Presentation,
-	SELECTABLE_LAYER_IDS,
+	selectableLayers,
 } from "./style/layers.ts";
 
-/** How the indoor layers look: for editing or viewing, on a light or dark map. */
+/**
+ * How the indoor layers look: for editing or viewing, on a light or dark map, with areas filled
+ * partly (iD's default), whole or not at all while editing.
+ */
 export interface IndoorLook {
 	readonly presentation: Presentation;
 	readonly theme: Theme;
+	readonly fill?: AreaFill;
 }
+
+/** The labels' layer: an area's label doesn't pick the area unless areas are filled whole. */
+const LABELS_LAYER = "indoor-labels";
+/** How far around the pointer labels are hidden, in pixels. */
+const LABEL_CLEARANCE = 30;
 
 /** The slot of each indoor layer: fills under floor plans, outlines and lines over them,
  * doors, labels and the selection over the basemap's labels. */
 const SLOTS: Record<string, Slot> = {
 	"indoor-fill": "indoor-fill",
+	[FILL_BAND_LAYER]: "indoor-fill",
 	"indoor-outline": "indoor-lines",
+	[EDITED_LINE_LAYER]: "indoor-lines",
 	"indoor-lines": "indoor-lines",
 	"indoor-rails-left": "indoor-lines",
 	"indoor-rails-right": "indoor-lines",
@@ -62,6 +77,10 @@ export class IndoorMap {
 	#planMode = false;
 	#buildingsVisible = true;
 	#look: IndoorLook = { presentation: "edit", theme: "light" };
+	/** How features were edited, as the feature state `edited`. */
+	#edited: ReadonlyMap<string, EditKind> = new Map();
+	/** Labels hidden near the pointer. */
+	#nearPointer = new Set<string>();
 	/** Rooms' uses (V.3), as the feature state `use`. */
 	#uses: ReadonlyMap<string, string> = new Map();
 
@@ -111,7 +130,8 @@ export class IndoorMap {
 	setLook(look: IndoorLook): void {
 		if (
 			look.presentation === this.#look.presentation &&
-			look.theme === this.#look.theme
+			look.theme === this.#look.theme &&
+			look.fill === this.#look.fill
 		) {
 			return;
 		}
@@ -176,6 +196,72 @@ export class IndoorMap {
 		}
 	}
 
+	/** Highlights edited features (iD's "Highlight changes"): how each was edited, by `@id`. */
+	setEdited(edited: ReadonlyMap<string, EditKind>): void {
+		const before = this.#edited;
+		this.#edited = edited;
+		if (!this.#ready) return;
+		this.#applyEdited(before, edited);
+	}
+
+	#applyEdited(
+		before: ReadonlyMap<string, EditKind>,
+		after: ReadonlyMap<string, EditKind>,
+	): void {
+		for (const id of before.keys()) {
+			if (!after.has(id)) {
+				this.#map.setFeatureState(
+					{ source: INDOOR_SOURCE, id },
+					{ edited: null },
+				);
+			}
+		}
+		for (const [id, kind] of after) {
+			if (before.get(id) !== kind) {
+				this.#map.setFeatureState(
+					{ source: INDOOR_SOURCE, id },
+					{ edited: kind },
+				);
+			}
+		}
+	}
+
+	/**
+	 * Hides the labels around the pointer (iD), to see what they cover; null shows them all.
+	 * Labels within `LABEL_CLEARANCE` pixels of it are hidden.
+	 */
+	hideLabelsNear(point: { x: number; y: number } | null): void {
+		if (!this.#ready) return;
+		const near = new Set<string>();
+		if (point) {
+			for (const f of this.#map.queryRenderedFeatures(
+				[
+					[point.x - LABEL_CLEARANCE, point.y - LABEL_CLEARANCE],
+					[point.x + LABEL_CLEARANCE, point.y + LABEL_CLEARANCE],
+				],
+				{ layers: [LABELS_LAYER] },
+			)) {
+				const id = f.properties["@id"];
+				if (typeof id === "string") near.add(id);
+			}
+		}
+		for (const id of this.#nearPointer) {
+			if (!near.has(id))
+				this.#map.setFeatureState(
+					{ source: INDOOR_SOURCE, id },
+					{ nearPointer: false },
+				);
+		}
+		for (const id of near) {
+			if (!this.#nearPointer.has(id))
+				this.#map.setFeatureState(
+					{ source: INDOOR_SOURCE, id },
+					{ nearPointer: true },
+				);
+		}
+		this.#nearPointer = near;
+	}
+
 	/** Outlines the selected features, by `@id`. */
 	setSelected(ids: readonly string[]): void {
 		this.#selected = this.#mark("selected", this.#selected, ids);
@@ -226,9 +312,29 @@ export class IndoorMap {
 		return () => this.#map.off("idle", onIdle);
 	}
 
-	/** The `@id` of the feature drawn at a screen point, topmost first, or null. */
+	/**
+	 * The `@id` of the feature drawn at a screen point, topmost first, or null. Unless areas
+	 * are filled whole, an area is found by its band or outline only (iD), not by a point
+	 * inside it or its label: working inside a large area doesn't select it.
+	 */
 	hitTest(point: { x: number; y: number }): string | null {
-		return this.#hit(point, SELECTABLE_LAYER_IDS);
+		const fill = this.#fill();
+		return this.#hit(
+			point,
+			selectableLayers(fill),
+			fill === "full"
+				? undefined
+				: (feature) =>
+						feature.layer.id !== LABELS_LAYER ||
+						feature.geometry.type === "Point",
+		);
+	}
+
+	/** The fill clicks follow: the viewer's areas are filled whole. */
+	#fill(): AreaFill {
+		return this.#look.presentation === "view"
+			? "full"
+			: (this.#look.fill ?? "partial");
 	}
 
 	/** The `@id` of the area whose outline is drawn at a screen point, or null. */
@@ -236,7 +342,11 @@ export class IndoorMap {
 		return this.#hit(point, [OUTLINE_LAYER]);
 	}
 
-	#hit(point: { x: number; y: number }, layers: string[]): string | null {
+	#hit(
+		point: { x: number; y: number },
+		layers: string[],
+		keep?: (feature: MapGeoJSONFeature) => boolean,
+	): string | null {
 		if (!this.#ready) return null;
 		const features = this.#map.queryRenderedFeatures(
 			[
@@ -245,7 +355,8 @@ export class IndoorMap {
 			],
 			{ layers },
 		);
-		const id = features[0]?.properties["@id"];
+		const hit = keep ? features.find(keep) : features[0];
+		const id = hit?.properties["@id"];
 		return typeof id === "string" ? id : null;
 	}
 
@@ -298,6 +409,7 @@ export class IndoorMap {
 		for (const [id, use] of this.#uses) {
 			map.setFeatureState({ source: INDOOR_SOURCE, id }, { use });
 		}
+		this.#applyEdited(new Map(), this.#edited);
 		this.#mark("selected", [], this.#selected);
 		this.#mark("hover", [], this.#hover);
 	}
