@@ -14,8 +14,9 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
    one-click upgrades of deprecated tags.
 4. **Safe uploads.** What gets uploaded is exactly what the user edited, sent in one atomic
    changeset.
-5. **A viewer too.** Browse indoor data level by level, in 2D or as 3D floors, without an
-   account (after geometry editing; see "Research and audit" in [docs/history.md](docs/history.md)).
+5. **A viewer too.** Browse indoor data level by level in 2D, without an account (see
+   "Research and audit" in [docs/history.md](docs/history.md)). 3D floors are a later goal
+   (see "Later: 3D").
 
 ## Status
 
@@ -44,10 +45,10 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | T      | One theme, background pane                 | Done         |
 | C      | CAD-style precision (C.0–C.6)              | C.0–C.6 done |
 | I      | iD's area fill, colours and safeguards     | Done         |
-| 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started  |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
 | P6     | Parity and polish                          | Not started  |
+| 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
 
@@ -127,6 +128,11 @@ map (R5), then autosave before the viewer and 3D (decided ✔: since P5.3 a user
 floor in one session, and a crash or reload loses it all), then V, 3D, the rest of P5.4 and P6.
 Each slice still agrees its test seams first. New UI text in V and 3D uses `msg()` from the
 start (about 130 English strings in components wait for P6).
+
+Revised 2026-11-12 with the user ✔: all 3D work moves to "Later: 3D" at the end of the roadmap.
+The near-term roadmap is a good 2D editing and viewing experience: P5.4b (safe uploads), W2
+(validation), P6 (parity and polish), then 0.1 alpha. 3D starts only after those, when the user
+says so.
 
 ### R4: Fixes after P5.3 — S — done
 
@@ -276,9 +282,9 @@ overlaps). They sit in `ui/BackgroundPane.svelte`, a pane on the right of the ma
 `state/background.svelte.ts` keeps the choice, the custom URL and each imagery's offset in
 localStorage. `basemap_style`, `basemap_style_dark` and `imagery_index_url` left the config.
 
-Dropped: the temporary "view in 3D" link to osm-simple3d-editor, since 3D.1 follows V. Routing
+Dropped: the temporary "view in 3D" link to osm-simple3d-editor (3D is now later). Routing
 (a graph from `highway=footway`/`corridor`, doors, stairs and elevators with their levels;
-Dijkstra on a heap) comes after 3D, as its own step.
+Dijkstra on a heap) is later too, as its own step after the 2D roadmap.
 
 ### C: CAD-style precision — L (C.0–C.6)
 
@@ -491,9 +497,97 @@ step; the frame and grid per building, automatic with an override; typed values 
 field; a units setting (metric or imperial); all of C.0 to C.6; keys chosen here (`S` snapping,
 `4` rectangle, `G` grid, `M` measure).
 
+### P5.4b: Rebase before upload, conflicts — M–L
+
+Next, after C and I (3D moved later on 2026-11-12). Autosave, P5.4's first step, moved to P5.4a; steps 2 to 4 stay here.
+
+2. Rebase before upload, first (osm-simple3d-editor does only this, and conflicts become
+   rare): fetch the current versions of edited entities, reapply tag edits where the server
+   changed other keys, merge relation members; a real clash falls through to step 3.
+3. Conflicts (iD's `actions/merge_remote_changes` as the model): the server's newer versions kept next to the base; `OsmApi.loadEntities(ids)`;
+   `MapLoader.invalidate(area)`; 409, 410 and 412 bodies parsed into entity ids; versions
+   taken from the base when uploading; a conflict dialog (keep mine, take theirs, per entity).
+4. After upload, uploaded entities take the uploader and the time.
+
+Also: never delete a way that is still a member of a relation outside the edit (a split left a
+footway multipolygon unclosed in osm-simple3d-editor, `541cbc4`, `12ac4fd`); `delete.ts`
+checks loaded parents, and the rebase should check the relations it fetches too.
+
+Also: read the OSM API with `cache: "no-store"`, so the browser can't hand back an older
+version of an entity (osm-simple3d-editor issue #47), and warn when restored edits are based on
+versions older than the server's.
+
+### W2: Wiki conformance from the November research — S–M
+
+Proposed 2026-11-05 (from the osm-simple3d-editor research addendum); after P5.4b. Checks that
+only matter in 3D (escalator slopes against level heights) wait for 3D.3:
+
+- Escalators: both end levels in `level`, `incline=up|down`, two-point lines only, slope 15–38°
+  on the inclined part (stairs 20–45°), each end inside a room, corridor or level outline of
+  its level; say when level heights are estimates.
+- Stairs and escalators with `level` over three or more levels: warn, with a fix that splits
+  them into pairs of adjacent levels.
+- `room=reception` wants `amenity=reception_desk`, `room=dressing` wants
+  `amenity=dressing_room`. Check the wiki before treating `room=service|technical` as
+  outdated (osm-simple3d-editor maps them to `room=utility`; iD doesn't).
+- Doors on an `indoor=wall` area: the approved
+  [proposal](https://wiki.openstreetmap.org/wiki/Proposal:Allow_area%3Dyes_for_indoor%3Dwall)
+  allows them when the door is also on a room's outline. Reword `issue_door_on_wall_area` to
+  say so; still flag, don't cut the wall. Add a test that a closed `indoor=wall` without
+  `area=yes` stays a line.
+- Keep the `building:part` + `indoor` warning (the forum agrees), but draw such a feature on its
+  level as indoor.
+- Degenerate rings: also require the ring to be narrow for its size, so small posts aren't
+  flagged.
+
+Added 2026-11-11 (research addendum B, the forum and osm-simple3d-editor up to `02c2bfd`):
+
+- An `indoor=level` outline much smaller than the building at that level: warn, since 3D shows
+  the rest as a hole (forum #114).
+- `indoor=room|area` + `room=column`: fix to `indoor=column`.
+- `railway=platform` inside a building without `level`: warn, fix `level=0`.
+- An `entrance=*` inside the building, not on its level's outer wall: warn.
+- Duplicate nodes (same spot, not joined): warn with a merge fix, so no tool regresses the
+  way osm-simple3d-editor's "Merge into building" did (forum #139).
+- Features on different levels sharing a node: a hint at most, never an error (bridges and
+  skybridges do it on purpose; iD wishlist thread t/148649).
+
+### P6: Parity and polish — M
+
+- Translations with Paraglide (one module per locale), starting from OsmInEdit's (en, fr, de,
+  it, hu, cs, es); preset and field names from the schema; plurals and dates from `Intl`.
+- Shortcuts help (from the keymap), help pages, indoor= preview (origin-checked
+  `postMessage`), README and usage docs.
+- Reach: userscripts adding "Open in IndoorID" to openstreetmap.org, OSMCha and indoor= (as
+  osm-simple3d-editor does); a read-only `?source=josm` that reads JOSM's active layer,
+  unsaved edits included, from Remote Control `GET http://127.0.0.1:8111/export` (JOSM
+  r19425+, "Export data" permission), upload disabled.
+- Left over from P5.3: a right-click operations menu; the read-only hover preview in the
+  Inspector (tried, dropped because the side panel opened and closed as the pointer crossed
+  features); validation in idle time.
+- Left over from geometry editing (from osm-simple3d-editor): a multipolygon left with one
+  outer way and no holes becomes a tagged way again on upload; tracing along existing
+  outlines; removing a way's last vertices deletes the way.
+- Floor plan import: say in the dialog that tracing a plan needs its owner's permission
+  (OSM's copyright rules; Fotoshi, t/148767 #145, allows looking at plan photos but not tracing
+  or overlaying them).
+- "Cut out of the level outline" (osm-simple3d-editor `6e898c1`): a quick way to draw the
+  atrium holes 3D.3 reads. Offset with its inner-ring mode (`76eadf2`) moved to C.6.
+- Release 0.1 alpha: an e2e checklist of the features it ships with, and an announcement as a
+  new editor. As of 2026-11-11 nobody on the OSM forum has discussed IndoorID; announcing it
+  could come as early as V.
+
+## Later: 3D
+
+Not scheduled (moved here 2026-11-12 ✔): the user wants a good 2D editor and viewer first. Start
+only when the user asks; re-check the forum's `ceiling=no` discussion and osm-simple3d-editor's
+newer commits first. Until then, 2D work shouldn't build for 3D ahead of time, but should keep
+what it reads (levels as ranges, `height`, `building:levels`) unchanged so 3D.3 can use it.
+
 ### 3D: 3D floors — M (3D.1), M (3D.3), M–L (3D.2)
 
-After V and C (decided ✔; C moved before 3D on 2026-11-11). Order: 3D.1, then 3D.3 (level heights, pure), then 3D.2, whose
+Planned before 2026-11-12, kept as written for when 3D starts (after V and C, decided ✔; then
+moved after the 2D roadmap on 2026-11-12 ✔). Order: 3D.1, then 3D.3 (level heights, pure), then 3D.2, whose
 stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs none (agreed
 2026-10-29 ✔).
 
@@ -564,86 +658,7 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
    5,000-line layer with its own picking. Stay on fill-extrusion; revisit a custom layer
    (we already have one for vector plans) only if users ask for those details.
 
-### P5.4b: Rebase before upload, conflicts — M–L
-
-After 3D. Autosave, P5.4's first step, moved to P5.4a; steps 2 to 4 stay here.
-
-2. Rebase before upload, first (osm-simple3d-editor does only this, and conflicts become
-   rare): fetch the current versions of edited entities, reapply tag edits where the server
-   changed other keys, merge relation members; a real clash falls through to step 3.
-3. Conflicts (iD's `actions/merge_remote_changes` as the model): the server's newer versions kept next to the base; `OsmApi.loadEntities(ids)`;
-   `MapLoader.invalidate(area)`; 409, 410 and 412 bodies parsed into entity ids; versions
-   taken from the base when uploading; a conflict dialog (keep mine, take theirs, per entity).
-4. After upload, uploaded entities take the uploader and the time.
-
-Also: never delete a way that is still a member of a relation outside the edit (a split left a
-footway multipolygon unclosed in osm-simple3d-editor, `541cbc4`, `12ac4fd`); `delete.ts`
-checks loaded parents, and the rebase should check the relations it fetches too.
-
-Also: read the OSM API with `cache: "no-store"`, so the browser can't hand back an older
-version of an entity (osm-simple3d-editor issue #47), and warn when restored edits are based on
-versions older than the server's.
-
-### W2: Wiki conformance from the November research — S–M
-
-Proposed 2026-11-05, not yet scheduled (from the osm-simple3d-editor research addendum):
-
-- Escalators: both end levels in `level`, `incline=up|down`, two-point lines only, slope 15–38°
-  on the inclined part (stairs 20–45°), each end inside a room, corridor or level outline of
-  its level; say when level heights are estimates.
-- Stairs and escalators with `level` over three or more levels: warn, with a fix that splits
-  them into pairs of adjacent levels.
-- `room=reception` wants `amenity=reception_desk`, `room=dressing` wants
-  `amenity=dressing_room`. Check the wiki before treating `room=service|technical` as
-  outdated (osm-simple3d-editor maps them to `room=utility`; iD doesn't).
-- Doors on an `indoor=wall` area: the approved
-  [proposal](https://wiki.openstreetmap.org/wiki/Proposal:Allow_area%3Dyes_for_indoor%3Dwall)
-  allows them when the door is also on a room's outline. Reword `issue_door_on_wall_area` to
-  say so; still flag, don't cut the wall. Add a test that a closed `indoor=wall` without
-  `area=yes` stays a line.
-- Keep the `building:part` + `indoor` warning (the forum agrees), but draw such a feature on its
-  level as indoor.
-- Degenerate rings: also require the ring to be narrow for its size, so small posts aren't
-  flagged.
-
-Added 2026-11-11 (research addendum B, the forum and osm-simple3d-editor up to `02c2bfd`):
-
-- An `indoor=level` outline much smaller than the building at that level: warn, since 3D shows
-  the rest as a hole (forum #114).
-- `indoor=room|area` + `room=column`: fix to `indoor=column`.
-- `railway=platform` inside a building without `level`: warn, fix `level=0`.
-- An `entrance=*` inside the building, not on its level's outer wall: warn.
-- Duplicate nodes (same spot, not joined): warn with a merge fix, so no tool regresses the
-  way osm-simple3d-editor's "Merge into building" did (forum #139).
-- Features on different levels sharing a node: a hint at most, never an error (bridges and
-  skybridges do it on purpose; iD wishlist thread t/148649).
-
-### P6: Parity and polish — M
-
-- Translations with Paraglide (one module per locale), starting from OsmInEdit's (en, fr, de,
-  it, hu, cs, es); preset and field names from the schema; plurals and dates from `Intl`.
-- Shortcuts help (from the keymap), help pages, indoor= preview (origin-checked
-  `postMessage`), README and usage docs.
-- Reach: userscripts adding "Open in IndoorID" to openstreetmap.org, OSMCha and indoor= (as
-  osm-simple3d-editor does); a read-only `?source=josm` that reads JOSM's active layer,
-  unsaved edits included, from Remote Control `GET http://127.0.0.1:8111/export` (JOSM
-  r19425+, "Export data" permission), upload disabled.
-- Left over from P5.3: a right-click operations menu; the read-only hover preview in the
-  Inspector (tried, dropped because the side panel opened and closed as the pointer crossed
-  features); validation in idle time.
-- Left over from geometry editing (from osm-simple3d-editor): a multipolygon left with one
-  outer way and no holes becomes a tagged way again on upload; tracing along existing
-  outlines; removing a way's last vertices deletes the way.
-- Floor plan import: say in the dialog that tracing a plan needs its owner's permission
-  (OSM's copyright rules; Fotoshi, t/148767 #145, allows looking at plan photos but not tracing
-  or overlaying them).
-- "Cut out of the level outline" (osm-simple3d-editor `6e898c1`): a quick way to draw the
-  atrium holes 3D.3 reads. Offset with its inner-ring mode (`76eadf2`) moved to C.6.
-- Release 0.1 alpha: an e2e checklist of the features it ships with, and an announcement as a
-  new editor. As of 2026-11-11 nobody on the OSM forum has discussed IndoorID; announcing it
-  could come as early as V.
-
-### Decisions taken with the user ✔
+## Decisions taken with the user ✔
 
 - The order above: R0, R1 and R2 now; vector plans (P4.2) before geometry editing (P5.3).
 - A custom WebGL layer rather than deck.gl (`@deck.gl/maplibre` supports MapLibre 6, but its
@@ -661,6 +676,8 @@ Added 2026-11-11 (research addendum B, the forum and osm-simple3d-editor up to `
   `LICENSE.md`, which keeps its ISC notice for the icons and help images that came from it.
 - 2026-11-11: CAD-style precision (C, C.0 to C.6) comes before 3D, with the defaults in its
   section.
+- 2026-11-12: all 3D (3D.1, 3D.2, 3D.3) moves to "Later: 3D". The near-term roadmap is 2D
+  editing and viewing: P5.4b, W2, P6 and the 0.1 alpha release.
 - 2026-11-11: before V, the plan takes in the forum recheck and osm-simple3d-editor's commits
   to `02c2bfd` (research addendum B), and the license notices are completed (LN below).
 
