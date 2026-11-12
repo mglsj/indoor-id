@@ -1,15 +1,23 @@
 <script lang="ts">
+	import ArrowRightFromLine from "@lucide/svelte/icons/arrow-right-from-line";
 	import ClipboardPaste from "@lucide/svelte/icons/clipboard-paste";
 	import Combine from "@lucide/svelte/icons/combine";
 	import Copy from "@lucide/svelte/icons/copy";
 	import FileImage from "@lucide/svelte/icons/file-image";
+	import Grid2x2Check from "@lucide/svelte/icons/grid-2x2-check";
 	import Layers2 from "@lucide/svelte/icons/layers-2";
 	import MapPin from "@lucide/svelte/icons/map-pin";
+	import Move from "@lucide/svelte/icons/move";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
+	import RectangleHorizontal from "@lucide/svelte/icons/rectangle-horizontal";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
+	import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+	import Ruler from "@lucide/svelte/icons/ruler";
+	import Scaling from "@lucide/svelte/icons/scaling";
 	import Scissors from "@lucide/svelte/icons/scissors";
 	import Spline from "@lucide/svelte/icons/spline";
 	import Square from "@lucide/svelte/icons/square";
+	import SquareSquare from "@lucide/svelte/icons/square-square";
 	import SquaresSubtract from "@lucide/svelte/icons/squares-subtract";
 	import Trash from "@lucide/svelte/icons/trash";
 	import Undo2 from "@lucide/svelte/icons/undo-2";
@@ -19,6 +27,7 @@
 	import { innerWidth } from "svelte/reactivity/window";
 	import type { Clipboard } from "#lib/actions/copy.ts";
 	import { splitAreas, splitTargets } from "#lib/actions/split-areas.ts";
+	import { translateNodes } from "#lib/actions/transform.ts";
 	import { OsmApi } from "#lib/api/osm-api.ts";
 	import { OsmWikibase } from "#lib/api/osm-wikibase.ts";
 	import { RecentUploads } from "#lib/api/recent-uploads.ts";
@@ -29,7 +38,7 @@
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
-	import { featureDrag } from "#lib/edit/feature-drag.ts";
+	import { featureDrag, nodesOf } from "#lib/edit/feature-drag.ts";
 	import {
 		formatCombo,
 		isForMap,
@@ -50,7 +59,17 @@
 		floorPlanMode,
 		floorPlanToolMode,
 	} from "#lib/edit/modes/floorplan.ts";
+	import { type FramePick, framePickMode } from "#lib/edit/modes/frame-pick.ts";
+	import { type MeasureVariant, measureMode } from "#lib/edit/modes/measure.ts";
+	import {
+		drawRectangleMode,
+		type RectangleVariant,
+	} from "#lib/edit/modes/rectangle.ts";
 	import { splitMode } from "#lib/edit/modes/split.ts";
+	import {
+		type TransformTool,
+		transformMode,
+	} from "#lib/edit/modes/transform.ts";
 	import { type NodeGrab, nodeDrag } from "#lib/edit/node-drag.ts";
 	import {
 		OPERATIONS,
@@ -62,19 +81,25 @@
 		floorFeature,
 		overlayFeatures,
 	} from "#lib/edit/overlay.ts";
-	import type { Feedback } from "#lib/edit/precision/feedback.ts";
 	import {
+		type Feedback,
+		inferenceLabel,
+	} from "#lib/edit/precision/feedback.ts";
+	import {
+		bearingOf,
 		type Frame,
+		foldAngle,
 		northFrame,
-		outlineFrame,
 	} from "#lib/edit/precision/frame.ts";
+	import { drawnSpacing, gridLines } from "#lib/edit/precision/grid.ts";
+	import { Inferences } from "#lib/edit/precision/inference.ts";
 	import {
 		areaAround,
 		LINE_PIXELS,
 		type SnapTarget,
 		snapAt,
 	} from "#lib/edit/precision/snap.ts";
-	import { containerAt, unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
+	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
 	import { workerCodec } from "#lib/floorplans/codec.ts";
 	import {
@@ -86,6 +111,7 @@
 	import { planDecoders } from "#lib/floorplans/import.ts";
 	import { type Message, msg, t } from "#lib/i18n/messages.ts";
 	import type { Imagery } from "#lib/map/backgrounds.ts";
+	import { ConstructionLayer } from "#lib/map/construction-layer.ts";
 	import { EditOverlay } from "#lib/map/edit-overlay.ts";
 	import type { Segment } from "#lib/map/feature-store.ts";
 	import {
@@ -94,6 +120,7 @@
 		planFrames,
 		toolFeatures,
 	} from "#lib/map/floorplan-layers.ts";
+	import { GridLayer } from "#lib/map/grid-layer.ts";
 	import { GuideLayer } from "#lib/map/guide-layer.ts";
 	import { parseHash, type MapView as View } from "#lib/map/hash.ts";
 	import type { IndoorMap } from "#lib/map/indoor-map.ts";
@@ -108,7 +135,7 @@
 		unprojectPoint as unproject_,
 	} from "#lib/map/view.ts";
 	import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
-	import { extentOf, extentsIntersect } from "#lib/osm/geometry.ts";
+	import { extentOf, extentsIntersect, fromLocal } from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
 	import { Autosave } from "#lib/persist/autosave.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
@@ -120,7 +147,10 @@
 		isPlanOnLevel,
 		type View as PlanView,
 	} from "#lib/state/floorplans.svelte.ts";
+	import { type BuildingFrame, Frames } from "#lib/state/frames.svelte.ts";
+	import { Guides } from "#lib/state/guides.svelte.ts";
 	import {
+		INFERENCE_OPTIONS,
 		PrecisionSettings,
 		setPrecision,
 	} from "#lib/state/precision.svelte.ts";
@@ -141,7 +171,7 @@
 	import RepeatDialog from "#lib/ui/RepeatDialog.svelte";
 	import RestoreDialog from "#lib/ui/RestoreDialog.svelte";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
-	import SnapMenu from "#lib/ui/SnapMenu.svelte";
+	import SnapMenu, { type FrameControls } from "#lib/ui/SnapMenu.svelte";
 	import UnsavedPlanDialog from "#lib/ui/UnsavedPlanDialog.svelte";
 	import { resolve } from "$app/paths";
 
@@ -203,16 +233,15 @@
 	/** What the pointer snapped to and the lengths shown while drawing or dragging. */
 	let feedback = $state.raw<Feedback | null>(null);
 	const showFeedback = (shown: Feedback | null) => (feedback = shown);
+	/** Sides and corners armed by resting the pointer on them while drawing (C.4). */
+	const inferences = new Inferences();
 
 	/** The drawing frame at a position: its level outline's or building's, else north. */
 	function frameAt(loc: Loc): Frame {
-		const container = containerAt(
-			[...editor.features.byId.values()],
-			loc,
-			level,
+		return (
+			frames.at([...editor.features.byId.values()], loc, level)?.frame ??
+			northFrame(loc)
 		);
-		const ring = container?.polygons.find((p) => p[0])?.[0];
-		return (ring && outlineFrame(ring)) ?? northFrame(loc);
 	}
 
 	// Edits are saved in this browser as they are made, and offered back on start.
@@ -250,11 +279,89 @@
 	/** The plan worker, started the first time a plan is imported or loaded. */
 	const codec = workerCodec();
 	const decoders = planDecoders(codec);
-	const floorplans = new FloorPlans({
-		store: new IndexedDbPlanStore(),
-		codec,
-	});
+	const planStore = new IndexedDbPlanStore();
+	const floorplans = new FloorPlans({ store: planStore, codec });
 	void floorplans.restore();
+	/** Drawing frames set per building (C.3), kept with the floor plans. */
+	const frames = new Frames(planStore);
+	void frames.load();
+	/** Construction guides placed with the measure tool (C.5), kept with the floor plans. */
+	const construction = new Guides(planStore);
+	void construction.load();
+
+	/** The snapping menu is open: the frame in view is worked out for it. */
+	let snapMenuOpen = $state(false);
+	/** Setting the frame on the map: aligning it to a side, or moving its origin. */
+	let framePick = $state<FramePick | null>(null);
+
+	/**
+	 * The frame of the building in the middle of the map, or of the selected feature's (C.3),
+	 * while the grid or the snapping menu needs it.
+	 */
+	const viewFrame = $derived.by((): BuildingFrame | null => {
+		if (!camera || !(precision.grid || snapMenuOpen || framePick)) return null;
+		const selected = editor.selection.single;
+		const extent = selected ? entityExtent(editor.graph, selected) : null;
+		const at: Loc = extent
+			? [(extent.west + extent.east) / 2, (extent.south + extent.north) / 2]
+			: [camera.lon, camera.lat];
+		void frames.version;
+		return untrack(() =>
+			frames.at([...editor.features.byId.values()], at, level),
+		);
+	});
+	/** The grid's frame: the building's, else north from a round spot near the middle. */
+	const gridFrame = $derived.by((): Frame | null => {
+		if (!camera || !precision.grid) return null;
+		if (viewFrame) return viewFrame.frame;
+		const round = (v: number) => Math.round(v * 1000) / 1000;
+		return northFrame([round(camera.lon), round(camera.lat)]);
+	});
+	/** Pixels per metre on the ground at the middle of the map. */
+	function pixelsPerMetre(): number {
+		if (!map || !camera) return 0;
+		const centre: Loc = [camera.lon, camera.lat];
+		const a = projectLoc(centre);
+		const b = projectLoc(fromLocal(centre, [1, 0]));
+		return Math.hypot(b.x - a.x, b.y - a.y);
+	}
+	/** The grid's spacing for snapping now, or undefined when the grid isn't shown or snapped to. */
+	function gridSnap(): { frame: Frame; step: number } | undefined {
+		if (!gridFrame || !precision.snaps("grid")) return undefined;
+		const step = drawnSpacing(
+			{ minor: precision.gridMinor, major: precision.gridMajor },
+			pixelsPerMetre(),
+		);
+		return step ? { frame: gridFrame, step } : undefined;
+	}
+
+	/** What the snapping menu shows of the frame, and does to it. */
+	const frameControls = $derived<FrameControls>({
+		current: viewFrame,
+		plans: snapMenuOpen
+			? floorplans.plans
+					.filter(
+						(plan) => plan.visible !== false && isPlanOnLevel(plan, level),
+					)
+					.map((plan) => {
+						const [a, b] = corners(
+							plan.transform,
+							plan.size.width,
+							plan.size.height,
+						);
+						return { name: plan.name, angle: foldAngle(bearingOf(a, b)) };
+					})
+			: [],
+		onangle: (angle) => {
+			if (viewFrame) frames.set(viewFrame.id, { angle: foldAngle(angle) });
+		},
+		onreset: () => {
+			if (viewFrame) frames.reset(viewFrame.id);
+		},
+		onpick: (pick) => (framePick = pick),
+		onturn: () => map?.easeTo({ bearing: -(viewFrame?.frame.angle ?? 0) }),
+		onnorth: () => map?.easeTo({ bearing: 0 }),
+	});
 	/** The side panel's width, as the user left it, kept within the window. */
 	let panelWidth = $state(rememberedWidth(localStorage));
 	const panelBounds = $derived(widthBounds(innerWidth.current ?? 1280));
@@ -296,13 +403,23 @@
 	}
 
 	/** The drawing tool on (P5.3.4; the split tool, P5.3.5), or null when browsing. */
-	let drawing = $state<"point" | "line" | "area" | "split" | null>(null);
+	let drawing = $state<
+		"point" | "line" | "area" | "rectangle" | "split" | "measure" | null
+	>(null);
+	/** How the rectangle tool draws (Tab switches). */
+	let rectangleVariant = $state<RectangleVariant>("corners");
+	/** Whether the measure tool measures or places guides (Tab switches). */
+	let measureVariant = $state<MeasureVariant>("measure");
 	/** The split tool's cut line, or the lasso, as drawn so far. */
 	let cut = $state.raw<readonly Loc[]>([]);
 
 	/** Turns a drawing tool on, or off when it is on already. */
-	function draw(kind: "point" | "line" | "area" | "split") {
+	function draw(
+		kind: "point" | "line" | "area" | "rectangle" | "split" | "measure",
+	) {
 		drawing = drawing === kind ? null : kind;
+		rectangleVariant = "corners";
+		measureVariant = "measure";
 		if (drawing) editor.select(null);
 	}
 
@@ -316,7 +433,9 @@
 		point: msg("draw_point_hint"),
 		line: msg("draw_line_hint"),
 		area: msg("draw_area_hint"),
+		rectangle: msg("draw_rectangle_hint"),
 		split: msg("split_hint"),
+		measure: msg("measure_hint"),
 	};
 
 	/** Cuts the rooms, corridors and areas on the shown level the line crosses, in one step. */
@@ -381,7 +500,19 @@
 			level,
 			pasteAt: lastPointer ?? (center ? [center.lng, center.lat] : [0, 0]),
 			clipboard,
+			frameAngle: selectionFrameAngle(),
 		};
+	}
+
+	/** The drawing frame's angle where the selection is. */
+	function selectionFrameAngle(): number | undefined {
+		const [id] = editor.selection.ids;
+		const extent = id ? entityExtent(editor.graph, id) : null;
+		if (!extent) return undefined;
+		return frameAt([
+			(extent.west + extent.east) / 2,
+			(extent.south + extent.north) / 2,
+		]).angle;
 	}
 
 	/** The operations on the selection (P5.3.5), while browsing. */
@@ -406,6 +537,10 @@
 			repeating = result.id;
 			return;
 		}
+		if (result.kind === "tool") {
+			transformTool = result.tool;
+			return;
+		}
 		if (result.kind === "copy") {
 			clipboard = result.clipboard;
 			const count = result.clipboard.roots.length;
@@ -427,7 +562,54 @@
 		merge: Combine,
 		multipolygon: SquaresSubtract,
 		delete: Trash,
+		move: Move,
+		rotate: RotateCcw,
+		scale: Scaling,
+		side: ArrowRightFromLine,
+		offset: SquareSquare,
+		"square-frame": Grid2x2Check,
 	};
+
+	/** The tool editing the selection by clicks or typed values (C.6), or null. */
+	let transformTool = $state<TransformTool | null>(null);
+	const TRANSFORM_HINTS: Record<TransformTool, Message> = {
+		move: msg("transform_move_hint"),
+		rotate: msg("transform_rotate_hint"),
+		scale: msg("transform_scale_hint"),
+		side: msg("transform_side_hint"),
+		offset: msg("transform_offset_hint"),
+	};
+
+	/** Nudges the selection by an arrow key (C.6): 0.1 m, 1 m with Shift, as the screen points. */
+	function nudge(event: KeyboardEvent): boolean {
+		const arrows: Record<string, [number, number]> = {
+			ArrowUp: [0, 1],
+			ArrowDown: [0, -1],
+			ArrowLeft: [-1, 0],
+			ArrowRight: [1, 0],
+		};
+		const arrow = arrows[event.key];
+		const ids = editor.selection.ids;
+		if (
+			!arrow ||
+			ids.length === 0 ||
+			event.ctrlKey ||
+			event.metaKey ||
+			event.altKey
+		)
+			return false;
+		const step = event.shiftKey ? 1 : 0.1;
+		// Screen right and up on the ground, as the map is turned.
+		const b = ((map?.getBearing() ?? 0) * Math.PI) / 180;
+		const [x, y] = arrow;
+		const east = (x * Math.cos(b) + y * Math.sin(b)) * step;
+		const north = (-x * Math.sin(b) + y * Math.cos(b)) * step;
+		editor.history.perform(
+			translateNodes(nodesOf(editor.graph, ids), [east, north]),
+			msg("undo_nudge"),
+		);
+		return true;
+	}
 
 	/** What the map's clicks, drags and keys do now (see `edit/modes`). */
 	const modeKind = $derived(
@@ -435,9 +617,13 @@
 			? floorplans.tool
 				? "floorplan-tool"
 				: "floorplan"
-			: drawing
-				? `draw-${drawing}`
-				: "browse",
+			: framePick
+				? `frame-${framePick}`
+				: transformTool
+					? `transform-${transformTool}`
+					: drawing
+						? `draw-${drawing}`
+						: "browse",
 	);
 	let modes = $state.raw<ModeManager>();
 
@@ -453,6 +639,39 @@
 		const overlay = new EditOverlay(instance);
 		const guides = new GuideLayer(instance);
 		$effect(() => guides.show(feedback));
+		// Arrow keys nudge the selection (C.6): the map's keyboard panning waits for none.
+		$effect(() => {
+			if (editor.selection.ids.length > 0) instance.keyboard.disable();
+			else instance.keyboard.enable();
+		});
+		const constructionLayer = new ConstructionLayer(instance);
+		$effect(() =>
+			constructionLayer.setGuides(planMode ? [] : construction.on(level)),
+		);
+		const grid = new GridLayer(instance);
+		$effect(() => {
+			void camera;
+			const frame = planMode ? null : gridFrame;
+			if (!frame) {
+				grid.setLines([]);
+				return;
+			}
+			const { clientWidth: w, clientHeight: h } = instance.getContainer();
+			const view = [
+				{ x: 0, y: 0 },
+				{ x: w, y: 0 },
+				{ x: w, y: h },
+				{ x: 0, y: h },
+			].map(unprojectPoint);
+			grid.setLines(
+				gridLines(
+					frame,
+					view,
+					{ minor: precision.gridMinor, major: precision.gridMajor },
+					untrack(pixelsPerMetre),
+				),
+			);
+		});
 		$effect(() =>
 			overlay.setData(
 				planMode
@@ -618,8 +837,101 @@
 								precision: {
 									frameAt,
 									step: () => precision.step,
+									units: () => precision.units,
+									show: showFeedback,
+									inferences,
+								},
+							}),
+						);
+						break;
+					case "transform-move":
+					case "transform-rotate":
+					case "transform-scale":
+					case "transform-side":
+					case "transform-offset": {
+						const ids = editor.selection.ids;
+						manager.setMode(
+							transformMode({
+								tool: kind.slice("transform-".length) as TransformTool,
+								history: editor.history,
+								ids,
+								nodes: nodesOf(editor.graph, ids),
+								snap: snapNode,
+								onfinish: (select) => {
+									transformTool = null;
+									if (select) editor.select(select);
+								},
+								precision: {
+									frameAt,
+									step: () => precision.step,
+									units: () => precision.units,
 									show: showFeedback,
 								},
+							}),
+						);
+						break;
+					}
+					case "draw-measure":
+						manager.setMode(
+							measureMode({
+								snap: snapNode,
+								variant: measureVariant,
+								onvariant: (variant) => (measureVariant = variant),
+								onguide: (line) =>
+									construction.add(
+										line,
+										level,
+										frames.at(
+											[...editor.features.byId.values()],
+											line.origin,
+											level,
+										)?.id,
+									),
+								onexit: () => (drawing = null),
+								precision: {
+									frameAt,
+									step: () => precision.step,
+									units: () => precision.units,
+									show: showFeedback,
+								},
+							}),
+						);
+						break;
+					case "draw-rectangle":
+						manager.setMode(
+							drawRectangleMode({
+								history: editor.history,
+								level,
+								snap: snapNode,
+								onfinish: drawingEnded,
+								onvariant: (variant) => (rectangleVariant = variant),
+								precision: {
+									frameAt,
+									step: () => precision.step,
+									units: () => precision.units,
+									show: showFeedback,
+								},
+							}),
+						);
+						break;
+					case "frame-align":
+					case "frame-origin":
+						manager.setMode(
+							framePickMode({
+								pick: kind === "frame-align" ? "align" : "origin",
+								snap: (at) =>
+									kind === "frame-align" ? sideAt(at) : snapNode(at, new Set()),
+								onangle: (angle) => {
+									if (viewFrame) frames.set(viewFrame.id, { angle });
+								},
+								onorigin: (origin) => {
+									if (viewFrame)
+										frames.set(viewFrame.id, {
+											angle: viewFrame.frame.angle,
+											origin: [origin[0], origin[1]],
+										});
+								},
+								ondone: () => (framePick = null),
 							}),
 						);
 						break;
@@ -663,6 +975,8 @@
 			stopTiles();
 			overlay.remove();
 			guides.remove();
+			grid.remove();
+			constructionLayer.remove();
 			marks.remove();
 			layers.remove();
 		};
@@ -748,7 +1062,9 @@
 	): SnapTarget | null {
 		if (!map || at.altKey) return null;
 		const points = precision.snaps("points");
-		const lines = precision.snaps("angles") ? constraints.lines : undefined;
+		const lines = constraints.lines?.filter((line) =>
+			precision.snaps(line.kind ? INFERENCE_OPTIONS[line.kind] : "angles"),
+		);
 		const reach = lines?.length ? LINE_PIXELS : undefined;
 		const area = areaAround(at.point, unprojectPoint, reach);
 		const segments =
@@ -776,10 +1092,25 @@
 				midpoints: precision.snaps("midpoints"),
 				lines,
 				lock: constraints.lock,
+				grid: gridSnap(),
+				from: precision.snaps("parallels") ? constraints.from : undefined,
+				guides: points ? construction.on(level) : [],
+				crossings: precision.snaps("intersections"),
 			},
 			projectLoc,
 			undefined,
 			at.lngLat,
+		);
+	}
+
+	/** The side under the pointer, for aligning the frame to it. */
+	function sideAt(at: MapPoint): SnapTarget | null {
+		if (!map) return null;
+		const area = areaAround(at.point, unprojectPoint);
+		return snapAt(
+			at.point,
+			{ segments: editor.features.segmentsNear(area, level) },
+			projectLoc,
 		);
 	}
 
@@ -899,8 +1230,11 @@
 		{ combo: "1", run: () => draw("point") },
 		{ combo: "2", run: () => draw("line") },
 		{ combo: "3", run: () => draw("area") },
+		{ combo: "4", run: () => draw("rectangle") },
 		{ combo: "X", run: () => draw("split") },
 		{ combo: "S", run: () => precision.toggle() },
+		{ combo: "G", run: () => precision.toggleGrid() },
+		{ combo: "M", run: () => draw("measure") },
 		{ combo: "Mod+Z", run: () => editor.history.undo() },
 		{ combo: "Mod+Shift+Z", run: () => editor.history.redo() },
 		{ combo: "Mod+Y", run: () => editor.history.redo() },
@@ -918,8 +1252,16 @@
 				event.preventDefault();
 			return;
 		}
-		if (modes?.key(event)) return;
+		if (modes?.key(event)) {
+			// Tab, quotes and Enter typed into a drawing (C.2) are not the browser's.
+			event.preventDefault();
+			return;
+		}
 		if (planMode) return;
+		if (modeKind === "browse" && nudge(event)) {
+			event.preventDefault();
+			return;
+		}
 		const operation = operations.find(({ operation }) =>
 			operation.keys.some((combo) => matches(event, combo, mac)),
 		)?.operation;
@@ -973,7 +1315,7 @@
 {/snippet}
 
 {#snippet drawButton(
-	kind: "point" | "line" | "area" | "split",
+	kind: "point" | "line" | "area" | "rectangle" | "split" | "measure",
 	label: string,
 	key: string,
 	Icon: Component,
@@ -987,7 +1329,9 @@
 					size="icon"
 					aria-label={kind === "split"
 						? "Split rooms"
-						: `Draw ${label.toLowerCase()}`}
+						: kind === "measure"
+							? "Measure"
+							: `Draw ${label.toLowerCase()}`}
 					aria-pressed={drawing === kind}
 					disabled={editor.history.locked}
 				>
@@ -1077,11 +1421,28 @@
 					{@render drawButton("point", "Point", "1", MapPin)}
 					{@render drawButton("line", "Line", "2", Spline)}
 					{@render drawButton("area", "Area", "3", Pentagon)}
+					{@render drawButton(
+						"rectangle",
+						"Rectangle",
+						"4",
+						RectangleHorizontal,
+					)}
 					{@render drawButton("split", "Split", "X", Scissors)}
+					{@render drawButton("measure", "Measure", "M", Ruler)}
 				</ButtonGroup.Root>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
-				<SnapMenu {precision} />
+				<SnapMenu
+					{precision}
+					frame={frameControls}
+					guides={{
+						count: construction.countOn(level),
+						shown: construction.shown,
+						onshow: (shown) => (construction.shown = shown),
+						onclear: () => construction.clear(level),
+					}}
+					onopenchange={(open) => (snapMenuOpen = open)}
+				/>
 			</div>
 			{#if operations.length > 0}
 				<div class="rounded-md bg-background shadow-md">
@@ -1142,6 +1503,7 @@
 					onshowlevel={(shown) => (level = shown)}
 					buildings={planBuildings}
 					buildingName={planBuildingName}
+					guides={construction}
 				/>
 			{/if}
 			<PanelResizer
@@ -1154,22 +1516,50 @@
 		</div>
 	{/if}
 
-	{#if feedback && feedback.measures.length > 0}
+	{#if feedback && (feedback.measures.length > 0 || feedback.input)}
 		<MeasureLabels
 			measures={feedback.measures}
+			input={feedback.input}
+			inference={inferenceLabel(feedback.snap)}
 			project={projectLoc}
 			units={precision.units}
 			{camera}
 		/>
 	{/if}
 
-	{#if drawing && !dragHint && !operationNote}
+	{#if transformTool}
+		<p
+			role="status"
+			data-testid="transform-hint"
+			class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+		>
+			{t(TRANSFORM_HINTS[transformTool])}
+		</p>
+	{:else if framePick}
+		<p
+			role="status"
+			data-testid="frame-hint"
+			class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+		>
+			{t(
+				framePick === "align"
+					? msg("frame_pick_align")
+					: msg("frame_pick_origin"),
+			)}
+		</p>
+	{:else if drawing && !dragHint && !operationNote}
 		<p
 			role="status"
 			data-testid="draw-hint"
 			class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
 		>
-			{t(DRAW_HINTS[drawing])}
+			{t(
+				drawing === "rectangle" && rectangleVariant === "side"
+					? msg("draw_rectangle_side_hint")
+					: drawing === "measure" && measureVariant === "guide"
+						? msg("guide_hint")
+						: DRAW_HINTS[drawing],
+			)}
 		</p>
 	{/if}
 

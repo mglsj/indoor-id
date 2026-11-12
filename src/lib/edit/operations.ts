@@ -22,9 +22,11 @@ import {
 	orthogonalizeRefusal,
 } from "#lib/actions/orthogonalize.ts";
 import { canRepeat } from "#lib/actions/repeat-levels.ts";
+import { squareToFrame } from "#lib/actions/transform.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
+import type { TransformTool } from "./modes/transform.ts";
 
 /** What an operation looks at. */
 export interface OperationContext {
@@ -35,6 +37,8 @@ export interface OperationContext {
 	/** Where a paste goes: the pointer on the map, else the map's centre. */
 	readonly pasteAt: Loc;
 	readonly clipboard: Clipboard | null;
+	/** The drawing frame's angle at the selection (C.6), for squaring to it. */
+	readonly frameAngle?: number;
 }
 
 export type OperationResult =
@@ -49,7 +53,9 @@ export type OperationResult =
 	  }
 	| { readonly kind: "copy"; readonly clipboard: Clipboard }
 	/** Repeat on levels asks which levels first (`ui/RepeatDialog.svelte`). */
-	| { readonly kind: "repeat"; readonly id: NodeId | WayId };
+	| { readonly kind: "repeat"; readonly id: NodeId | WayId }
+	/** A tool on the map does it, by clicks or typed values (C.6, `edit/modes/transform.ts`). */
+	| { readonly kind: "tool"; readonly tool: TransformTool };
 
 export interface Operation {
 	readonly id:
@@ -60,7 +66,13 @@ export interface Operation {
 		| "multipolygon"
 		| "repeat"
 		| "copy"
-		| "paste";
+		| "paste"
+		| "move"
+		| "rotate"
+		| "scale"
+		| "side"
+		| "offset"
+		| "square-frame";
 	readonly label: Message;
 	/** Shortcuts, the first one shown. */
 	readonly keys: readonly string[];
@@ -290,6 +302,62 @@ const pasteOperation: Operation = {
 	}),
 };
 
+/** A tool on the map that edits the selection by clicks or typed values (C.6). */
+function toolOperation(
+	tool: TransformTool,
+	label: Message,
+	key: string,
+	applies: (graph: Graph, selected: readonly EntityId[]) => boolean,
+): Operation {
+	return {
+		id: tool,
+		label,
+		keys: [key],
+		available: ({ graph, selected }) => applies(graph, selected),
+		disabled: () => null,
+		run: () => ({ kind: "tool", tool }),
+	};
+}
+
+/** One way selected (a line or an area). */
+function singleWay(graph: Graph, selected: readonly EntityId[]): WayId | null {
+	const id = singleNodeOrWay(graph, selected);
+	return id?.startsWith("w") ? (id as WayId) : null;
+}
+
+/** One closed way selected. */
+function singleClosedWay(
+	graph: Graph,
+	selected: readonly EntityId[],
+): WayId | null {
+	const id = singleWay(graph, selected);
+	const way = id && graph.entity(id);
+	return way?.type === "way" &&
+		way.nodes.length > 3 &&
+		way.nodes[0] === way.nodes.at(-1)
+		? id
+		: null;
+}
+
+const anything = (_: Graph, selected: readonly EntityId[]) =>
+	selected.length > 0;
+
+const squareFrameOperation: Operation = {
+	id: "square-frame",
+	label: msg("operation_square_frame"),
+	keys: ["Shift+Q"],
+	available: ({ graph, selected }) => singleClosedWay(graph, selected) !== null,
+	disabled: () => null,
+	run: ({ graph, selected, frameAngle = 0 }) => {
+		const id = singleClosedWay(graph, selected) as WayId;
+		return {
+			kind: "edit",
+			edit: (g) => keep(selected)(squareToFrame(id, frameAngle)(g)),
+			annotation: msg("undo_square_frame"),
+		};
+	},
+};
+
 /** In the toolbar's order. */
 export const OPERATIONS: readonly Operation[] = [
 	copyOperation,
@@ -299,5 +367,21 @@ export const OPERATIONS: readonly Operation[] = [
 	mergeOperation,
 	multipolygonOperation,
 	repeatOperation,
+	toolOperation("move", msg("operation_move"), "Shift+M", anything),
+	toolOperation("rotate", msg("operation_rotate"), "Shift+R", anything),
+	toolOperation("scale", msg("operation_scale"), "Shift+S", anything),
+	toolOperation(
+		"side",
+		msg("operation_move_side"),
+		"E",
+		(graph, selected) => singleWay(graph, selected) !== null,
+	),
+	toolOperation(
+		"offset",
+		msg("operation_offset"),
+		"O",
+		(graph, selected) => singleWay(graph, selected) !== null,
+	),
+	squareFrameOperation,
 	deleteOperation,
 ];

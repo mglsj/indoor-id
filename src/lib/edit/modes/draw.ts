@@ -14,21 +14,41 @@ import {
 	sideMeasure,
 } from "#lib/edit/precision/feedback.ts";
 import { bearingOf, type Frame } from "#lib/edit/precision/frame.ts";
-import type { DirectionLine, SnapTarget } from "#lib/edit/precision/snap.ts";
+import { hoveredOf, type Inferences } from "#lib/edit/precision/inference.ts";
+import {
+	type DirectionLine,
+	footOn,
+	type SnapTarget,
+} from "#lib/edit/precision/snap.ts";
+import {
+	EMPTY_INPUT,
+	isTyping,
+	parseAngle,
+	parseTyped,
+	type TypedInput,
+	typedCorner,
+	typeKey,
+} from "#lib/edit/precision/typed.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import type { Segment } from "#lib/map/feature-store.ts";
 import type { EntityId, Loc, NodeId } from "#lib/osm/entity.ts";
+import { fromLocal, local } from "#lib/osm/geometry.ts";
 import type { Action } from "#lib/osm/history.ts";
+import type { Units } from "#lib/units/length.ts";
 import { type DrawKind, WayDrawing } from "../draw-way.ts";
 import { isMac, matches } from "../keys.ts";
 import type { MapPoint, Mode } from "../mode.ts";
 import type { DragHistory } from "../node-drag.ts";
 import { placePoint } from "../place-point.ts";
 
-/** Direction constraints for a snap: lines to snap to, or one locked direction. */
+/**
+ * Direction constraints for a snap: lines to snap to, or one locked direction; `from`, the
+ * corner the side is drawn from, for the feet of perpendiculars onto sides (C.4).
+ */
 export interface SnapConstraints {
 	readonly lines?: readonly DirectionLine[];
 	readonly lock?: DirectionLine;
+	readonly from?: Loc;
 }
 
 /**
@@ -48,7 +68,11 @@ export interface DrawPrecision {
 	frameAt(loc: Loc): Frame;
 	/** Degrees between snapped directions, or null without angle snapping (read each move). */
 	step(): number | null;
+	/** The units a bare typed number is in (read when typing). */
+	units(): Units;
 	show: ShowFeedback;
+	/** Sides and corners armed by hovering them (C.4), shared between drawings. */
+	readonly inferences?: Inferences;
 }
 
 export interface DrawOptions {
@@ -83,16 +107,73 @@ export function drawWayMode(
 	let frame: Frame | null = null;
 	/** The direction Shift locked, while it is held. */
 	let lock: DirectionLine | null = null;
+	/** What was typed (C.2), and where the pointer last was and pointed. */
+	let typed: TypedInput = EMPTY_INPUT;
+	let pointer: MapPoint | null = null;
+	let aim: Loc | null = null;
+	/** What the pointer last snapped to. */
+	let target: SnapTarget | null = null;
+	const inferences = precision?.inferences;
+	/** Looks again when something arms or is forgotten, as that happens with the pointer still. */
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const schedule = () => {
+		clearTimeout(timer);
+		const wait = inferences?.nextChange();
+		if (wait != null && !ended)
+			timer = setTimeout(() => update(pointer), wait + 1);
+	};
+	/** Where the typed value puts the next corner, or null (nothing typed, or not a value). */
+	const typedLoc = (): Loc | null => {
+		if (!precision || !frame || !isTyping(typed)) return null;
+		const corners = drawing.locs(history.graph);
+		const from = corners.at(-1);
+		const value = parseTyped(typed.length, precision.units());
+		if (!from || !value) return null;
+		// On a line in line with a corner: the distance from that corner, along it (C.4).
+		const tracked =
+			target?.kind === "angle" && target.guides[0]?.kind === "tracking"
+				? target.guides[0]
+				: null;
+		if (tracked && aim && value.kind === "length" && !typed.angle) {
+			const [x, y] = local(tracked.from, aim);
+			const length = Math.hypot(x, y);
+			if (length > 0) {
+				const k = value.metres / length;
+				return fromLocal(tracked.from, [x * k, y * k]);
+			}
+		}
+		return typedCorner({
+			value,
+			angle: parseAngle(typed.angle),
+			from,
+			previous: corners.at(-2),
+			frame,
+			toward: lock ? footOn(lock, aim ?? from) : (aim ?? from),
+		});
+	};
 	/** Where the pointer snaps, under the drawing's direction constraints. */
 	const snapped = (at: MapPoint): SnapTarget | null => {
+		const found = snapLines(at);
+		inferences?.hover(hoveredOf(history.graph, found));
+		if (found && "guides" in found && found.guides?.some((g) => g.kind))
+			inferences?.used();
+		return found;
+	};
+	const snapLines = (at: MapPoint): SnapTarget | null => {
 		const corners = drawing.locs(history.graph);
 		const last = corners.at(-1);
-		if (!precision || !frame || !last || at.altKey) {
+		if (!precision || at.altKey) {
 			lock = null;
 			return snap(at, cursor, keepSide);
 		}
+		if (!frame || !last) {
+			// The first corner: in line with armed corners, on armed sides' extensions.
+			lock = null;
+			const lines = inferences?.lines({ frame: precision.frameAt(at.lngLat) });
+			return snap(at, cursor, keepSide, lines?.length ? { lines } : {});
+		}
 		const step = precision.step();
-		const lines = step
+		const angles = step
 			? angleLines({
 					from: last,
 					previous: corners.at(-2),
@@ -104,17 +185,21 @@ export function drawWayMode(
 					step,
 				})
 			: [];
+		const lines = [
+			...angles,
+			...(inferences?.lines({ from: last, frame }) ?? []),
+		];
 		if (!at.shiftKey) lock = null;
 		else if (!lock) {
 			// Shift pressed: lock the direction the side has now.
-			const free = snap(at, cursor, keepSide, { lines });
+			const free = snap(at, cursor, keepSide, { lines, from: last });
 			const to = free?.loc ?? at.lngLat;
 			if (to[0] !== last[0] || to[1] !== last[1])
 				lock = { origin: last, angle: bearingOf(last, to) };
 		}
-		return snap(at, cursor, keepSide, lock ? { lock } : { lines });
+		return snap(at, cursor, keepSide, lock ? { lock } : { lines, from: last });
 	};
-	/** Shows what the pointer snapped to, and the side being drawn. */
+	/** Shows what the pointer snapped to, the side being drawn, and what was typed. */
 	const feedback = (target: SnapTarget | null, loc: Loc) => {
 		if (!precision) return;
 		const corners = drawing.locs(history.graph);
@@ -125,12 +210,25 @@ export function drawWayMode(
 				last && frame && (loc[0] !== last[0] || loc[1] !== last[1])
 					? [sideMeasure(last, loc, frame, corners.at(-2))]
 					: [],
+			input: isTyping(typed) ? typed : undefined,
+			armed: inferences?.corners(),
 		});
+	};
+	/** Shows the drawing to the pointer, or to where the typed value puts the next corner. */
+	const update = (at: MapPoint | null) => {
+		target = at ? snapped(at) : null;
+		aim = target?.loc ?? at?.lngLat ?? aim;
+		const placed = typedLoc();
+		const shown = placed ?? aim;
+		history.preview(drawing.action(shown ?? undefined));
+		if (shown) feedback(placed ? null : target, shown);
+		schedule();
 	};
 	const mac = isMac();
 	const finish = () => {
 		if (ended) return;
 		ended = true;
+		clearTimeout(timer);
 		precision?.show(null);
 		if (drawing.canFinish) {
 			history.commit(drawing.action(), ANNOTATIONS[kind]);
@@ -144,23 +242,25 @@ export function drawWayMode(
 		name: `draw-${kind}`,
 		gestures: { doubleClickZoom: false },
 		hover(at) {
-			const target = snapped(at);
-			const loc = target?.loc ?? at.lngLat;
-			history.preview(drawing.action(loc));
-			feedback(target, loc);
+			pointer = at;
+			update(at);
 			return "crosshair";
 		},
 		leave() {
+			pointer = null;
+			clearTimeout(timer);
+			inferences?.hover(null);
 			history.preview(drawing.action());
 			precision?.show(null);
 		},
 		click(at) {
-			const target = snapped(at);
+			target = snapped(at);
 			const loc = target?.loc ?? at.lngLat;
 			const result = drawing.click(history.graph, loc, target);
 			if (result === "added") {
 				frame ??= precision?.frameAt(loc) ?? null;
 				lock = null;
+				typed = EMPTY_INPUT;
 			}
 			if (result === "finish") finish();
 			else {
@@ -169,6 +269,31 @@ export function drawWayMode(
 			}
 		},
 		key(event) {
+			// Typed values first, from the first corner on: digits aren't tool shortcuts then.
+			if (precision && frame) {
+				const next = typeKey(typed, event, true);
+				if (next) {
+					typed = next;
+					update(pointer);
+					return true;
+				}
+				if (isTyping(typed) && event.key === "Escape") {
+					typed = EMPTY_INPUT;
+					update(pointer);
+					return true;
+				}
+				if (isTyping(typed) && event.key === "Enter") {
+					const loc = typedLoc();
+					// Not a value yet: Enter waits for one rather than finishing.
+					if (loc) {
+						drawing.click(history.graph, loc, null);
+						typed = EMPTY_INPUT;
+						lock = null;
+						update(pointer);
+					}
+					return true;
+				}
+			}
 			if (matches(event, "Mod+Z", mac)) {
 				if (drawing.undoLast()) history.preview(drawing.action());
 				else finish();
@@ -194,6 +319,7 @@ export function drawWayMode(
 		finish,
 		exit() {
 			// Left for another mode (the toolbar, floor plan mode): nothing is kept.
+			clearTimeout(timer);
 			precision?.show(null);
 			if (!ended) {
 				ended = true;

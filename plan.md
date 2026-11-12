@@ -42,7 +42,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | LN     | License notices                            | Done         |
 | V      | Viewer mode (V.1–V.3)                      | Done         |
 | T      | One theme, background pane                 | Done         |
-| C      | CAD-style precision (C.0–C.6)              | C.0–C.1 done |
+| C      | CAD-style precision (C.0–C.6)              | C.0–C.6 done |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started  |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
@@ -422,6 +422,59 @@ under the first corner (`containerAt` from `edit/unmapped-floor.ts`), north else
 IndexedDB store for frames and guides waits for C.3, the first slice that saves one. Snap kinds
 with a mark: node, midpoint, intersection (a direction line crossing a side or another line),
 segment, plan vertex, angle, lock; priority steps of 10 px, so point snaps always win.
+
+Landed with C.2: `edit/precision/typed.ts` (`typeKey`, `parseTyped`, `typedCorner`; the typed
+corner is previewed before Enter), `edit/rectangle.ts` and `edit/modes/rectangle.ts` (`4`; Tab
+switches two corners / side and width before the second click). A mode that handles a key now
+has its default prevented (Tab, quotes, Enter on a focused toolbar button). The side variant's
+second corner doesn't join nodes yet.
+
+Landed with C.3: `edit/precision/grid.ts` (`gridLines` in the frame, thinned by
+`drawnSpacing` below 8 px; `nearestCrossing`, `nearestGridLines`), grid snaps in `snapAt`
+(crossings, and an angle line crossing a grid line, both at the plan-vertex priority),
+`map/grid-layer.ts`, `state/frames.svelte.ts` (`Frames`: automatic `outlineFrame`, or set, by
+the outline's id) on a `frames` store in plan-store schema 5, and `edit/modes/frame-pick.ts`
+("Align to a side" and "Move the origin" click on the map). The frame section sits in the
+snapping menu: typed angle, align, origin, each visible plan's angle on the shown level, reset,
+turn the map to the frame and north up. The frame in view is the selection's building, else the
+map centre's. The grid is drawn only while shown (`G`, kept in the precision settings). Not
+done: setting the frame by two clicks (aligning to a side covers it).
+
+Landed with C.4: `edit/precision/inference.ts` (`Inferences`: a side armed after 1 s on it, a
+corner after 0.5 s, at most four of each, forgotten 4 s after last use; `hoveredOf`,
+`sideDirections`), inferred lines in `snapAt` as `DirectionLine`s with a `kind` (rays with a
+`reach` for extensions), and point snaps for the foot of the perpendicular from the last corner
+onto a side and for two sides crossing without a node (crossing priority). Guides carry their
+kind; the pointer's label names it ("Extension", "Parallel", "Square", "In line with a
+corner", "Midpoint", "Intersection"); armed corners get a small ring. Four snapping options:
+extensions, parallel and square, in line with corners, where sides cross. Works from the first
+corner (extensions and tracking) in the line and area tools; a typed length on a tracking line
+is measured from the tracked corner. The rectangle tool and vertex drags don't infer yet. The
+bench's pointer move with every snap kind on takes 0.1 ms (target 2 ms). Guides are all drawn
+with one dash style; the label by the pointer says the kind.
+
+Landed with C.5: `edit/modes/measure.ts` (`M`, a Ruler button; Tab switches "measure" and
+"guide"), `edit/precision/construction.ts` (`parallelAt`, `offsetFrom`, `guideEnds`),
+`state/guides.svelte.ts` (`Guides`, saved in plan-store schema 6, `guides` store by id, and in
+plan files as an optional `guides` list in `plans.json`; imported guides get new ids),
+`map/construction-layer.ts` (faint dashed lines, 2 km each way). Guides snap like sides (a
+point on one, where one crosses a side, another guide or a direction line); the snapping
+menu shows the level's count, hides them, and clears the level's. A measure is kept until the
+next first click, as a side label; the measured line is drawn through `Feedback.lines`. Not
+done: a list to delete one guide (clear the level instead), and guides on other levels are
+only reachable by switching level. Plan files are exported only when there is a plan.
+
+Landed with C.6: `actions/transform.ts` (`translateNodes`, `rotateNodes`, `scaleNodes`,
+`setSideLength`, `moveSide`: neighbours keep their directions, `offsetWay`: positive inside a
+closed way, `squareToFrame`), `edit/modes/transform.ts` (move, rotate, scale, move a side,
+parallel copy: clicks or a typed distance, angle or factor, one undo step), six operations
+(`Shift+M`, `Shift+R`, `Shift+S`, `E`, `O`, and `Shift+Q` square to the frame; `R` was taken by
+Repeat on levels), arrow nudges in browse mode (0.1 m, Shift 1 m, as the screen points;
+MapLibre's keyboard handler is off while something is selected; the level switcher's arrows
+only act when it has focus), and side lengths typed in the measurements panel. Not done:
+JOSM's extrude that adds a new face (moving a side covers the indoor case), a side length
+typed while dragging a vertex, offset's inner-ring (atrium hole) mode, and dragging (rather than
+clicking) in the move, rotate and scale tools. Nudges are one undo step each.
 
 Order inside C: C.0 and C.1 together first (one PR each), then C.2, then C.3; C.4 to C.6 can
 be reordered after users have tried C.1–C.3.

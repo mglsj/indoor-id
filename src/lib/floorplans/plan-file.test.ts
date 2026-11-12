@@ -288,6 +288,34 @@ describe("plan files, version 2: an archive of plans and the files they come fro
 		expect(readPlanArchive(bytes)).toEqual(archive);
 	});
 
+	it("carries the construction guides (C.5), leaving out broken ones", () => {
+		const guides = [
+			{
+				origin: [-1.6953, 48.1368] as const,
+				angle: 30,
+				level: 0,
+				building: "w4242",
+			},
+			{ origin: [-1.6952, 48.1367] as const, angle: -12.5, level: -1 },
+		];
+		expect(readPlanArchive(writePlanArchive({ ...archive, guides }))).toEqual({
+			...archive,
+			guides,
+		});
+		const read = readPlanArchive(
+			manifest({
+				guides: [
+					guides[1],
+					{ origin: [1], angle: 0, level: 0 },
+					{ origin: [1, 2], angle: "x", level: 0 },
+					{ origin: [1, 2], angle: 0, level: 0.5 },
+					"nonsense",
+				],
+			}),
+		);
+		expect(read.guides).toEqual([guides[1]]);
+	});
+
 	const manifest = (changes: Record<string, unknown>, plan = {}) =>
 		zipSync({
 			"plans.json": strToU8(
