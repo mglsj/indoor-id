@@ -12,12 +12,14 @@ import {
 
 /** Lengths in metres (the tests' browser says en-US, which would be feet and inches). */
 async function metric(page: Page) {
-	await page.addInitScript(() =>
-		localStorage.setItem(
-			"indoorid.precision",
-			JSON.stringify({ units: "metric" }),
-		),
-	);
+	// Only on the first load: a reload keeps the settings the test changed.
+	await page.addInitScript(() => {
+		if (localStorage.getItem("indoorid.precision") === null)
+			localStorage.setItem(
+				"indoorid.precision",
+				JSON.stringify({ units: "metric" }),
+			);
+	});
 }
 
 async function emptyMap(page: Page) {
@@ -181,4 +183,136 @@ test("the rectangle tool draws from a side after Tab", async ({ page }) => {
 	await page.mouse.click(x + 100, y - 100);
 	await page.mouse.click(x + 150, y);
 	await expect(page.getByTestId("edit-count")).toHaveText("5");
+});
+
+/** Metres on the ground to longitude and latitude around the map's middle. */
+function at(east: number, north: number): [number, number] {
+	const metre = (Math.PI / 180) * 6_371_008.8;
+	return [
+		LON + east / (metre * Math.cos((LAT * Math.PI) / 180)),
+		LAT + north / metre,
+	];
+}
+
+/** A 30 × 20 m building turned 30° counterclockwise from east, around the map's middle. */
+function turnedBuilding() {
+	const turn = (30 * Math.PI) / 180;
+	const corners = [
+		[-15, -10],
+		[15, -10],
+		[15, 10],
+		[-15, 10],
+	].map(([x = 0, y = 0]) =>
+		at(
+			x * Math.cos(turn) - y * Math.sin(turn),
+			x * Math.sin(turn) + y * Math.cos(turn),
+		),
+	);
+	return [
+		...corners.map(([lon, lat], i) => ({
+			type: "node",
+			id: i + 1,
+			lon,
+			lat,
+			version: 1,
+		})),
+		{
+			type: "way",
+			id: 10,
+			version: 1,
+			nodes: [1, 2, 3, 4, 1],
+			tags: { building: "yes" },
+		},
+	];
+}
+
+/** The frames kept in IndexedDB, by building. */
+function storedFrames(page: Page): Promise<Record<string, { angle: number }>> {
+	return page.evaluate(
+		() =>
+			new Promise((resolve, reject) => {
+				const open = indexedDB.open("indoorid-floorplans");
+				open.onerror = () => reject(open.error);
+				open.onsuccess = () => {
+					const db = open.result;
+					const store = db.transaction("frames").objectStore("frames");
+					const all: Record<string, { angle: number }> = {};
+					const cursor = store.openCursor();
+					cursor.onsuccess = () => {
+						const c = cursor.result;
+						if (!c) {
+							db.close();
+							resolve(all);
+							return;
+						}
+						all[String(c.key)] = c.value;
+						c.continue();
+					};
+				};
+			}),
+	);
+}
+
+test("G shows the grid, and the snapping menu takes its spacing", async ({
+	page,
+}) => {
+	await metric(page);
+	await emptyMap(page);
+	const grid = page.getByRole("button", { name: "Show the grid" });
+	await expect(grid).toHaveAttribute("aria-pressed", "false");
+	await page.keyboard.press("g");
+	await expect(grid).toHaveAttribute("aria-pressed", "true");
+
+	await page.getByRole("button", { name: "Snapping…" }).click();
+	const minor = page.getByLabel("Lines every");
+	await minor.fill("1 m");
+	await minor.press("Enter");
+	await page.keyboard.press("Escape");
+	await page.reload();
+	await camera(page);
+	await expect(grid).toHaveAttribute("aria-pressed", "true");
+	await page.getByRole("button", { name: "Snapping…" }).click();
+	await expect(page.getByLabel("Lines every")).toHaveValue(/^1(\.00)? m$/);
+});
+
+test("the drawing frame follows a turned building, and can be set and kept", async ({
+	page,
+}) => {
+	await serveOsm(page, turnedBuilding());
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	await page.getByRole("button", { name: "Snapping…" }).click();
+	const state = page.getByTestId("frame-state");
+	await expect(state).toHaveText("30°, along the building");
+
+	await page.getByLabel("Frame angle").fill("10");
+	await page.getByRole("button", { name: "OK" }).click();
+	await expect(state).toHaveText("10°, set by you");
+	await expect
+		.poll(() => storedFrames(page))
+		.toEqual({ w10: expect.objectContaining({ angle: 10 }) });
+
+	await page.reload();
+	await camera(page);
+	await page.getByRole("button", { name: "Snapping…" }).click();
+	await expect(state).toHaveText("10°, set by you");
+	await page.getByRole("button", { name: "Use the building's" }).click();
+	await expect(state).toHaveText("30°, along the building");
+});
+
+test("the drawing frame aligns to a clicked side", async ({ page }) => {
+	await serveOsm(page, turnedBuilding());
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	await page.getByRole("button", { name: "Snapping…" }).click();
+	await page.getByLabel("Frame angle").fill("10");
+	await page.getByRole("button", { name: "OK" }).click();
+	await page.getByRole("button", { name: "Align to a side" }).click();
+	await expect(page.getByTestId("frame-hint")).toBeVisible();
+	// The north side's middle: 10 m from the middle, turned 30°; a pixel is about 0.0997 m.
+	await page.mouse.click(x - 50, y - 87);
+	await expect(page.getByTestId("frame-hint")).toBeHidden();
+	await page.getByRole("button", { name: "Snapping…" }).click();
+	await expect(page.getByTestId("frame-state")).toHaveText("30°, set by you");
 });

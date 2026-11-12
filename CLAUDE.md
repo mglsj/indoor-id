@@ -95,7 +95,7 @@ runs the same commands.
   WebGL layer, and `map/plan-matrix.ts`; their text through `map/plan-labels.ts`),
   `state/floorplans.svelte.ts` (`FloorPlans`: plans, edit sessions, alignment tools; a
   plan's visibility and hidden CAD layers are saved at once, outside the edit session),
-  `persist/plan-store.ts` (IndexedDB schema 4: settings, tiles, files, thumbnails, vectors; tested on
+  `persist/plan-store.ts` (IndexedDB schema 5: settings, tiles, files, thumbnails, vectors, frames; tested on
   fake-indexeddb; content loads for the shown level only, `FloorPlans.showLevel`; tests use
   `state/testing/plan-store.ts`), `ui/FloorPlansPanel.svelte` (`PlanFiles`, `PlanList`,
   `PlanTools`). Pixels go through a `PlanCodec`
@@ -133,10 +133,12 @@ runs the same commands.
 - Precision (C): `edit/precision/` holds the pure parts: `frame.ts` (`Frame`, `toFrame`/`fromFrame`,
   `outlineFrame` of a building), `snap.ts` (`snapAt`: the snap pipeline, scored by kind; results carry
   `guides`), `angles.ts` (direction lines for angle snapping), `feedback.ts` (what a mode shows:
-  the snap and `Measure`s), `measure.ts`, `typed.ts` (values typed while drawing, C.2). The
+  the snap and `Measure`s), `measure.ts`, `typed.ts` (values typed while drawing, C.2), `grid.ts` (C.3). The
   rectangle tool is `edit/modes/rectangle.ts` on `edit/rectangle.ts`. Lengths go through `units/length.ts` (`parseLength`,
   `formatLength`), never hand-formatted. Settings (`S`, the snapping menu, units) are
-  `state/precision.svelte.ts`, read with `getPrecision()`. Modes report feedback through a
+  `state/precision.svelte.ts`, read with `getPrecision()`. Drawing frames per building are
+  `state/frames.svelte.ts` (`Frames`, saved in the plan store), set in the snapping menu or with
+  `edit/modes/frame-pick.ts`; `map/grid-layer.ts` draws the grid. Modes report feedback through a
   `show` callback; `map/guide-layer.ts` draws guides and marks, `ui/MeasureLabels.svelte` the lengths.
 - Viewer (V.1): `/view` is `ui/ViewerView.svelte` on `MapShell` (`presentation="view"`,
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`

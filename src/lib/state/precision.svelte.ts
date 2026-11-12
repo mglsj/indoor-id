@@ -12,16 +12,25 @@ const KEY = "indoorid.precision";
 export const ANGLE_STEPS = [5, 10, 15, 22.5, 30, 45, 90] as const;
 
 /** Kinds of snap the user can turn off one by one. */
-export type SnapOption = "points" | "midpoints" | "planVertices" | "angles";
+export type SnapOption =
+	| "points"
+	| "midpoints"
+	| "planVertices"
+	| "angles"
+	| "grid";
 export const SNAP_OPTIONS: readonly SnapOption[] = [
 	"points",
 	"midpoints",
 	"planVertices",
 	"angles",
+	"grid",
 ];
 
 interface Saved {
 	enabled: boolean;
+	grid: boolean;
+	gridMinor: number;
+	gridMajor: number;
 	options: Record<SnapOption, boolean>;
 	angleStep: number;
 	units: Units;
@@ -35,9 +44,14 @@ export class PrecisionSettings {
 		midpoints: true,
 		planVertices: true,
 		angles: true,
+		grid: true,
 	});
 	angleStep = $state(15);
 	units = $state<Units>("metric");
+	/** The grid shown (`G`), and its spacing in metres (C.3). */
+	grid = $state(false);
+	gridMinor = $state(0.5);
+	gridMajor = $state(5);
 	readonly #storage: Storage | undefined;
 
 	constructor(storage: Storage | undefined, locale = "en-GB") {
@@ -51,6 +65,11 @@ export class PrecisionSettings {
 				this.angleStep = saved.angleStep as number;
 			if (saved.units === "metric" || saved.units === "imperial")
 				this.units = saved.units;
+			if (typeof saved.grid === "boolean") this.grid = saved.grid;
+			if (validSpacing(saved.gridMinor, saved.gridMajor)) {
+				this.gridMinor = saved.gridMinor as number;
+				this.gridMajor = saved.gridMajor as number;
+			}
 		}
 	}
 
@@ -82,6 +101,20 @@ export class PrecisionSettings {
 		this.#save();
 	}
 
+	toggleGrid() {
+		this.grid = !this.grid;
+		this.#save();
+	}
+
+	/** Sets the grid's spacing; false (and nothing changed) unless major ≥ minor > 0. */
+	setGridSpacing(minor: number, major: number): boolean {
+		if (!validSpacing(minor, major)) return false;
+		this.gridMinor = minor;
+		this.gridMajor = major;
+		this.#save();
+		return true;
+	}
+
 	setUnits(units: Units) {
 		this.units = units;
 		this.#save();
@@ -90,6 +123,9 @@ export class PrecisionSettings {
 	#save() {
 		const saved: Saved = {
 			enabled: this.enabled,
+			grid: this.grid,
+			gridMinor: this.gridMinor,
+			gridMajor: this.gridMajor,
 			options: this.options,
 			angleStep: this.angleStep,
 			units: this.units,
@@ -117,10 +153,24 @@ function read(storage: Storage | undefined): Partial<Saved> | null {
 			options: options as Record<SnapOption, boolean>,
 			angleStep: saved.angleStep,
 			units: saved.units,
+			grid: saved.grid,
+			gridMinor: saved.gridMinor,
+			gridMajor: saved.gridMajor,
 		};
 	} catch {
 		return null;
 	}
+}
+
+function validSpacing(minor: unknown, major: unknown): boolean {
+	return (
+		typeof minor === "number" &&
+		typeof major === "number" &&
+		Number.isFinite(minor) &&
+		Number.isFinite(major) &&
+		minor >= 0.01 &&
+		major >= minor
+	);
 }
 
 const CONTEXT = Symbol("precision");

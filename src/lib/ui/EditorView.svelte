@@ -51,6 +51,7 @@
 		floorPlanMode,
 		floorPlanToolMode,
 	} from "#lib/edit/modes/floorplan.ts";
+	import { type FramePick, framePickMode } from "#lib/edit/modes/frame-pick.ts";
 	import {
 		drawRectangleMode,
 		type RectangleVariant,
@@ -69,17 +70,19 @@
 	} from "#lib/edit/overlay.ts";
 	import type { Feedback } from "#lib/edit/precision/feedback.ts";
 	import {
+		bearingOf,
 		type Frame,
+		foldAngle,
 		northFrame,
-		outlineFrame,
 	} from "#lib/edit/precision/frame.ts";
+	import { drawnSpacing, gridLines } from "#lib/edit/precision/grid.ts";
 	import {
 		areaAround,
 		LINE_PIXELS,
 		type SnapTarget,
 		snapAt,
 	} from "#lib/edit/precision/snap.ts";
-	import { containerAt, unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
+	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
 	import { workerCodec } from "#lib/floorplans/codec.ts";
 	import {
@@ -99,6 +102,7 @@
 		planFrames,
 		toolFeatures,
 	} from "#lib/map/floorplan-layers.ts";
+	import { GridLayer } from "#lib/map/grid-layer.ts";
 	import { GuideLayer } from "#lib/map/guide-layer.ts";
 	import { parseHash, type MapView as View } from "#lib/map/hash.ts";
 	import type { IndoorMap } from "#lib/map/indoor-map.ts";
@@ -113,7 +117,7 @@
 		unprojectPoint as unproject_,
 	} from "#lib/map/view.ts";
 	import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
-	import { extentOf, extentsIntersect } from "#lib/osm/geometry.ts";
+	import { extentOf, extentsIntersect, fromLocal } from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
 	import { Autosave } from "#lib/persist/autosave.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
@@ -125,6 +129,7 @@
 		isPlanOnLevel,
 		type View as PlanView,
 	} from "#lib/state/floorplans.svelte.ts";
+	import { type BuildingFrame, Frames } from "#lib/state/frames.svelte.ts";
 	import {
 		PrecisionSettings,
 		setPrecision,
@@ -146,7 +151,7 @@
 	import RepeatDialog from "#lib/ui/RepeatDialog.svelte";
 	import RestoreDialog from "#lib/ui/RestoreDialog.svelte";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
-	import SnapMenu from "#lib/ui/SnapMenu.svelte";
+	import SnapMenu, { type FrameControls } from "#lib/ui/SnapMenu.svelte";
 	import UnsavedPlanDialog from "#lib/ui/UnsavedPlanDialog.svelte";
 	import { resolve } from "$app/paths";
 
@@ -211,13 +216,10 @@
 
 	/** The drawing frame at a position: its level outline's or building's, else north. */
 	function frameAt(loc: Loc): Frame {
-		const container = containerAt(
-			[...editor.features.byId.values()],
-			loc,
-			level,
+		return (
+			frames.at([...editor.features.byId.values()], loc, level)?.frame ??
+			northFrame(loc)
 		);
-		const ring = container?.polygons.find((p) => p[0])?.[0];
-		return (ring && outlineFrame(ring)) ?? northFrame(loc);
 	}
 
 	// Edits are saved in this browser as they are made, and offered back on start.
@@ -255,11 +257,86 @@
 	/** The plan worker, started the first time a plan is imported or loaded. */
 	const codec = workerCodec();
 	const decoders = planDecoders(codec);
-	const floorplans = new FloorPlans({
-		store: new IndexedDbPlanStore(),
-		codec,
-	});
+	const planStore = new IndexedDbPlanStore();
+	const floorplans = new FloorPlans({ store: planStore, codec });
 	void floorplans.restore();
+	/** Drawing frames set per building (C.3), kept with the floor plans. */
+	const frames = new Frames(planStore);
+	void frames.load();
+
+	/** The snapping menu is open: the frame in view is worked out for it. */
+	let snapMenuOpen = $state(false);
+	/** Setting the frame on the map: aligning it to a side, or moving its origin. */
+	let framePick = $state<FramePick | null>(null);
+
+	/**
+	 * The frame of the building in the middle of the map, or of the selected feature's (C.3),
+	 * while the grid or the snapping menu needs it.
+	 */
+	const viewFrame = $derived.by((): BuildingFrame | null => {
+		if (!camera || !(precision.grid || snapMenuOpen || framePick)) return null;
+		const selected = editor.selection.single;
+		const extent = selected ? entityExtent(editor.graph, selected) : null;
+		const at: Loc = extent
+			? [(extent.west + extent.east) / 2, (extent.south + extent.north) / 2]
+			: [camera.lon, camera.lat];
+		void frames.version;
+		return untrack(() =>
+			frames.at([...editor.features.byId.values()], at, level),
+		);
+	});
+	/** The grid's frame: the building's, else north from a round spot near the middle. */
+	const gridFrame = $derived.by((): Frame | null => {
+		if (!camera || !precision.grid) return null;
+		if (viewFrame) return viewFrame.frame;
+		const round = (v: number) => Math.round(v * 1000) / 1000;
+		return northFrame([round(camera.lon), round(camera.lat)]);
+	});
+	/** Pixels per metre on the ground at the middle of the map. */
+	function pixelsPerMetre(): number {
+		if (!map || !camera) return 0;
+		const centre: Loc = [camera.lon, camera.lat];
+		const a = projectLoc(centre);
+		const b = projectLoc(fromLocal(centre, [1, 0]));
+		return Math.hypot(b.x - a.x, b.y - a.y);
+	}
+	/** The grid's spacing for snapping now, or undefined when the grid isn't shown or snapped to. */
+	function gridSnap(): { frame: Frame; step: number } | undefined {
+		if (!gridFrame || !precision.snaps("grid")) return undefined;
+		const step = drawnSpacing(
+			{ minor: precision.gridMinor, major: precision.gridMajor },
+			pixelsPerMetre(),
+		);
+		return step ? { frame: gridFrame, step } : undefined;
+	}
+
+	/** What the snapping menu shows of the frame, and does to it. */
+	const frameControls = $derived<FrameControls>({
+		current: viewFrame,
+		plans: snapMenuOpen
+			? floorplans.plans
+					.filter(
+						(plan) => plan.visible !== false && isPlanOnLevel(plan, level),
+					)
+					.map((plan) => {
+						const [a, b] = corners(
+							plan.transform,
+							plan.size.width,
+							plan.size.height,
+						);
+						return { name: plan.name, angle: foldAngle(bearingOf(a, b)) };
+					})
+			: [],
+		onangle: (angle) => {
+			if (viewFrame) frames.set(viewFrame.id, { angle: foldAngle(angle) });
+		},
+		onreset: () => {
+			if (viewFrame) frames.reset(viewFrame.id);
+		},
+		onpick: (pick) => (framePick = pick),
+		onturn: () => map?.easeTo({ bearing: -(viewFrame?.frame.angle ?? 0) }),
+		onnorth: () => map?.easeTo({ bearing: 0 }),
+	});
 	/** The side panel's width, as the user left it, kept within the window. */
 	let panelWidth = $state(rememberedWidth(localStorage));
 	const panelBounds = $derived(widthBounds(innerWidth.current ?? 1280));
@@ -446,9 +523,11 @@
 			? floorplans.tool
 				? "floorplan-tool"
 				: "floorplan"
-			: drawing
-				? `draw-${drawing}`
-				: "browse",
+			: framePick
+				? `frame-${framePick}`
+				: drawing
+					? `draw-${drawing}`
+					: "browse",
 	);
 	let modes = $state.raw<ModeManager>();
 
@@ -464,6 +543,30 @@
 		const overlay = new EditOverlay(instance);
 		const guides = new GuideLayer(instance);
 		$effect(() => guides.show(feedback));
+		const grid = new GridLayer(instance);
+		$effect(() => {
+			void camera;
+			const frame = planMode ? null : gridFrame;
+			if (!frame) {
+				grid.setLines([]);
+				return;
+			}
+			const { clientWidth: w, clientHeight: h } = instance.getContainer();
+			const view = [
+				{ x: 0, y: 0 },
+				{ x: w, y: 0 },
+				{ x: w, y: h },
+				{ x: 0, y: h },
+			].map(unprojectPoint);
+			grid.setLines(
+				gridLines(
+					frame,
+					view,
+					{ minor: precision.gridMinor, major: precision.gridMajor },
+					untrack(pixelsPerMetre),
+				),
+			);
+		});
 		$effect(() =>
 			overlay.setData(
 				planMode
@@ -652,6 +755,27 @@
 							}),
 						);
 						break;
+					case "frame-align":
+					case "frame-origin":
+						manager.setMode(
+							framePickMode({
+								pick: kind === "frame-align" ? "align" : "origin",
+								snap: (at) =>
+									kind === "frame-align" ? sideAt(at) : snapNode(at, new Set()),
+								onangle: (angle) => {
+									if (viewFrame) frames.set(viewFrame.id, { angle });
+								},
+								onorigin: (origin) => {
+									if (viewFrame)
+										frames.set(viewFrame.id, {
+											angle: viewFrame.frame.angle,
+											origin: [origin[0], origin[1]],
+										});
+								},
+								ondone: () => (framePick = null),
+							}),
+						);
+						break;
 					case "draw-split":
 						manager.setMode(
 							splitMode({
@@ -692,6 +816,7 @@
 			stopTiles();
 			overlay.remove();
 			guides.remove();
+			grid.remove();
 			marks.remove();
 			layers.remove();
 		};
@@ -805,10 +930,22 @@
 				midpoints: precision.snaps("midpoints"),
 				lines,
 				lock: constraints.lock,
+				grid: gridSnap(),
 			},
 			projectLoc,
 			undefined,
 			at.lngLat,
+		);
+	}
+
+	/** The side under the pointer, for aligning the frame to it. */
+	function sideAt(at: MapPoint): SnapTarget | null {
+		if (!map) return null;
+		const area = areaAround(at.point, unprojectPoint);
+		return snapAt(
+			at.point,
+			{ segments: editor.features.segmentsNear(area, level) },
+			projectLoc,
 		);
 	}
 
@@ -931,6 +1068,7 @@
 		{ combo: "4", run: () => draw("rectangle") },
 		{ combo: "X", run: () => draw("split") },
 		{ combo: "S", run: () => precision.toggle() },
+		{ combo: "G", run: () => precision.toggleGrid() },
 		{ combo: "Mod+Z", run: () => editor.history.undo() },
 		{ combo: "Mod+Shift+Z", run: () => editor.history.redo() },
 		{ combo: "Mod+Y", run: () => editor.history.redo() },
@@ -1121,7 +1259,11 @@
 				</ButtonGroup.Root>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
-				<SnapMenu {precision} />
+				<SnapMenu
+					{precision}
+					frame={frameControls}
+					onopenchange={(open) => (snapMenuOpen = open)}
+				/>
 			</div>
 			{#if operations.length > 0}
 				<div class="rounded-md bg-background shadow-md">
@@ -1204,7 +1346,19 @@
 		/>
 	{/if}
 
-	{#if drawing && !dragHint && !operationNote}
+	{#if framePick}
+		<p
+			role="status"
+			data-testid="frame-hint"
+			class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+		>
+			{t(
+				framePick === "align"
+					? msg("frame_pick_align")
+					: msg("frame_pick_origin"),
+			)}
+		</p>
+	{:else if drawing && !dragHint && !operationNote}
 		<p
 			role="status"
 			data-testid="draw-hint"

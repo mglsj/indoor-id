@@ -21,6 +21,8 @@ import {
 	local,
 	toMercator,
 } from "#lib/osm/geometry.ts";
+import type { Frame } from "./frame.ts";
+import { nearestCrossing, nearestGridLines } from "./grid.ts";
 
 /** Snapping distance of points (nodes, sides, plan vertices), in screen pixels. */
 export const SNAP_PIXELS = 8;
@@ -57,6 +59,8 @@ export type SnapTarget =
 			readonly guides?: readonly Guide[];
 	  }
 	| { readonly kind: "plan"; readonly loc: Loc }
+	/** A crossing of the grid (C.3). */
+	| { readonly kind: "grid"; readonly loc: Loc }
 	/** On a direction line, nothing else there. */
 	| {
 			readonly kind: "angle";
@@ -89,6 +93,8 @@ export interface SnapCandidates {
 	 * to otherwise (a node, a side…) or of the pointer itself.
 	 */
 	readonly lock?: DirectionLine;
+	/** The grid shown, and the spacing drawn (C.3): its crossings, and its lines with angles. */
+	readonly grid?: { readonly frame: Frame; readonly step: number };
 }
 
 type ScreenPoint = { readonly x: number; readonly y: number };
@@ -104,6 +110,7 @@ const PRIORITY = {
 	crossing: 1,
 	segment: 2,
 	plan: 3,
+	grid: 3,
 	angle: 4,
 } as const;
 
@@ -121,7 +128,7 @@ export function snapAt(
 	const { lock } = candidates;
 	if (lock) {
 		const base = best(
-			pointCandidates(point, candidates, project, distance),
+			pointCandidates(point, pointer, candidates, project, distance),
 		)?.target;
 		const at = base?.loc ?? pointer;
 		if (!at) return null;
@@ -132,7 +139,7 @@ export function snapAt(
 			guides: [{ from: lock.origin, to: foot }],
 		};
 	}
-	const scored = pointCandidates(point, candidates, project, distance);
+	const scored = pointCandidates(point, pointer, candidates, project, distance);
 	if (pointer && candidates.lines?.length) {
 		scored.push(
 			...lineCandidates(point, pointer, candidates, project, LINE_PIXELS),
@@ -150,7 +157,14 @@ function best(scored: readonly Scored[]): Scored | undefined {
 /** Nodes, sides (and their midpoints), plan vertices within `distance` px. */
 function pointCandidates(
 	point: ScreenPoint,
-	{ nodes = [], segments = [], planVertices = [], midpoints }: SnapCandidates,
+	pointer: Loc | undefined,
+	{
+		nodes = [],
+		segments = [],
+		planVertices = [],
+		midpoints,
+		grid,
+	}: SnapCandidates,
 	project: (loc: Loc) => ScreenPoint,
 	distance: number,
 ): Scored[] {
@@ -208,6 +222,17 @@ function pointCandidates(
 			score: vertex.distance + PRIORITY.plan * PRIORITY_STEP,
 		});
 	}
+	if (grid && pointer) {
+		const crossing = nearestCrossing(grid.frame, pointer, grid.step);
+		const p = project(crossing);
+		const d = Math.hypot(p.x - point.x, p.y - point.y);
+		if (d < distance) {
+			scored.push({
+				target: { kind: "grid", loc: crossing },
+				score: d + PRIORITY.grid * PRIORITY_STEP,
+			});
+		}
+	}
 	return scored;
 }
 
@@ -215,7 +240,7 @@ function pointCandidates(
 function lineCandidates(
 	point: ScreenPoint,
 	pointer: Loc,
-	{ lines = [], segments = [] }: SnapCandidates,
+	{ lines = [], segments = [], grid }: SnapCandidates,
 	project: (loc: Loc) => ScreenPoint,
 	distance: number,
 ): Scored[] {
@@ -252,6 +277,26 @@ function lineCandidates(
 				},
 				score: dc + PRIORITY.crossing * PRIORITY_STEP,
 			});
+		}
+	}
+	// Where a direction crosses the grid's nearest lines.
+	if (grid) {
+		const gridLines = nearestGridLines(grid.frame, pointer, grid.step);
+		for (const line of caught) {
+			for (const gridLine of gridLines) {
+				const crossing = crossLines(line, gridLine);
+				if (!crossing) continue;
+				const dc = screenDistance(crossing);
+				if (dc >= distance) continue;
+				scored.push({
+					target: {
+						kind: "intersection",
+						loc: crossing,
+						guides: [{ from: line.origin, to: crossing }],
+					},
+					score: dc + PRIORITY.grid * PRIORITY_STEP,
+				});
+			}
 		}
 	}
 	for (let i = 0; i < caught.length; i++) {

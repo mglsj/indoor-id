@@ -3,6 +3,7 @@ import type { Loc } from "#lib/osm/entity.ts";
 import { fromLocal } from "#lib/osm/geometry.ts";
 import {
 	bearingOf,
+	foldAngle,
 	fromFrame,
 	lengthOf,
 	normalizeAngle,
@@ -54,6 +55,13 @@ describe("lengths and bearings", () => {
 	test("north-east is 45°, west is −180°", () => {
 		expect(bearingOf(ORIGIN, at(1, 1))).toBeCloseTo(45, 6);
 		expect(normalizeAngle(bearingOf(ORIGIN, at(-1, 0)))).toBeCloseTo(-180, 6);
+	});
+
+	test("foldAngle keeps the axes", () => {
+		expect(foldAngle(60)).toBe(-30);
+		expect(foldAngle(135)).toBe(-45);
+		expect(foldAngle(-100)).toBe(-10);
+		expect(foldAngle(10)).toBe(10);
 	});
 
 	test("normalizeAngle", () => {
