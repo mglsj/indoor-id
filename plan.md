@@ -45,6 +45,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | T      | One theme, background pane                 | Done         |
 | C      | CAD-style precision (C.0–C.6)              | C.0–C.6 done |
 | I      | iD's area fill, colours and safeguards     | Done         |
+| B      | Building mode: map and building scopes     | Not started  |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
 | P6     | Parity and polish                          | Not started  |
@@ -133,6 +134,9 @@ Revised 2026-11-12 with the user ✔: all 3D work moves to "Later: 3D" at the en
 The near-term roadmap is a good 2D editing and viewing experience: P5.4b (safe uploads), W2
 (validation), P6 (parity and polish), then 0.1 alpha. 3D starts only after those, when the user
 says so.
+
+Revised 2026-11-12 with the user ✔: building mode (B) comes first, before P5.4b, W2 and P6, so
+that P6 polishes the split layout rather than the single editor.
 
 ### R4: Fixes after P5.3 — S — done
 
@@ -497,9 +501,113 @@ step; the frame and grid per building, automatic with an override; typed values 
 field; a units setting (metric or imperial); all of C.0 to C.6; keys chosen here (`S` snapping,
 `4` rectangle, `G` grid, `M` measure).
 
+### B: Building mode — M–L (B.0–B.5)
+
+Asked by the user on 2026-11-12: building and indoor editing share one editor, so a click near a
+facade sometimes selects the building, sometimes a room, a shared vertex or the empty floor, and
+every CAD tool sits on the toolbar even when fixing an outline. Research (what the code does,
+what osm-simple3d-editor, SketchUp/Figma/AutoCAD, JOSM's indoorhelper and iD do, and the forum's
+indoor conventions): `research/building-indoor-mode.md` in the project files. Agreed the same
+day ✔: B before P5.4b, W2 and P6, with the defaults below.
+
+Why the editor is ambiguous today: a building outline has no `level`, so its feature has
+`@lv = "*"` and is drawn and picked on every level, in the same selectable layers as rooms;
+`browseMode.click` takes the first hit within the click tolerance, and `selectFloorAt` turns a
+click inside a building into the unmapped floor. Rooms on the facade share the outline's nodes.
+Hit priority tweaks can't tell "I'm fixing the outline" from "I'm drawing rooms"; a scope can.
+
+The idea in one line: **two scopes on one engine.** Modes, operations, snapping, frames and the
+data model stay as they are; what changes is what is drawn, what a click can pick, and which
+tools are offered.
+
+- **Map mode (default), iD-like.** Selectable: buildings, building parts and entrances (IndoorID
+  is not a general outdoor editor; other loaded features are drawn for context). Indoor features are drawn faded and are not picked; a click on
+  one (or on a building with indoor data) offers "Edit indoor", and a double-click enters the
+  building. No level switcher. Tools: point, line, area, Square, delete, copy and paste,
+  operations that make sense outside (no split, merge, repeat on levels), node and side
+  snapping, angle snapping and the length and angle readout. No grid, frame menu, guides, typed
+  lengths, rectangle or measure.
+- **Building mode (indoor).** Entered by a double-click on a building, "Edit indoor" in its
+  panel, or the URL (`#…&building=w123`, kept both ways like the level). The camera fits the
+  building, its whole extent is loaded once, and everything outside it is faded and not picked
+  (neighbours stay snap targets, as osm-simple3d-editor's "surroundings", `dc73a08`: a click on
+  one shows its tags read-only, a double-click opens it). The outline is a **locked reference**:
+  drawn, snapped to, not selected by a plain click; "Edit outline" unlocks it. Selectable: the
+  building's indoor features on the shown level, the unmapped floor, doors, entrances and
+  points. Tools: all of C (rectangle, typed values, grid, frame, guides, measure, inference,
+  transforms), split, merge, repeat on levels, multipolygon. The frame is this building's frame;
+  floor plans move here (the Floor plans button leaves map mode). The side panel, with nothing
+  selected, shows the building (name, levels, "Done", the surroundings toggle) instead of
+  closing. Escape with nothing selected, or Done, leaves and selects the building again.
+
+What a "building" is for B: a `building=*` way or multipolygon with the parts inside it (no
+`type=building` relation needed: the forum, #39 and #52, groups an outline with the parts it
+contains), a `type=building` relation, or an `indoor=level` outline for indoor data with no
+building around it (stations, some malls; osm-simple3d-editor opens such complexes from a map
+badge, `e21f61e`). Elsewhere, "Edit indoor here" on the empty map opens a scope around the
+indoor features under the pointer. Buildings that touch (a station complex, forum #87) can be
+entered together later; B.0 keeps the scope a list of outlines so that stays possible.
+
+Conventions from the forum thread (t/148767, posts 1–169) that B must keep:
+- Indoor features belong to a building by **geometry and `level` only**, never by relation
+  membership (the abandoned IndoorOSM did that). Scope membership is by position, from
+  `validation/outlines.ts`.
+- `indoor=level` limits the floor (#113, #114): with one, the floor is only inside it; without,
+  the whole building section is floor. `unmappedFloorAt` already does this.
+- Indoor edits should not move the shell by accident (#112, #115; osm-simple3d-editor makes
+  indoor editing never move outline or part nodes, `769e57c`). With the outline locked, a drag
+  of a room vertex shared with the outline is refused with a hint ("Shared with the building
+  outline: Edit outline to move it, or Disconnect"). Placing a door on the facade still inserts
+  an entrance node into the outline (adding a node doesn't move the shell), and an entrance
+  and its floor-plan door stay one node (`c9cbc79`).
+- Moving a node shared with another level says so (V.1's pre-check, already done) and
+  cross-level connections stay a hint, never an error (t/148649).
+- Imagery stays available inside, with the area fill switch (#21, #66).
+- Floor plans need the owner's permission to be traced (#140–#146): the import dialog, now in
+  building mode, says so (taken from P6).
+
+Slices, each agreeing its test seams first:
+
+0. **B.0 Scope, no UI change — S.** `state/scope.svelte.ts`: `null` or `{ outlines: EntityId[] }`
+   with `contains(feature)` by position (`validation/outlines.ts`), `building=` in the URL hash
+   both ways (`map/hash.ts`). Unit tests: a room inside, a room across two buildings (in both;
+   W already warns), a point on the facade, an `indoor=level` scope, parts without a relation.
+1. **B.1 Drawing and picking by scope — M.** `IndoorMap.setScope`: in map mode indoor layers
+   faded and left out of `selectableLayers`; in building mode features outside faded and left
+   out, the outline drawn in a reference layer that is not selectable but still a snap source.
+   `selectFloorAt` only in building mode. E2E: the same facade click selects the building in
+   map mode and the room in building mode; a click inside a building in map mode never selects
+   the unmapped floor.
+2. **B.2 Enter and leave — S–M.** Double-click and "Edit indoor", "Edit indoor here", fit the
+   camera, load the extent (`DataSync` by bbox, as V's viewer does), Done and Escape; leaving
+   ends a drawing or tool as a level change does (`Mode.finish`). The building panel.
+3. **B.3 Two toolbars — M.** `EditorView.svelte` (1,657 lines) splits its controls into
+   `MapToolbar` and `BuildingToolbar`; `SnapMenu` shows only what the scope offers; keys of
+   tools not offered do nothing (the help lists them per mode). Floor plans move to building
+   mode. No change to the modes themselves.
+4. **B.4 Outline lock — S.** Refused drags of shared outline nodes with the hint; "Edit outline"
+   toggles the lock for this visit; entrances inserted into the outline as today.
+5. **B.5 Scoped checks and polish — S.** The issue list and the Save dialog's warnings scoped to
+   the building inside (all edits are still uploaded together); the level switcher only in
+   building mode; the viewer may reuse "enter a building" later (not in B).
+
+Existing e2e tests that draw indoor features get an `enterBuilding()` helper in
+`tests/e2e/fixtures.ts`; tests on empty data use "Edit indoor here".
+
+Risks: hiding indoor data in map mode could hide what a user came for; the faded features and
+"Edit indoor" keep it one click away, and a link with `building=` opens straight inside. A
+scope must never filter the upload: what was edited outside the building in this session
+(or in an earlier visit) is still sent.
+
+Decided with the user (2026-11-12) ✔: B before P5.4b, W2 and P6; indoor features faded in map
+mode, a click offering to enter; `indoor=level` outlines as scopes plus "Edit indoor here";
+angle snapping, the readout and Square kept in map mode, the rest of C only inside; the outline
+locked inside until "Edit outline"; map mode edits buildings, parts and entrances, not a general
+outdoor editor; a URL naming a building opens inside it.
+
 ### P5.4b: Rebase before upload, conflicts — M–L
 
-Next, after C and I (3D moved later on 2026-11-12). Autosave, P5.4's first step, moved to P5.4a; steps 2 to 4 stay here.
+Next, after B (3D moved later on 2026-11-12). Autosave, P5.4's first step, moved to P5.4a; steps 2 to 4 stay here.
 
 2. Rebase before upload, first (osm-simple3d-editor does only this, and conflicts become
    rare): fetch the current versions of edited entities, reapply tag edits where the server
@@ -568,9 +676,8 @@ Added 2026-11-11 (research addendum B, the forum and osm-simple3d-editor up to `
 - Left over from geometry editing (from osm-simple3d-editor): a multipolygon left with one
   outer way and no holes becomes a tagged way again on upload; tracing along existing
   outlines; removing a way's last vertices deletes the way.
-- Floor plan import: say in the dialog that tracing a plan needs its owner's permission
-  (OSM's copyright rules; Fotoshi, t/148767 #145, allows looking at plan photos but not tracing
-  or overlaying them).
+- ~~Floor plan import: the permission note~~ moved to B (the import dialog moves into building
+  mode there).
 - "Cut out of the level outline" (osm-simple3d-editor `6e898c1`): a quick way to draw the
   atrium holes 3D.3 reads. Offset with its inner-ring mode (`76eadf2`) moved to C.6.
 - Release 0.1 alpha: an e2e checklist of the features it ships with, and an announcement as a
@@ -678,6 +785,7 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
   section.
 - 2026-11-12: all 3D (3D.1, 3D.2, 3D.3) moves to "Later: 3D". The near-term roadmap is 2D
   editing and viewing: P5.4b, W2, P6 and the 0.1 alpha release.
+- 2026-11-12: building mode (B) before P5.4b, W2 and P6, with the defaults in its section.
 - 2026-11-11: before V, the plan takes in the forum recheck and osm-simple3d-editor's commits
   to `02c2bfd` (research addendum B), and the license notices are completed (LN below).
 
