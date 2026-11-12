@@ -1,6 +1,7 @@
 /**
- * The measure tool (C.5, `M`), a tape as in SketchUp. "Measure": two snapped clicks give the
- * distance and the angle against the frame, shown until the next measure. "Guide" (Tab):
+ * The measure and guide tool (C.5, `M`), a tape as in SketchUp. "Measure": two snapped clicks
+ * give the distance and the angle against the frame, shown until the next measure. "Guide"
+ * (Tab, or the switch shown under the toolbar while the tool is on):
  * places a construction guide. A first click on a side starts a guide parallel to it, placed
  * by a click at the distance wanted or by typing that distance ("the corridor wall is 2.4 m
  * from this one"); a first click on anything else starts a guide through that point, placed by
@@ -63,6 +64,11 @@ interface Start {
 
 const NONE = new Set<NodeId>();
 
+/** The measure tool, which the toolbar's Measure / Guide switch also changes. */
+export interface MeasureMode extends Mode {
+	setVariant(variant: MeasureVariant): void;
+}
+
 export function measureMode({
 	snap,
 	precision,
@@ -70,7 +76,7 @@ export function measureMode({
 	onvariant,
 	onguide,
 	onexit,
-}: MeasureOptions): Mode {
+}: MeasureOptions): MeasureMode {
 	let variant = initial;
 	let start: Start | null = null;
 	/** The last measure, shown until the next one starts. */
@@ -168,6 +174,15 @@ export function measureMode({
 		typed = EMPTY_INPUT;
 	};
 
+	const switchTo = (next: MeasureVariant) => {
+		if (next === variant) return;
+		variant = next;
+		reset();
+		result = null;
+		onvariant(variant);
+		update(pointer);
+	};
+
 	const place = (guide: DirectionLine | null) => {
 		if (!guide) return;
 		onguide(guide);
@@ -211,11 +226,7 @@ export function measureMode({
 		},
 		key(event) {
 			if (event.key === "Tab" && !isTyping(typed)) {
-				variant = variant === "measure" ? "guide" : "measure";
-				reset();
-				result = null;
-				onvariant(variant);
-				update(pointer);
+				switchTo(variant === "measure" ? "guide" : "measure");
 				return true;
 			}
 			if (start && variant === "guide") {
@@ -253,6 +264,7 @@ export function measureMode({
 		exit() {
 			precision.show(null);
 		},
+		setVariant: switchTo,
 	};
 }
 

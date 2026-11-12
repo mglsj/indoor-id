@@ -85,6 +85,10 @@ export interface ArchivedGuide {
 	readonly level: number;
 	/** The building or level outline it was placed in. */
 	readonly building?: string;
+	/** Its colour on the map (`#rrggbb`), when the user picked one. */
+	readonly color?: string;
+	/** Hidden by the user. */
+	readonly hidden?: boolean;
 }
 
 export interface PlanArchive {
@@ -212,12 +216,15 @@ export function readPlanArchive(
 	};
 }
 
+/** A guide's colour as a plan file may carry it. */
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
 /** The guides a manifest carries, each checked; broken ones are left out. */
 function guidesOf(value: unknown): ArchivedGuide[] {
 	if (!Array.isArray(value)) return [];
 	return value.flatMap((guide): ArchivedGuide[] => {
 		if (!isRecord(guide)) return [];
-		const { origin, angle, level, building } = guide;
+		const { origin, angle, level, building, color, hidden } = guide;
 		if (
 			!Array.isArray(origin) ||
 			origin.length !== 2 ||
@@ -233,6 +240,10 @@ function guidesOf(value: unknown): ArchivedGuide[] {
 				angle,
 				level: level as number,
 				...(typeof building === "string" ? { building } : {}),
+				...(typeof color === "string" && HEX_COLOR.test(color)
+					? { color }
+					: {}),
+				...(hidden === true ? { hidden } : {}),
 			},
 		];
 	});

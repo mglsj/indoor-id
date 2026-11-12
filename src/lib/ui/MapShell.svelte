@@ -1,15 +1,34 @@
+<script lang="ts" module>
+	import type { Component, Snippet } from "svelte";
+
+	/** A pane a page adds on the right of the map, next to the background's (iD's map panes). */
+	export interface MapPane {
+		readonly id: string;
+		/** The button's text, and the pane's name. */
+		readonly label: string;
+		/** The button's tooltip. */
+		readonly title: string;
+		readonly icon: Component;
+		/** A count shown on the button (the guides on the level), when above 0. */
+		readonly badge?: number;
+		/** The pane, given a function that closes it. */
+		readonly content: Snippet<[close: () => void]>;
+	}
+</script>
+
 <script lang="ts">
 	/**
 	 * The map every page shows (R5): the MapLibre map with the indoor features of `getEditor()`,
 	 * the shown level and its switcher, the URL hash, the background (the light basemap, imagery
 	 * or a solid colour, chosen in a pane opened from the top right; the map stays light in the
 	 * dark theme), place search and the download status. Pages add their controls and panels
-	 * through the snippets; the editor
+	 * through the snippets, and panes of their own beside the background's (`panes`, one open at
+	 * a time); the editor
 	 * (`EditorView`) adds modes, drawing, floor plans and upload on top.
 	 */
 	import Layers from "@lucide/svelte/icons/layers";
-	import type { Snippet } from "svelte";
 	import type { Place } from "#lib/api/nominatim.ts";
+	import { Badge } from "#lib/components/shadcn/badge/index.ts";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
 	import { msg, t } from "#lib/i18n/messages.ts";
@@ -69,6 +88,10 @@
 		tools?: Snippet;
 		/** Panels, hints and dialogs over the map. */
 		children?: Snippet;
+		/** Panes of the page's own, opened from buttons under the background's. */
+		panes?: readonly MapPane[];
+		/** The pane open on the right: "background", a pane's id, or null. */
+		openPane?: string | null;
 	}
 
 	const fromUrl = parseHash(location.hash);
@@ -88,6 +111,8 @@
 		controls,
 		tools,
 		children,
+		panes = [],
+		openPane = $bindable(null),
 	}: Props = $props();
 
 	const editor = getEditor();
@@ -96,7 +121,13 @@
 	const settings = new BackgroundSettings(browserStorage());
 	background = settings;
 	/** The background pane, on the right of the map. */
-	let backgroundOpen = $state(false);
+	const backgroundOpen = $derived(openPane === "background");
+	const shownPane = $derived(panes.find((pane) => pane.id === openPane));
+	const paneOpen = $derived(backgroundOpen || shownPane !== undefined);
+	function toggle(pane: string) {
+		openPane = openPane === pane ? null : pane;
+	}
+	const closePane = () => (openPane = null);
 	/** Its width in pixels (20rem). */
 	const PANE_WIDTH = 320;
 	/** Indoor features the map has drawn (for the e2e tests' `data-drawn`). */
@@ -250,7 +281,7 @@
 
 <MapView
 	styleUrl={BASEMAP_STYLE}
-	coveredRight={backgroundOpen ? PANE_WIDTH : 0}
+	coveredRight={paneOpen ? PANE_WIDTH : 0}
 	initialCamera={fromUrl ?? {
 		zoom: config.map_initial_zoom,
 		lat: config.map_initial_latlng[0],
@@ -279,19 +310,36 @@
 
 <div
 	class="absolute top-4 z-10 flex flex-col items-end gap-2"
-	style:right={backgroundOpen ? `calc(${PANE_WIDTH}px + 1rem)` : "1rem"}
+	style:right={paneOpen ? `calc(${PANE_WIDTH}px + 1rem)` : "1rem"}
 >
 	<div class="rounded-md bg-background shadow-md">
 		<Button
 			variant={backgroundOpen ? "secondary" : "outline"}
 			aria-pressed={backgroundOpen}
 			title={t(msg("background_toggle"))}
-			onclick={() => (backgroundOpen = !backgroundOpen)}
+			onclick={() => toggle("background")}
 		>
 			<Layers data-icon="inline-start" />
 			{t(msg("background"))}
 		</Button>
 	</div>
+	{#each panes as pane (pane.id)}
+		{@const open = openPane === pane.id}
+		<div class="rounded-md bg-background shadow-md">
+			<Button
+				variant={open ? "secondary" : "outline"}
+				aria-pressed={open}
+				title={pane.title}
+				onclick={() => toggle(pane.id)}
+			>
+				<pane.icon data-icon="inline-start" />
+				{pane.label}
+				{#if pane.badge}
+					<Badge variant="secondary" class="tabular-nums">{pane.badge}</Badge>
+				{/if}
+			</Button>
+		</div>
+	{/each}
 	<LevelControl bind:level levels={levelsInView} {numbering} />
 </div>
 
@@ -304,8 +352,15 @@
 			{settings}
 			showFill={presentation === "edit"}
 			metresPerPixel={() => metresPerPixel(map)}
-			onclose={() => (backgroundOpen = false)}
+			onclose={closePane}
 		/>
+	</div>
+{:else if shownPane}
+	<div
+		class="absolute inset-y-0 right-0 z-30 max-w-full"
+		style:width="{PANE_WIDTH}px"
+	>
+		{@render shownPane.content(closePane)}
 	</div>
 {/if}
 

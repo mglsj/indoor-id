@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { copyEntities } from "#lib/actions/copy.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import type { EntityId } from "#lib/osm/entity.ts";
-import { node, way } from "#lib/osm/fixtures.ts";
+import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import {
 	OPERATIONS,
@@ -68,6 +68,8 @@ describe("OPERATIONS", () => {
 			"side",
 			"offset",
 			"square-frame",
+			"straighten",
+			"symmetric",
 			"delete",
 		]);
 		expect(offered(context(["n7"]))).toEqual([
@@ -186,5 +188,45 @@ describe("operations on features not in view (iD's too_large)", () => {
 		expect(operation("copy").disabled(context(["w1"], { view: half }))).toBe(
 			null,
 		);
+	});
+});
+
+describe("straightening an outline", () => {
+	/** A building drawn by hand as a multipolygon r1 with one outer way w1. */
+	const building = () =>
+		Graph.fromEntities([
+			node("n1", {}, [0, 0]),
+			node("n2", {}, [0.001, 0.00001]),
+			node("n3", {}, [0.00098, 0.001]),
+			node("n4", {}, [0, 0.001]),
+			way("w1", ["n1", "n2", "n3", "n4", "n1"]),
+			relation("r1", [{ ref: "w1", role: "outer" }], {
+				type: "multipolygon",
+				building: "yes",
+			}),
+		]);
+
+	it("straightens the outer way of a selected multipolygon, keeping it selected", () => {
+		const c = context(["r1"], { graph: building() });
+		expect(offered(c)).toContain("straighten");
+		const { graph: after, select } = apply("straighten", c);
+		expect(select).toEqual(["r1"]);
+		const loc = (id: EntityId) => {
+			const e = after.entity(id);
+			return e?.type === "node" ? e.loc : [Number.NaN, Number.NaN];
+		};
+		// The south side level and the east side upright.
+		expect(loc("n1")[1]).toBeCloseTo(loc("n2")[1] as number, 9);
+		expect(loc("n2")[0]).toBeCloseTo(loc("n3")[0] as number, 9);
+	});
+
+	it("isn't offered for a multipolygon with several outer ways", () => {
+		const g = building().replace(
+			relation("r1", [
+				{ ref: "w1", role: "outer" },
+				{ ref: "w2", role: "outer" },
+			]),
+		);
+		expect(offered(context(["r1"], { graph: g }))).not.toContain("straighten");
 	});
 });

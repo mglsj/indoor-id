@@ -470,10 +470,15 @@ Landed with C.5: `edit/modes/measure.ts` (`M`, a Ruler button; Tab switches "mea
 plan files as an optional `guides` list in `plans.json`; imported guides get new ids),
 `map/construction-layer.ts` (faint dashed lines, 2 km each way). Guides snap like sides (a
 point on one, where one crosses a side, another guide or a direction line); the snapping
-menu shows the level's count, hides them, and clears the level's. A measure is kept until the
-next first click, as a side label; the measured line is drawn through `Feedback.lines`. Not
-done: a list to delete one guide (clear the level instead), and guides on other levels are
-only reachable by switching level. Plan files are exported only when there is a plan.
+menu shows the level's count and opens the guides pane. A measure is kept until the
+next first click, as a side label; the measured line is drawn through `Feedback.lines`. Plan
+files are exported only when there is a plan. Then, as users missed that the tool places
+guides at all: the tool is "Measure and guide", with a Measure / Guide switch under the
+toolbar while it is on (Tab still switches), and `ui/GuidesPane.svelte`, a pane on the right
+beside the background's (`MapShell`'s `panes`, one open at a time), lists the level's guides
+to recolour (`color`), hide one (`hidden`), delete or find on the map (pointing at one draws it
+bold), hides them all or clears the level's, and lists the other levels that have guides. The
+first guide placed on a page points at the pane.
 
 Landed with C.6: `actions/transform.ts` (`translateNodes`, `rotateNodes`, `scaleNodes`,
 `setSideLength`, `moveSide`: neighbours keep their directions, `offsetWay`: positive inside a
@@ -486,6 +491,17 @@ only act when it has focus), and side lengths typed in the measurements panel. N
 JOSM's extrude that adds a new face (moving a side covers the indoor case), a side length
 typed while dragging a vertex, offset's inner-ring (atrium hole) mode, and dragging (rather than
 clicking) in the move, rotate and scale tools. Nudges are one undo step each.
+
+Added after C (2026-11-12, asked by the user for a building drawn freehand that is all 90° and
+45° in reality): `actions/straighten.ts`, two operations on one closed way. **Straighten to
+45°** (`A`) turns every side to the nearest 45° step from the building's frame; neighbouring
+sides in one direction become one straight run through their middles (weighted by length), and
+the corners are where runs cross. **Make symmetric** (`Y`) finds the mirror line along the
+frame's axes or diagonals that pairs every corner with a twin (within 1.5 m, or 8% of the
+outline's size) and moves each pair halfway to mirror each other. Both move existing nodes only,
+so rooms sharing them stay joined, and each is one undo step. Not done: a side picked as the
+mirror line, a 90° only variant in the toolbar (the action takes a step of 90), and equal
+lengths for sides that should match.
 
 Order inside C: C.0 and C.1 together first (one PR each), then C.2, then C.3; C.4 to C.6 can
 be reordered after users have tried C.1–C.3.

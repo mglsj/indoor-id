@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ArrowRightFromLine from "@lucide/svelte/icons/arrow-right-from-line";
+	import BetweenVerticalStart from "@lucide/svelte/icons/between-vertical-start";
 	import ClipboardPaste from "@lucide/svelte/icons/clipboard-paste";
 	import Combine from "@lucide/svelte/icons/combine";
 	import Copy from "@lucide/svelte/icons/copy";
@@ -9,11 +10,13 @@
 	import Layers2 from "@lucide/svelte/icons/layers-2";
 	import MapPin from "@lucide/svelte/icons/map-pin";
 	import Move from "@lucide/svelte/icons/move";
+	import Octagon from "@lucide/svelte/icons/octagon";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import RectangleHorizontal from "@lucide/svelte/icons/rectangle-horizontal";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
 	import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 	import Ruler from "@lucide/svelte/icons/ruler";
+	import RulerDimensionLine from "@lucide/svelte/icons/ruler-dimension-line";
 	import Scaling from "@lucide/svelte/icons/scaling";
 	import Scissors from "@lucide/svelte/icons/scissors";
 	import Spline from "@lucide/svelte/icons/spline";
@@ -37,6 +40,7 @@
 	import { Badge } from "#lib/components/shadcn/badge/index.ts";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
+	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
 	import { featureDrag, nodesOf } from "#lib/edit/feature-drag.ts";
@@ -61,7 +65,11 @@
 		floorPlanToolMode,
 	} from "#lib/edit/modes/floorplan.ts";
 	import { type FramePick, framePickMode } from "#lib/edit/modes/frame-pick.ts";
-	import { type MeasureVariant, measureMode } from "#lib/edit/modes/measure.ts";
+	import {
+		type MeasureMode,
+		type MeasureVariant,
+		measureMode,
+	} from "#lib/edit/modes/measure.ts";
 	import {
 		drawRectangleMode,
 		type RectangleVariant,
@@ -82,6 +90,7 @@
 		floorFeature,
 		overlayFeatures,
 	} from "#lib/edit/overlay.ts";
+	import type { ConstructionGuide } from "#lib/edit/precision/construction.ts";
 	import {
 		type Feedback,
 		inferenceLabel,
@@ -94,6 +103,7 @@
 	} from "#lib/edit/precision/frame.ts";
 	import { drawnSpacing, gridLines } from "#lib/edit/precision/grid.ts";
 	import { Inferences } from "#lib/edit/precision/inference.ts";
+	import type { DirectionLine } from "#lib/edit/precision/snap.ts";
 	import {
 		areaAround,
 		LINE_PIXELS,
@@ -162,8 +172,9 @@
 	import { Session } from "#lib/state/session.svelte.ts";
 	import FloorPanel from "#lib/ui/FloorPanel.svelte";
 	import FloorPlansPanel from "#lib/ui/FloorPlansPanel.svelte";
+	import GuidesPane from "#lib/ui/GuidesPane.svelte";
 	import Inspector from "#lib/ui/Inspector.svelte";
-	import MapShell from "#lib/ui/MapShell.svelte";
+	import MapShell, { type MapPane } from "#lib/ui/MapShell.svelte";
 	import MeasureLabels from "#lib/ui/MeasureLabels.svelte";
 	import MultiInspector from "#lib/ui/MultiInspector.svelte";
 	import PanelResizer from "#lib/ui/PanelResizer.svelte";
@@ -322,6 +333,43 @@
 	/** Construction guides placed with the measure tool (C.5), kept with the floor plans. */
 	const construction = new Guides(planStore);
 	void construction.load();
+	/** The pane open on the right of the map: "background", "guides" or null. */
+	let openPane = $state<string | null>(null);
+	/** The guide pointed at in the guides pane, drawn bold. */
+	let highlightedGuide = $state<string | null>(null);
+	/** The measure tool while it is on, for the toolbar's Measure / Guide switch. */
+	let measureTool: MeasureMode | undefined;
+	/** Whether placing a guide has pointed at the guides pane yet, on this page. */
+	let guidesPaneShown = false;
+
+	/** Turns the measure and guide tool on, placing guides (the guides pane's button). */
+	function placeGuides() {
+		if (drawing !== "measure") draw("measure");
+		measureVariant = "guide";
+		measureTool?.setVariant("guide");
+	}
+
+	/** The toolbar's switch, while the measure and guide tool is on. */
+	function measureAs(variant: MeasureVariant) {
+		measureVariant = variant;
+		measureTool?.setVariant(variant);
+	}
+
+	function locateGuide(guide: ConstructionGuide) {
+		map?.easeTo({ center: [guide.origin[0], guide.origin[1]] });
+	}
+
+	function guidePlaced(line: DirectionLine) {
+		construction.add(
+			line,
+			level,
+			frames.at([...editor.features.byId.values()], line.origin, level)?.id,
+		);
+		if (!guidesPaneShown && openPane !== "guides") {
+			guidesPaneShown = true;
+			showNote(msg("guides_placed"));
+		}
+	}
 
 	/** The snapping menu is open: the frame in view is worked out for it. */
 	let snapMenuOpen = $state(false);
@@ -606,6 +654,8 @@
 		side: ArrowRightFromLine,
 		offset: SquareSquare,
 		"square-frame": Grid2x2Check,
+		straighten: Octagon,
+		symmetric: BetweenVerticalStart,
 	};
 
 	/** The tool editing the selection by clicks or typed values (C.6), or null. */
@@ -689,7 +739,10 @@
 		});
 		const constructionLayer = new ConstructionLayer(instance);
 		$effect(() =>
-			constructionLayer.setGuides(planMode ? [] : construction.on(level)),
+			constructionLayer.setGuides(
+				planMode ? [] : construction.on(level),
+				highlightedGuide,
+			),
 		);
 		const grid = new GridLayer(instance);
 		$effect(() => {
@@ -970,30 +1023,20 @@
 						break;
 					}
 					case "draw-measure":
-						manager.setMode(
-							measureMode({
-								snap: snapNode,
-								variant: measureVariant,
-								onvariant: (variant) => (measureVariant = variant),
-								onguide: (line) =>
-									construction.add(
-										line,
-										level,
-										frames.at(
-											[...editor.features.byId.values()],
-											line.origin,
-											level,
-										)?.id,
-									),
-								onexit: () => (drawing = null),
-								precision: {
-									frameAt,
-									step: () => precision.step,
-									units: () => precision.units,
-									show: showFeedback,
-								},
-							}),
-						);
+						measureTool = measureMode({
+							snap: snapNode,
+							variant: measureVariant,
+							onvariant: (variant) => (measureVariant = variant),
+							onguide: guidePlaced,
+							onexit: () => (drawing = null),
+							precision: {
+								frameAt,
+								step: () => precision.step,
+								units: () => precision.units,
+								show: showFeedback,
+							},
+						});
+						manager.setMode(measureTool);
 						break;
 					case "draw-rectangle":
 						manager.setMode(
@@ -1338,6 +1381,23 @@
 	}
 
 	const mac = isMac();
+
+	/** The guides pane, beside the background's; not in floor plan mode, where guides aren't drawn. */
+	const guidePanes: MapPane[] = $derived(
+		planMode
+			? []
+			: [
+					{
+						id: "guides",
+						label: t(msg("guides_section")),
+						title: t(msg("guides_pane_toggle")),
+						icon: RulerDimensionLine,
+						badge: construction.countOn(level),
+						content: guidesPane,
+					},
+				],
+	);
+
 	/** Shortcuts that apply in every mode but floor plan mode (OSM edits can't be seen there). */
 	const SHORTCUTS = [
 		{ combo: "1", run: () => draw("point") },
@@ -1446,7 +1506,7 @@
 					aria-label={kind === "split"
 						? "Split rooms"
 						: kind === "measure"
-							? "Measure"
+							? t(msg("measure_tool"))
 							: `Draw ${label.toLowerCase()}`}
 					aria-pressed={drawing === kind}
 					disabled={editor.history.locked}
@@ -1487,6 +1547,19 @@
 	</Tooltip.Root>
 {/snippet}
 
+{#snippet guidesPane(close: () => void)}
+	<GuidesPane
+		guides={construction}
+		{level}
+		toolKey="M"
+		onplace={placeGuides}
+		onlevel={(shown) => (level = shown)}
+		onhighlight={(id) => (highlightedGuide = id)}
+		onlocate={locateGuide}
+		onclose={close}
+	/>
+{/snippet}
+
 <MapShell
 	{config}
 	bind:level
@@ -1494,6 +1567,8 @@
 	bind:camera
 	bind:indoor
 	bind:background={backgroundSettings}
+	bind:openPane
+	panes={guidePanes}
 	left={panelOpen ? shownPanelWidth : 0}
 	{planTiles}
 	onbackground={backgroundPicked}
@@ -1585,9 +1660,33 @@
 						RectangleHorizontal,
 					)}
 					{@render drawButton("split", "Split", "X", Scissors)}
-					{@render drawButton("measure", "Measure", "M", Ruler)}
+					{@render drawButton("measure", t(msg("measure_tool")), "M", Ruler)}
 				</ButtonGroup.Root>
 			</div>
+			{#if drawing === "measure"}
+				<!-- What the measure and guide tool does, switched here or with Tab. -->
+				<div class="rounded-md bg-background shadow-md">
+					<ToggleGroup.Root
+						type="single"
+						variant="outline"
+						aria-label={t(msg("measure_tool_mode"))}
+						data-testid="measure-mode"
+						value={measureVariant}
+						onValueChange={(value) => {
+							if (value) measureAs(value as MeasureVariant);
+						}}
+					>
+						<ToggleGroup.Item value="measure">
+							<Ruler />
+							{t(msg("measure_mode_measure"))}
+						</ToggleGroup.Item>
+						<ToggleGroup.Item value="guide">
+							<RulerDimensionLine />
+							{t(msg("measure_mode_guide"))}
+						</ToggleGroup.Item>
+					</ToggleGroup.Root>
+				</div>
+			{/if}
 			<div class="rounded-md bg-background shadow-md">
 				<SnapMenu
 					{precision}
@@ -1596,7 +1695,7 @@
 						count: construction.countOn(level),
 						shown: construction.shown,
 						onshow: (shown) => (construction.shown = shown),
-						onclear: () => construction.clear(level),
+						onmanage: () => (openPane = "guides"),
 					}}
 					onopenchange={(open) => (snapMenuOpen = open)}
 				/>

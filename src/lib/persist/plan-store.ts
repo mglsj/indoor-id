@@ -137,6 +137,10 @@ export interface StoredGuide {
 	readonly level: number;
 	/** The building or level outline it was placed in. */
 	readonly building?: string;
+	/** Its colour on the map, when the user picked one. */
+	readonly color?: string;
+	/** Hidden by the user. */
+	readonly hidden?: boolean;
 }
 
 /** Construction guides kept next to the floor plans (C.5). */

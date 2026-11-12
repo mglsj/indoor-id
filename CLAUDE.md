@@ -144,9 +144,10 @@ runs the same commands.
   `state/frames.svelte.ts` (`Frames`, saved in the plan store), set in the snapping menu or with
   `edit/modes/frame-pick.ts`; `map/grid-layer.ts` draws the grid. Construction guides (C.5):
   `edit/precision/construction.ts`, `state/guides.svelte.ts` (`Guides`, also in plan files),
-  placed with `edit/modes/measure.ts` (`M`), drawn by `map/construction-layer.ts`. Precise
+  placed with `edit/modes/measure.ts` (`M`, "Measure and guide"), drawn by `map/construction-layer.ts`,
+  listed in `ui/GuidesPane.svelte` (a `MapShell` pane: recolour, hide, delete one). Precise
   edits (C.6): `actions/transform.ts`, run by clicks or typed values in
-  `edit/modes/transform.ts` (operations of kind `"tool"`). Modes report feedback through a
+  `edit/modes/transform.ts` (operations of kind `"tool"`). Straightening a hand-drawn outline to 45° steps and making it symmetric: `actions/straighten.ts`. Modes report feedback through a
   `show` callback; `map/guide-layer.ts` draws guides and marks, `ui/MeasureLabels.svelte` the lengths.
 - Building mode (B): `edit/scope.ts` (`scopeOf`, `inScope`, `scopeAt`: what can be entered
   and what belongs to it, by position only, never by relation membership),
