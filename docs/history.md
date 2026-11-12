@@ -1294,9 +1294,14 @@ Before V and 3D (decided ✔). From P5.4's first step:
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept
 selecting it. Done ✅: areas are filled as iD's default **partial fill** (`css/70_fills.css`): a
-band inside the outline (`indoor-fill-band`, a line layer with a positive `line-offset`, which
-MapLibre insets on rings), 10 px inside indoor features and 30 px inside buildings from z19,
-half that at z17. Wireframe (outlines only, 1 px) and full fill are chosen in the background
+band inside the outline (`indoor-fill-band`), 10 px inside indoor features and 30 px inside
+buildings from z19, half that at z17. It was first an inset line (`line-offset`), which
+overlapped itself in corners (darker wedges and blobs) and spiked out of sharp ones; iD clips a
+wide stroke to the area instead, which MapLibre can't. The band is now built as a shape
+(`map/area-bands.ts`): the area minus the area shrunk by the band's width with round corners
+(Clipper2's offset, `clipper2-ts`; `clipper2-js` 1.2.4 offset squares wrongly), per half zoom
+step, for the areas in and around the view only, cached per area (`BandStore`), and drawn as
+one fill from its own source (`osm-bands`). 1000 L-shaped rooms take about 80 ms. Wireframe (outlines only, 1 px) and full fill are chosen in the background
 pane (`BackgroundSettings.areaFill`, saved as `indoorid.area-fill`); W toggles the wireframe.
 Unless areas are filled whole, a click picks an area by its band or outline only
 (`selectableLayers`, and area labels don't count), as iD's `pointer-events: visibleStroke`.

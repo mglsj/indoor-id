@@ -3,6 +3,7 @@
  * basemap style has loaded; they are applied once it is ready.
  */
 import { BUILDING_COLOR } from "#lib/floorplans/colors.ts";
+import { type AreaGeometry, BandStore, bandZoom } from "./area-bands.ts";
 import { diffFeatures, type StoredFeatures } from "./feature-store.ts";
 import type { IndoorFeature } from "./features.ts";
 import { type Slot, slotId, slotsReady } from "./layer-slots.ts";
@@ -15,6 +16,7 @@ import type {
 import type { AreaFill, Theme } from "./style/colors.ts";
 import { loadIconsOnDemand } from "./style/icons.ts";
 import {
+	BAND_SOURCE,
 	EDITED_LINE_LAYER,
 	type EditKind,
 	FILL_BAND_LAYER,
@@ -101,6 +103,11 @@ export class IndoorMap {
 		if (!this.#ready) return;
 		const source = this.#source();
 		if (!source) return;
+		this.#send(source, features);
+		this.#updateBands();
+	}
+
+	#send(source: GeoJSONSource, features: StoredFeatures): void {
 		const { add, remove } = diffFeatures(this.#sent, features.byId);
 		if (add.length + remove.length === 0) return;
 		this.#drawing = true;
@@ -114,6 +121,59 @@ export class IndoorMap {
 		for (const feature of add)
 			this.#sent.set(feature.properties["@id"], feature);
 	}
+
+	/** Built bands of the areas in view (iD's partial fill). */
+	readonly #bands = new BandStore();
+	#bandsShown = false;
+
+	/**
+	 * Builds the partial fill's bands for the areas in view and half as much around, at the
+	 * map's zoom in half steps, when the editor fills areas partly; else clears them.
+	 */
+	#updateBands = (): void => {
+		if (!this.#ready) return;
+		const source = this.#map.getSource<GeoJSONSource>(BAND_SOURCE);
+		if (!source) return;
+		const partial =
+			this.#look.presentation === "edit" &&
+			(this.#look.fill ?? "partial") === "partial";
+		if (!partial || !this.#features) {
+			if (this.#bandsShown) {
+				this.#bands.update([], { west: 0, south: 0, east: 0, north: 0 }, 0);
+				void source.setData({ type: "FeatureCollection", features: [] });
+				this.#bandsShown = false;
+			}
+			return;
+		}
+		const bounds = this.#map.getBounds();
+		const dx = (bounds.getEast() - bounds.getWest()) / 2;
+		const dy = (bounds.getNorth() - bounds.getSouth()) / 2;
+		const view = {
+			west: bounds.getWest() - dx,
+			south: bounds.getSouth() - dy,
+			east: bounds.getEast() + dx,
+			north: bounds.getNorth() + dy,
+		};
+		const areas = [];
+		for (const feature of this.#features.byId.values()) {
+			const type = feature.geometry.type;
+			if (type !== "Polygon" && type !== "MultiPolygon") continue;
+			areas.push({
+				id: feature.properties["@id"],
+				geometry: feature.geometry as AreaGeometry,
+				properties: feature.properties,
+			});
+		}
+		const { features, changed } = this.#bands.update(
+			areas,
+			view,
+			bandZoom(this.#map.getZoom()),
+		);
+		if (changed || !this.#bandsShown) {
+			void source.setData({ type: "FeatureCollection", features });
+			this.#bandsShown = true;
+		}
+	};
 
 	/** Shows another level: only the layers' filters change, the data stays. */
 	setLevel(level: number): void {
@@ -146,6 +206,7 @@ export class IndoorMap {
 				);
 			}
 		}
+		this.#updateBands();
 	}
 
 	/**
@@ -369,8 +430,10 @@ export class IndoorMap {
 		]) {
 			if (this.#map.getLayer(id)) this.#map.removeLayer(id);
 		}
-		if (this.#map.getSource(INDOOR_SOURCE))
-			this.#map.removeSource(INDOOR_SOURCE);
+		this.#map.off("moveend", this.#updateBands);
+		for (const source of [INDOOR_SOURCE, BAND_SOURCE]) {
+			if (this.#map.getSource(source)) this.#map.removeSource(source);
+		}
 		this.#ready = false;
 	}
 
@@ -386,6 +449,11 @@ export class IndoorMap {
 			// The indoor features are OSM data, under the ODbL: credit it whatever the basemap.
 			attribution:
 				'<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>',
+		});
+		map.addSource(BAND_SOURCE, {
+			type: "geojson",
+			data: { type: "FeatureCollection", features: [] },
+			promoteId: "@id",
 		});
 		this.#sent = new Map(this.#features?.byId ?? []);
 		this.#drawing = true;
@@ -406,6 +474,8 @@ export class IndoorMap {
 		);
 		this.#ready = true;
 		this.#applyPlanMode();
+		map.on("moveend", this.#updateBands);
+		this.#updateBands();
 		for (const [id, use] of this.#uses) {
 			map.setFeatureState({ source: INDOOR_SOURCE, id }, { use });
 		}

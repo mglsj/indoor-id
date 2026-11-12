@@ -4,7 +4,12 @@ import {
 	validateStyleMin,
 } from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, it } from "vitest";
-import { INDOOR_SOURCE, indoorLayers, selectableLayers } from "./layers.ts";
+import {
+	BAND_SOURCE,
+	INDOOR_SOURCE,
+	indoorLayers,
+	selectableLayers,
+} from "./layers.ts";
 
 /** Geometry codes used by MapLibre's filter evaluation. */
 const GEOMETRY = { Point: 1, LineString: 2, Polygon: 3 } as const;
@@ -40,6 +45,10 @@ describe("indoorLayers", () => {
 			glyphs: "https://example.org/fonts/{fontstack}/{range}.pbf",
 			sources: {
 				[INDOOR_SOURCE]: {
+					type: "geojson",
+					data: { type: "FeatureCollection", features: [] },
+				},
+				[BAND_SOURCE]: {
 					type: "geojson",
 					data: { type: "FeatureCollection", features: [] },
 				},
@@ -157,7 +166,7 @@ describe("indoorLayers: presentation and theme", () => {
 		const shown = (fill: "wireframe" | "partial" | "full") => {
 			const layers = indoorLayers(0, { fill });
 			return {
-				band: paint(layers, "indoor-fill-band")["line-opacity"],
+				band: paint(layers, "indoor-fill-band")["fill-opacity"],
 				fill: paint(layers, "indoor-fill")["fill-opacity"],
 			};
 		};
@@ -174,28 +183,13 @@ describe("indoorLayers: presentation and theme", () => {
 			paint(
 				indoorLayers(0, { presentation: "view", fill: "wireframe" }),
 				"indoor-fill-band",
-			)["line-opacity"],
+			)["fill-opacity"],
 		).toBe(0);
 	});
 
-	it("insets the band by half its width, 10 px inside rooms and 30 px inside buildings", () => {
-		const band = paint(indoorLayers(0), "indoor-fill-band");
-		const at19 = (expression: unknown) =>
-			(expression as unknown[]).at(-1) as unknown[];
-		expect(at19(band["line-width"])).toEqual([
-			"match",
-			["get", "@kind"],
-			"building",
-			30,
-			10,
-		]);
-		expect(at19(band["line-offset"])).toEqual([
-			"match",
-			["get", "@kind"],
-			"building",
-			15,
-			5,
-		]);
+	it("draws the band from its own source of built shapes", () => {
+		const band = indoorLayers(0).find((l) => l.id === "indoor-fill-band");
+		expect(band).toMatchObject({ type: "fill", source: BAND_SOURCE });
 	});
 
 	it("picks areas by their band or outline unless they are filled whole", () => {
@@ -217,6 +211,10 @@ describe("indoorLayers: presentation and theme", () => {
 							type: "geojson",
 							data: { type: "FeatureCollection", features: [] },
 						},
+						[BAND_SOURCE]: {
+							type: "geojson",
+							data: { type: "FeatureCollection", features: [] },
+						},
 					},
 					layers: indoorLayers(0, { presentation, theme }),
 				};
@@ -228,6 +226,10 @@ describe("indoorLayers: presentation and theme", () => {
 				version: 8,
 				sources: {
 					[INDOOR_SOURCE]: {
+						type: "geojson",
+						data: { type: "FeatureCollection", features: [] },
+					},
+					[BAND_SOURCE]: {
 						type: "geojson",
 						data: { type: "FeatureCollection", features: [] },
 					},

@@ -21,6 +21,8 @@ import {
 } from "./colors.ts";
 
 export const INDOOR_SOURCE = "osm";
+/** The bands of iD's partial fill, built for the areas in view (`map/area-bands.ts`). */
+export const BAND_SOURCE = "osm-bands";
 
 const kind: ExpressionSpecification = ["get", "@kind"];
 const isPolygon: ExpressionSpecification = [
@@ -124,26 +126,6 @@ export function selectableLayers(fill: AreaFill): string[] {
 	if (fill === "full") return SELECTABLE_LAYER_IDS;
 	const layers = SELECTABLE_LAYER_IDS.filter((id) => id !== "indoor-fill");
 	return fill === "partial" ? [FILL_BAND_LAYER, ...layers] : layers;
-}
-
-/**
- * Half the width iD's partial fill draws (its band is a stroke clipped to the area, so half of
- * it shows): 30 px inside buildings, 10 px inside indoor features (`css/70_fills.css`).
- */
-const BAND_PX: readonly WidthCase[] = [["building", 30, 30]];
-const BAND_DEFAULT = 10;
-
-/** The band's width (or, `half`, its offset inside the outline), narrower below zoom 19. */
-function bandWidth(half: boolean): ExpressionSpecification {
-	const scale = half ? 0.5 : 1;
-	const at = (factor: number): ExpressionSpecification =>
-		[
-			"match",
-			kind,
-			...BAND_PX.flatMap((c) => [c[0], c[1] * factor * scale]),
-			BAND_DEFAULT * factor * scale,
-		] as unknown as ExpressionSpecification;
-	return ["interpolate", ["linear"], ["zoom"], 17, at(0.5), 19, at(1)];
 }
 
 /** An area's paint in the editor's colours, by kind. */
@@ -330,17 +312,14 @@ export function indoorLayers(
 			},
 		},
 		{
-			// iD's partial fill: a band inside the outline (a positive offset insets a ring).
+			// iD's partial fill: the band inside each outline, built as a shape (`area-bands.ts`).
 			id: FILL_BAND_LAYER,
-			type: "line",
-			source: INDOOR_SOURCE,
+			type: "fill",
+			source: BAND_SOURCE,
 			filter: onLevel(isPolygon),
-			layout: { "line-join": "round" },
 			paint: {
-				"line-color": byKind(E, "fill"),
-				"line-width": bandWidth(false),
-				"line-offset": bandWidth(true),
-				"line-opacity": editing && fill === "partial" ? 1 : 0,
+				"fill-color": byKind(E, "fill"),
+				"fill-opacity": editing && fill === "partial" ? 1 : 0,
 			},
 		},
 		{
