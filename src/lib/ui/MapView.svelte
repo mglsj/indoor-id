@@ -18,10 +18,8 @@
 	type Camera = Omit<MapView, "level">;
 
 	interface Props {
-		/** The basemap's style at creation time; `setBasemap` swaps it later. */
+		/** The basemap's style. */
 		styleUrl: string;
-		/** Whether the dark theme is shown, for the plain background when the basemap fails. */
-		dark?: boolean;
 		/** Pixels a pane covers on the right: MapLibre's controls there move left of it. */
 		coveredRight?: number;
 		/** Camera at creation time. Later changes go through `map.jumpTo`. */
@@ -38,7 +36,6 @@
 
 	let {
 		styleUrl,
-		dark = false,
 		coveredRight = 0,
 		initialCamera,
 		map = $bindable(),
@@ -50,7 +47,7 @@
 	let error = $state<string>();
 
 	/** The style shown when the basemap's can't be loaded; its glyphs are OpenFreeMap's. */
-	const fallbackStyle = (dark: boolean): StyleSpecification => ({
+	const fallbackStyle = (): StyleSpecification => ({
 		version: 8,
 		glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
 		sources: {},
@@ -58,7 +55,7 @@
 			{
 				id: "background",
 				type: "background",
-				paint: { "background-color": dark ? "#1f2023" : "#f2f2ef" },
+				paint: { "background-color": "#f2f2ef" },
 			},
 		],
 	});
@@ -87,7 +84,7 @@
 
 			// Remember the first load now, for layers added later (see `styleReady`).
 			void styleReady(instance);
-			trackBasemap(instance, styleUrl);
+			trackBasemap(instance);
 			instance.addControl(
 				new NavigationControl({ visualizePitch: true }),
 				"bottom-right",
@@ -119,7 +116,7 @@
 				error = `The basemap could not be loaded: ${event.error.message}`;
 				// A plain background instead, so the indoor data still shows.
 				fallback = true;
-				instance.setStyle(fallbackStyle(dark));
+				instance.setStyle(fallbackStyle());
 			});
 
 			map = instance;

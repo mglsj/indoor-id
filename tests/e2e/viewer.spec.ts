@@ -76,7 +76,9 @@ test("shows indoor data from Overpass without an account, and a feature's detail
 	await expect(card).toBeHidden();
 });
 
-test("draws dark colours when the system is in dark mode", async ({ page }) => {
+test("draws the map's light colours even in the dark theme", async ({
+	page,
+}) => {
 	await page.emulateMedia({ colorScheme: "dark" });
 	await serveOverpass(page, building());
 	await page.goto(`/view#19/${LAT}/${LON}/0`);
@@ -86,7 +88,7 @@ test("draws dark colours when the system is in dark mode", async ({ page }) => {
 		page,
 		x,
 		y + 40,
-		blend([0x4a, 0x46, 0x3f], 0.95, BACKGROUND),
+		blend([0xd6, 0xd1, 0xc7], 0.95, BACKGROUND),
 	);
 });
 

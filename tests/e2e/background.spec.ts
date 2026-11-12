@@ -1,7 +1,6 @@
 import type { Page, Route } from "@playwright/test";
 import {
 	BACKGROUND,
-	blankStyle,
 	camera,
 	expect,
 	expectPixel,
@@ -40,8 +39,10 @@ test("shows Esri imagery chosen in the background pane", async ({ page }) => {
 	const pane = await openPane(page);
 	await expect(
 		pane.getByRole("group", { name: "Map or imagery" }).getByRole("radio"),
-	).toHaveCount(4);
-	await expect(pane.getByRole("radio", { name: /^Map/ })).toBeChecked();
+	).toHaveCount(5);
+	await expect(
+		pane.getByRole("radio", { name: "OpenFreeMap Light" }),
+	).toBeChecked();
 
 	// MapLibre zoom levels count 512 px tiles: 256 px imagery comes from the next zoom level.
 	const tile = page.waitForRequest(
@@ -146,52 +147,55 @@ test("shows a custom tile URL, moved by an offset", async ({ page }) => {
 	);
 });
 
-test("the map, its controls and the page share one theme, toggled in the header", async ({
+test("the map stays light in the dark theme; MapLibre's controls follow the theme", async ({
 	page,
 }) => {
-	const DARK: [number, number, number] = [0x20, 0x22, 0x28];
-	await page.route(/\/styles\/dark$/, (route) =>
-		route.fulfill({
-			json: {
-				...blankStyle,
-				layers: [
-					{
-						id: "background",
-						type: "background",
-						paint: { "background-color": "#202228" },
-					},
-				],
-			},
-		}),
-	);
+	const styles: string[] = [];
+	page.on("request", (r) => {
+		if (r.url().includes("/styles/")) styles.push(r.url());
+	});
 	await page.emulateMedia({ colorScheme: "dark" });
 	await page.goto("/#19/48.13/-1.69/0");
 	await camera(page);
 	const { x, y } = await mapCenter(page);
 
 	await expect(page.locator("html")).toHaveClass(/dark/);
-	await expectPixel(page, x, y, DARK);
+	await expectPixel(page, x, y, BACKGROUND);
 	const zoomIn = page.locator(".maplibregl-ctrl-group").first();
 	const darkControls = await zoomIn.evaluate(
 		(el) => getComputedStyle(el).backgroundColor,
 	);
 
-	const light = page.waitForRequest(/\/styles\/positron$/);
 	await page.getByRole("button", { name: "Switch to the light theme" }).click();
-	await light;
 	await expect(page.locator("html")).not.toHaveClass(/dark/);
-	await expectPixel(page, x, y, BACKGROUND);
 	await expect
 		.poll(() => zoomIn.evaluate((el) => getComputedStyle(el).backgroundColor))
 		.not.toBe(darkControls);
+	await expectPixel(page, x, y, BACKGROUND);
+	expect(styles.every((url) => url.endsWith("/styles/positron"))).toBe(true);
+});
 
-	// Kept over the system's preference.
+test("shows a solid colour in place of the map, picked in the pane", async ({
+	page,
+}) => {
+	await page.goto("/#19/48.13/-1.69/0");
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	await expectPixel(page, x, y, BACKGROUND);
+
+	const pane = await openPane(page);
+	await pane.getByRole("radio", { name: "Solid color" }).check();
+	const color = pane.getByLabel("Background color");
+	await color.fill("#336699");
+	await expectPixel(page, x, y, [0x33, 0x66, 0x99]);
+
+	// Kept for the next visit.
 	await page.reload();
 	await camera(page);
-	await expect(page.locator("html")).not.toHaveClass(/dark/);
-	await expect(
-		page.getByRole("button", { name: "Switch to the dark theme" }),
-	).toBeVisible();
+	await expectPixel(page, x, y, [0x33, 0x66, 0x99]);
+	const again = await openPane(page);
+	await again.getByRole("radio", { name: "OpenFreeMap Light" }).check();
+	await expectPixel(page, x, y, BACKGROUND);
 });
 
 test("imagery is moved by dragging in the pane, and dimmed with its sliders (iD)", async ({
@@ -221,6 +225,19 @@ test("imagery is moved by dragging in the pane, and dimmed with its sliders (iD)
 	await expect
 		.poll(async () => (await offset.inputValue()).split(", ").map(Number))
 		.toEqual([expect.closeTo(0.4, 0), expect.closeTo(0.4, 0)]);
+	// The value is typed in the middle of the gray area, without dragging it.
+	await offset.click();
+	await expect(offset).toBeFocused();
+
+	// Held down, an arrow keeps moving the imagery (iD).
+	const east = Number((await offset.inputValue()).split(", ")[0]);
+	const arrow = pane.getByRole("button", { name: "Move the imagery east" });
+	await arrow.hover();
+	await page.mouse.down();
+	await expect
+		.poll(async () => Number((await offset.inputValue()).split(", ")[0]))
+		.toBeGreaterThan(east + 1);
+	await page.mouse.up();
 	// Still red: the moved tiles replaced the others.
 	await expectPixel(page, x, y, [255, 0, 0]);
 

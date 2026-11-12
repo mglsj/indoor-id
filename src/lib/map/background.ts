@@ -1,62 +1,48 @@
 /**
  * The raster imagery shown under the indoor data, on top of the vector basemap, moved by its
- * offset. MapLibre's raster layers can't be translated, so a moved imagery's tiles go through
- * the `offset-tile` protocol: each tile is drawn from the (up to four) source tiles it overlaps.
+ * offset (`ImageryLayer`, a custom layer: moving it is a uniform, as iD's CSS transform), or a
+ * solid colour in place of the basemap.
  */
+
 import {
-	displayPaint,
 	type Imagery,
 	type ImageryDisplay,
 	type Offset,
-	offsetPixels,
-	offsetTileParts,
 	PLAIN_DISPLAY,
-	tileUrl,
 } from "./backgrounds.ts";
+import { setBasemapShown } from "./basemap.ts";
+import { ImageryLayer } from "./imagery-layer.ts";
 import { slotId, slotsReady } from "./layer-slots.ts";
-import {
-	addProtocol,
-	type Map as MapLibreMap,
-	type RasterSourceSpecification,
-} from "./maplibre.ts";
+import type { Map as MapLibreMap } from "./maplibre.ts";
 
-/** Imagery layers and sources are named with this prefix and a number. */
+/** Imagery layers are named with this prefix and a number. */
 const PREFIX = "background-imagery";
-const PROTOCOL = "offset-tile";
-const TILE_SIZE = 256;
-
-/** The moved imagery of each source made, by key: the protocol's URLs name it. */
-const moved = new Map<
-	string,
-	{ source: RasterSourceSpecification; offset: Offset }
->();
-let lastKey = 0;
+/** An empty source and layer of each imagery, carrying its attribution to MapLibre's control. */
+const ATTRIBUTION = "-attribution";
 let lastLayer = 0;
-let registered = false;
 
+/** The imagery layers on each map, oldest first. */
+const layers = new WeakMap<MapLibreMap, ImageryLayer[]>();
 const displays = new WeakMap<MapLibreMap, ImageryDisplay>();
 
-/** The imagery layers on the map, oldest first (each with its source of the same id). */
-function imageryLayers(map: MapLibreMap): string[] {
-	return (map.getStyle()?.layers ?? [])
-		.map((layer) => layer.id)
-		.filter((id) => id.startsWith(`${PREFIX}-`));
-}
+/** The layer of the solid colour shown in place of the basemap. */
+const SOLID_LAYER = "background-solid";
 
-function removeImagery(map: MapLibreMap, id: string) {
-	if (map.getLayer(id)) map.removeLayer(id);
-	const source = map.getSource(id) as { tiles?: string[] } | undefined;
-	for (const tile of source?.tiles ?? []) {
-		const key = tile.slice(PROTOCOL.length + 3).split("/")[0];
-		if (tile.startsWith(PROTOCOL) && key) moved.delete(key);
-	}
-	if (map.getSource(id)) map.removeSource(id);
+function removeImagery(map: MapLibreMap, layer: ImageryLayer) {
+	layers.set(
+		map,
+		(layers.get(map) ?? []).filter((shown) => shown !== layer),
+	);
+	if (map.getLayer(layer.id)) map.removeLayer(layer.id);
+	const attribution = layer.id + ATTRIBUTION;
+	if (map.getLayer(attribution)) map.removeLayer(attribution);
+	if (map.getSource(attribution)) map.removeSource(attribution);
 }
 
 /**
- * Shows imagery moved by `offset`, or only the basemap when `imagery` is null. The imagery shown
- * before stays under the new one until its tiles are in, so moving the offset doesn't flash the
- * basemap.
+ * Shows imagery moved by `offset`, or only the basemap when `imagery` is null. A new offset for
+ * the imagery shown moves it on the next frame; other imagery stays under the new one until
+ * its tiles are in, so changing it doesn't flash the basemap.
  */
 export async function setBackground(
 	map: MapLibreMap,
@@ -64,25 +50,78 @@ export async function setBackground(
 	offset: Offset,
 ): Promise<void> {
 	await slotsReady(map);
-	const before = imageryLayers(map);
-	if (!imagery) {
-		for (const id of before) removeImagery(map, id);
+	const before = layers.get(map) ?? [];
+	const last = before.at(-1);
+	if (imagery && last?.imagery === imagery) {
+		last.setOffset(offset);
 		return;
 	}
-	const id = `${PREFIX}-${++lastLayer}`;
-	map.addSource(id, sourceFor(imagery.source, offset));
+	if (!imagery) {
+		for (const layer of before) removeImagery(map, layer);
+		return;
+	}
+	const layer = new ImageryLayer(`${PREFIX}-${++lastLayer}`, imagery);
+	layer.setOffset(offset);
+	layer.setDisplay(displays.get(map) ?? PLAIN_DISPLAY);
+	map.addLayer(layer, slotId("imagery"));
+	const attribution = imagery.source.attribution;
+	if (attribution) {
+		const id = layer.id + ATTRIBUTION;
+		map.addSource(id, {
+			type: "geojson",
+			data: { type: "FeatureCollection", features: [] },
+			attribution,
+		});
+		map.addLayer({ id, type: "circle", source: id }, slotId("imagery"));
+	}
+	layers.set(map, [...before, layer]);
+	if (before.length === 0) return;
+	await drawn(map, layer);
+	for (const old of before) removeImagery(map, old);
+}
+
+/** Resolves once the layer draws every tile in view, or after a second at most. */
+function drawn(map: MapLibreMap, layer: ImageryLayer): Promise<void> {
+	return new Promise((resolve) => {
+		const done = () => {
+			map.off("render", check);
+			clearTimeout(timer);
+			resolve();
+		};
+		const check = () => {
+			if (layer.complete) done();
+		};
+		const timer = setTimeout(done, 1000);
+		map.on("render", check);
+	});
+}
+
+/**
+ * Shows a solid colour in place of the basemap (its fills and labels hidden), or the basemap
+ * again when `color` is null.
+ */
+export async function setSolidBackground(
+	map: MapLibreMap,
+	color: string | null,
+): Promise<void> {
+	await slotsReady(map);
+	setBasemapShown(map, color === null);
+	if (color === null) {
+		if (map.getLayer(SOLID_LAYER)) map.removeLayer(SOLID_LAYER);
+		return;
+	}
+	if (map.getLayer(SOLID_LAYER)) {
+		map.setPaintProperty(SOLID_LAYER, "background-color", color);
+		return;
+	}
 	map.addLayer(
 		{
-			id,
-			type: "raster",
-			source: id,
-			paint: displayPaint(displays.get(map) ?? PLAIN_DISPLAY),
+			id: SOLID_LAYER,
+			type: "background",
+			paint: { "background-color": color },
 		},
 		slotId("imagery"),
 	);
-	if (before.length === 0) return;
-	await loaded(map, id);
-	for (const old of before) removeImagery(map, old);
 }
 
 /** Changes how the imagery shown is displayed (brightness, contrast, saturation). */
@@ -91,91 +130,5 @@ export function setImageryDisplay(
 	display: ImageryDisplay,
 ): void {
 	displays.set(map, display);
-	const paint = displayPaint(display);
-	for (const id of imageryLayers(map)) {
-		for (const [name, value] of Object.entries(paint)) {
-			map.setPaintProperty(id, name as keyof typeof paint, value);
-		}
-	}
-}
-
-/** Resolves once the source's tiles in view are loaded, or after a second at most. */
-function loaded(map: MapLibreMap, id: string): Promise<void> {
-	return new Promise((resolve) => {
-		const done = () => {
-			map.off("sourcedata", check);
-			clearTimeout(timer);
-			resolve();
-		};
-		const check = () => {
-			if (!map.getSource(id) || map.isSourceLoaded(id)) done();
-		};
-		const timer = setTimeout(done, 1000);
-		map.on("sourcedata", check);
-	});
-}
-
-function sourceFor(
-	source: RasterSourceSpecification,
-	offset: Offset,
-): RasterSourceSpecification {
-	if (offset.east === 0 && offset.north === 0) return source;
-	registerProtocol();
-	const key = String(++lastKey);
-	moved.set(key, { source, offset });
-	const { scheme: _, ...rest } = source;
-	return { ...rest, tiles: [`${PROTOCOL}://${key}/{z}/{x}/{y}`] };
-}
-
-function registerProtocol() {
-	if (registered) return;
-	registered = true;
-	addProtocol(PROTOCOL, async ({ url }, abort) => {
-		const [key = "", z, x, y] = url.slice(PROTOCOL.length + 3).split("/");
-		const entry = moved.get(key);
-		if (!entry) throw new Error("This imagery is no longer shown");
-		return {
-			data: await movedTile(entry, Number(z), Number(x), Number(y), abort),
-		};
-	});
-}
-
-/** Tile `z/x/y` of moved imagery, drawn from the source tiles it overlaps. */
-async function movedTile(
-	{ source, offset }: { source: RasterSourceSpecification; offset: Offset },
-	z: number,
-	x: number,
-	y: number,
-	abort: AbortController,
-): Promise<ImageBitmap> {
-	const shift = offsetPixels(offset, z, y, TILE_SIZE);
-	const parts = offsetTileParts(z, x, y, shift, TILE_SIZE);
-	const images = await Promise.all(
-		parts.map(async (part) => {
-			try {
-				const response = await fetch(tileUrl(source, z, part.x, part.y), {
-					signal: abort.signal,
-				});
-				if (!response.ok) return null;
-				return await createImageBitmap(await response.blob());
-			} catch {
-				return null;
-			}
-		}),
-	);
-	// No source tile at all (past the imagery's last zoom here): fail, so that MapLibre
-	// scales up the tile above instead.
-	if (images.every((image) => image === null)) {
-		throw new Error(`No imagery for tile ${z}/${x}/${y}`);
-	}
-	const canvas = new OffscreenCanvas(TILE_SIZE, TILE_SIZE);
-	const context = canvas.getContext("2d");
-	if (!context) throw new Error("No 2D canvas to draw imagery tiles");
-	images.forEach((image, i) => {
-		const part = parts[i];
-		if (!image || !part) return;
-		context.drawImage(image, part.left, part.top, TILE_SIZE, TILE_SIZE);
-		image.close();
-	});
-	return canvas.transferToImageBitmap();
+	for (const layer of layers.get(map) ?? []) layer.setDisplay(display);
 }
