@@ -193,3 +193,44 @@ test("the map, its controls and the page share one theme, toggled in the header"
 		page.getByRole("button", { name: "Switch to the dark theme" }),
 	).toBeVisible();
 });
+
+test("imagery is moved by dragging in the pane, and dimmed with its sliders (iD)", async ({
+	page,
+}) => {
+	await page.route(`${CUSTOM}/**`, (route) => png(route, RED_PNG));
+	await page.goto("/#19/48.13/-1.69/0");
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	const pane = await openPane(page);
+	await pane.getByRole("radio", { name: "Custom" }).check();
+	const url = pane.getByLabel("Tile URL");
+	await url.fill(`${CUSTOM}/{zoom}/{x}/{y}.png`);
+	await url.press("Enter");
+	await expectPixel(page, x, y, [255, 0, 0]);
+
+	// A quarter of the pointer's move: 80 px right and up is 20 px at zoom 19 (~4 cm/px here).
+	const pad = pane.getByTestId("offset-drag");
+	const box = await pad.boundingBox();
+	if (!box) throw new Error("No drag pad");
+	const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+	await page.mouse.move(from.x, from.y);
+	await page.mouse.down();
+	await page.mouse.move(from.x + 80, from.y - 80, { steps: 8 });
+	await page.mouse.up();
+	const offset = pane.getByLabel("Offset in metres (east, north)");
+	await expect
+		.poll(async () => (await offset.inputValue()).split(", ").map(Number))
+		.toEqual([expect.closeTo(0.4, 0), expect.closeTo(0.4, 0)]);
+	// Still red: the moved tiles replaced the others.
+	await expectPixel(page, x, y, [255, 0, 0]);
+
+	// Half the brightness: half the red.
+	// The first slider: brightness.
+	const brightness = pane.getByRole("slider").first();
+	await brightness.focus();
+	for (let i = 0; i < 10; i++) await brightness.press("ArrowLeft");
+	await expect(pane.getByText("50%")).toBeVisible();
+	await expectPixel(page, x, y, [128, 0, 0], 6);
+	await pane.getByRole("button", { name: "Reset the display" }).click();
+	await expectPixel(page, x, y, [255, 0, 0]);
+});

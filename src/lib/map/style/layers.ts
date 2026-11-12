@@ -70,6 +70,37 @@ function doorRadius(scale: number): ExpressionSpecification {
 	return ["*", scale, ["to-number", ["coalesce", ["get", "@door-r17"], 0]]];
 }
 
+/** iD's colours for edited features (`css/20_map.css`, `.highlight-edited`). */
+export const EDITED_COLORS = {
+	added: "rgb(133, 255, 103)",
+	retagged: "#fcde5a",
+	geometry: "rgb(255, 126, 46)",
+} as const;
+
+/** How a feature was edited, as the feature state `edited`. */
+export type EditKind = keyof typeof EDITED_COLORS;
+
+export const EDITED_LINE_LAYER = "indoor-edited-line";
+export const EDITED_POINT_LAYER = "indoor-edited-point";
+
+const edited: ExpressionSpecification = [
+	"coalesce",
+	["feature-state", "edited"],
+	"",
+];
+const editedColor = [
+	"match",
+	edited,
+	...Object.entries(EDITED_COLORS).flat(),
+	"rgba(0, 0, 0, 0)",
+] as unknown as ExpressionSpecification;
+const editedOpacity: ExpressionSpecification = [
+	"case",
+	["==", edited, ""],
+	0,
+	0.6,
+];
+
 /** Layers the user can click to select a feature. */
 export const SELECTABLE_LAYER_IDS = [
 	"indoor-fill",
@@ -313,6 +344,19 @@ export function indoorLayers(
 			},
 		},
 		{
+			// iD's "Highlight changes": a halo under what was added, retagged or reshaped.
+			id: EDITED_LINE_LAYER,
+			type: "line",
+			source: INDOOR_SOURCE,
+			filter: onLevel(["any", isPolygon, isLine]),
+			layout: { "line-join": "round", "line-cap": "round" },
+			paint: {
+				"line-color": editedColor,
+				"line-width": wireframe ? 3 : 16,
+				"line-opacity": editedOpacity,
+			},
+		},
+		{
 			id: "indoor-outline",
 			type: "line",
 			source: INDOOR_SOURCE,
@@ -402,6 +446,17 @@ export function indoorLayers(
 		},
 		rail("indoor-rails-left", 1),
 		rail("indoor-rails-right", -1),
+		{
+			id: EDITED_POINT_LAYER,
+			type: "circle",
+			source: INDOOR_SOURCE,
+			filter: onLevel(isPoint),
+			paint: {
+				"circle-radius": 10,
+				"circle-color": editedColor,
+				"circle-opacity": editedOpacity,
+			},
+		},
 		{
 			id: "indoor-doors",
 			type: "circle",
@@ -502,6 +557,13 @@ export function indoorLayers(
 				"text-color": C.text,
 				"text-halo-color": C.textHalo,
 				"text-halo-width": 1.2,
+				// iD hides the labels around the pointer, to see what they cover.
+				"text-opacity": [
+					"case",
+					["boolean", ["feature-state", "nearPointer"], false],
+					0,
+					1,
+				],
 			},
 		},
 		{

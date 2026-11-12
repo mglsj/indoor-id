@@ -13,9 +13,10 @@
 	import type { EditorConfig } from "#lib/config.ts";
 	import { msg, t } from "#lib/i18n/messages.ts";
 	import type { FloorNumbering } from "#lib/levels/floor-numbering.ts";
-	import { setBackground } from "#lib/map/background.ts";
+	import { setBackground, setImageryDisplay } from "#lib/map/background.ts";
 	import { BASEMAP_STYLES, type Imagery } from "#lib/map/backgrounds.ts";
 	import { setBasemap } from "#lib/map/basemap.ts";
+	import { editedFeatures } from "#lib/map/edited.ts";
 	import {
 		formatHash,
 		parseHash,
@@ -25,6 +26,7 @@
 	import type { Map as MapLibreMap } from "#lib/map/maplibre.ts";
 	import type { Presentation } from "#lib/map/style/layers.ts";
 	import { visibleExtent } from "#lib/map/view.ts";
+	import { EARTH_RADIUS } from "#lib/osm/geometry.ts";
 	import { BackgroundSettings } from "#lib/state/background.svelte.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
 	import BackgroundPane from "#lib/ui/BackgroundPane.svelte";
@@ -109,6 +111,14 @@
 				fill: settings.areaFill,
 			}),
 		);
+		// iD's "Highlight changes", in the editor.
+		$effect(() =>
+			layers.setEdited(
+				presentation === "edit" && settings.highlightEdits
+					? editedFeatures(editor.graph)
+					: new Map(),
+			),
+		);
 		$effect(() => layers.setFeatures(editor.features));
 		$effect(() => layers.setLevel(level));
 		$effect(() => layers.setSelected(editor.selection.ids));
@@ -120,6 +130,16 @@
 			layers.remove();
 		};
 	});
+
+	/** Ground metres per CSS pixel at the map's centre (Web Mercator, 512 px tiles). */
+	function metresPerPixel(instance: MapLibreMap | undefined): number {
+		if (!instance) return 0;
+		const lat = (instance.getCenter().lat * Math.PI) / 180;
+		return (
+			(2 * Math.PI * EARTH_RADIUS * Math.cos(lat)) /
+			(512 * 2 ** instance.getZoom())
+		);
+	}
 
 	function browserStorage(): Storage | undefined {
 		try {
@@ -135,6 +155,9 @@
 	});
 	$effect(() => {
 		if (map) void setBackground(map, settings.imagery, settings.offset);
+	});
+	$effect(() => {
+		if (map) setImageryDisplay(map, settings.display);
 	});
 	$effect(() => {
 		onbackground?.(settings.imagery);
@@ -261,6 +284,7 @@
 		<BackgroundPane
 			{settings}
 			showFill={presentation === "edit"}
+			metresPerPixel={() => metresPerPixel(map)}
 			onclose={() => (backgroundOpen = false)}
 		/>
 	</div>

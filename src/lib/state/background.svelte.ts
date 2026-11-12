@@ -5,15 +5,19 @@
 import {
 	type BackgroundId,
 	type Imagery,
+	type ImageryDisplay,
 	imageryFor,
 	NO_OFFSET,
 	type Offset,
+	PLAIN_DISPLAY,
 } from "#lib/map/backgrounds.ts";
 import { AREA_FILLS, type AreaFill } from "#lib/map/style/colors.ts";
 
 const KEY = "indoorid.background";
 /** The area fill, kept on its own as iD's `area-fill` preference. */
 const FILL_KEY = "indoorid.area-fill";
+/** Whether edited features are highlighted, kept as iD keeps it. */
+const HIGHLIGHT_KEY = "indoorid.highlight-edits";
 const IDS: readonly BackgroundId[] = ["map", "esri", "esri-clarity", "custom"];
 
 /** Offsets are kept to the centimetre, and within this many metres. */
@@ -32,6 +36,10 @@ export class BackgroundSettings {
 	#offsets = $state.raw<Record<string, Offset>>({});
 	/** How areas are filled while editing (iD's Map Data pane); partly at first, as iD. */
 	areaFill = $state<AreaFill>("partial");
+	/** iD's "Highlight changes": edited features drawn with a coloured halo. */
+	highlightEdits = $state(false);
+	/** Brightness, contrast and saturation of the imagery, for this page only (as iD). */
+	display = $state.raw<ImageryDisplay>(PLAIN_DISPLAY);
 	/** The fill W goes back to from the wireframe. */
 	#lastFill: Exclude<AreaFill, "wireframe"> = "partial";
 	readonly #storage: Storage | undefined;
@@ -40,6 +48,11 @@ export class BackgroundSettings {
 		this.#storage = storage;
 		this.areaFill = readFill(storage);
 		if (this.areaFill !== "wireframe") this.#lastFill = this.areaFill;
+		try {
+			this.highlightEdits = storage?.getItem(HIGHLIGHT_KEY) === "true";
+		} catch {
+			// Blocked storage: off.
+		}
 		const saved = read(storage);
 		if (saved) {
 			this.id = saved.id;
@@ -98,6 +111,22 @@ export class BackgroundSettings {
 		} catch {
 			// Blocked storage: kept for this page only.
 		}
+	}
+
+	setHighlightEdits(on: boolean) {
+		this.highlightEdits = on;
+		try {
+			this.#storage?.setItem(HIGHLIGHT_KEY, String(on));
+		} catch {
+			// Blocked storage: kept for this page only.
+		}
+	}
+
+	/** Changes one of the imagery's display values, kept between 0.25 (0 but brightness) and 2. */
+	setDisplay(name: keyof ImageryDisplay, value: number) {
+		const min = name === "brightness" ? 0.25 : 0;
+		const clamped = Math.round(Math.max(min, Math.min(2, value)) * 100) / 100;
+		this.display = { ...this.display, [name]: clamped };
 	}
 
 	/** iD's W: the wireframe, or back to the fill shown before it. */

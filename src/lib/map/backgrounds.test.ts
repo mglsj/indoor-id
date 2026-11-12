@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	customImagery,
+	displayPaint,
 	ESRI_IMAGERY,
 	imageryFor,
 	offsetPixels,
@@ -177,5 +178,34 @@ describe("tileUrl", () => {
 		expect(source && tileUrl(source, 1, 1, 0)).toBe(
 			"https://wms.example.org/?BBOX=0,0,20037508.342789244,20037508.342789244",
 		);
+	});
+});
+
+describe("displayPaint", () => {
+	it("leaves imagery as served at 1", () => {
+		expect(displayPaint({ brightness: 1, contrast: 1, saturation: 1 })).toEqual(
+			{
+				"raster-brightness-min": 0,
+				"raster-brightness-max": 1,
+				"raster-contrast": 0,
+				"raster-saturation": 0,
+			},
+		);
+	});
+
+	it("darkens below 1 and lightens above, as iD's sliders", () => {
+		expect(
+			displayPaint({ brightness: 0.5, contrast: 2, saturation: 0 }),
+		).toEqual({
+			"raster-brightness-min": 0,
+			"raster-brightness-max": 0.5,
+			"raster-contrast": 1,
+			"raster-saturation": -1,
+		});
+		expect(
+			displayPaint({ brightness: 1.5, contrast: 1, saturation: 1 })[
+				"raster-brightness-min"
+			],
+		).toBe(0.5);
 	});
 });

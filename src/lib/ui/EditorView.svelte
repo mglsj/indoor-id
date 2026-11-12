@@ -779,7 +779,10 @@
 			});
 		});
 
-		const manager = new ModeManager(instance);
+		const manager = new ModeManager(instance, {
+			// iD hides the labels around the pointer, to see what they cover.
+			onpointer: (point) => indoorLayers.hideLabelsNear(point),
+		});
 		modes = manager;
 		$effect(() => {
 			// Only the kind decides: a mode reads the graph and level as they are when it starts.

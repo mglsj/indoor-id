@@ -17,6 +17,11 @@ const IDLE: Mode = { name: "idle" };
 export interface ModeManagerOptions {
 	/** Schedules a callback for the next frame (tests run frames themselves). */
 	readonly requestFrame?: (callback: FrameRequestCallback) => unknown;
+	/**
+	 * Where a mouse or pen is over the map, in any mode and during drags (null once it left):
+	 * for what is drawn around the pointer, such as labels hidden near it (iD).
+	 */
+	readonly onpointer?: (point: { x: number; y: number } | null) => void;
 }
 
 /** MapLibre's handlers that move the map from a press, held while a mode takes one. */
@@ -39,6 +44,7 @@ export class ModeManager {
 	readonly #map: MapLibreMap;
 	readonly #target: HTMLElement;
 	readonly #requestFrame: (callback: FrameRequestCallback) => unknown;
+	readonly #onpointer?: (point: { x: number; y: number } | null) => void;
 	#mode: Mode = IDLE;
 	#press: Press | null = null;
 	/** The click following a drag's release is the release itself. */
@@ -50,6 +56,7 @@ export class ModeManager {
 		this.#requestFrame =
 			options.requestFrame ??
 			((callback) => globalThis.requestAnimationFrame(callback));
+		this.#onpointer = options.onpointer;
 		map.on("click", this.#onClick);
 		const target = this.#target;
 		target.addEventListener("pointerdown", this.#onDown);
@@ -136,6 +143,8 @@ export class ModeManager {
 	};
 
 	readonly #onMove = (event: PointerEvent) => {
+		if (event.pointerType !== "touch")
+			this.#onpointer?.(this.#toPoint(event).point);
 		const press = this.#press;
 		if (!press) {
 			// A finger has nothing to hover.
@@ -195,6 +204,7 @@ export class ModeManager {
 	}
 
 	readonly #onLeave = (event: PointerEvent) => {
+		if (!this.#press) this.#onpointer?.(null);
 		if (this.#press || event.pointerType === "touch") return;
 		// What the pointer hovered may change before it comes back (a plan locked with Done).
 		this.#map.getCanvas().style.cursor = "";

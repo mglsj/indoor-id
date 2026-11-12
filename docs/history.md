@@ -1309,3 +1309,16 @@ disconnecting, nudging or deleting is refused while less than 80% of the selecti
 in view, and a press on a large selected area pans instead. Small iD shortcuts with it: Z zooms
 to the selection, Mod+B swaps back to the previous background. E2E tests fill areas whole
 (`fixtures.ts`) except `area-fill.spec.ts`.
+
+Then, picked by the user from iD's other features: **Highlight changes** (a checkbox under the
+area fill, saved as `indoorid.highlight-edits`): `map/edited.ts` tells added, retagged and
+reshaped features apart (a way whose untagged nodes moved is reshaped), drawn as iD's 16 px
+halo in its green, yellow and orange through the feature state `edited`
+(`IndoorMap.setEdited`). **Labels hide near the pointer** (30 px, any mode, during drags too):
+`ModeManager`'s `onpointer` feeds `IndoorMap.hideLabelsNear`, which sets the feature state
+`nearPointer` read by the labels' `text-opacity`; icons stay. **Imagery display**:
+brightness, contrast and saturation sliders (25–200%, for the page only, as iD), through
+`displayPaint` (MapLibre's `raster-brightness-*`, `raster-contrast`, `raster-saturation`).
+**Drag to move the imagery** (iD's offset pad): the imagery follows a quarter of the pointer's
+moves, applied every 120 ms; `setBackground` now keeps the imagery shown under the new one
+until the new tiles are in (numbered layers), so moving the offset no longer flashes the map.

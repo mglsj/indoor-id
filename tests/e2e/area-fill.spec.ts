@@ -9,6 +9,7 @@ import {
 	LON,
 	mapCenter,
 	mapDrawn,
+	pixelAt,
 	room,
 	serveOsm,
 	test,
@@ -93,4 +94,30 @@ test("a room mostly out of view can't be deleted or moved until it is seen (iD)"
 			timeout: 500,
 		});
 	}).toPass();
+});
+
+test("Highlight changes draws edited features with iD's halo", async ({
+	page,
+}) => {
+	const { x, y } = await mapCenter(page);
+	const edge = { x: x - HALF_WIDTH, y: y - 40 };
+	const before = await pixelAt(page, edge.x, edge.y);
+	await page.getByRole("button", { name: "Background" }).click();
+	await page.getByRole("checkbox", { name: "Highlight changes" }).check();
+	await page
+		.getByRole("button", { name: "Close the background settings" })
+		.click();
+	await expectPixel(page, edge.x, edge.y, before);
+
+	// Retagged: a name typed into the inspector.
+	await page.mouse.click(x - HALF_WIDTH + 5, y);
+	await inspector(page).root.getByLabel("Name", { exact: true }).fill("Lab");
+	await page.keyboard.press("Escape");
+	await expect
+		.poll(async () => (await pixelAt(page, edge.x, edge.y)).join(","))
+		.not.toBe(before.join(","));
+	const [r, g, b] = await pixelAt(page, edge.x, edge.y);
+	// iD's yellow (#fcde5a) over the room.
+	expect(r).toBeGreaterThan(g - 40);
+	expect(b).toBeLessThan(r);
 });

@@ -154,7 +154,8 @@ runs the same commands.
   `indoorLayers(level, { presentation, theme, fill })`: colours from `style/colors.ts`
   (`indoorColors(theme)` for the viewer, iD's `editColors(theme)` for the editor), applied with
   `IndoorMap.setLook`; the editor's area fill (iD's wireframe, partial or full) also decides what
-  a click can pick (`selectableLayers`). Floor labels for unnamed levels:
+  a click can pick (`selectableLayers`). Edited features are highlighted through the feature
+  state `edited` (`map/edited.ts`), labels near the pointer through `nearPointer`. Floor labels for unnamed levels:
   `levels/floor-numbering.ts`. Discovery (V.2): `state/discovery.svelte.ts` (centres from
   `Overpass.indoorCentres`) drawn by `map/discovery-layer.ts`, opened by `edit/modes/view.ts`.
   Side panel (V.3): `ui/ViewerPanel.svelte` on `view/places.ts`; rooms by use from

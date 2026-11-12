@@ -16,8 +16,12 @@ function drawnBy(
 ): string[] {
 	return (
 		indoorLayers(level)
-			// Selection layers draw everything, invisible unless selected.
-			.filter((layer) => !layer.id.startsWith("indoor-selection"))
+			// Selection and edit layers draw everything, invisible unless selected or edited.
+			.filter(
+				(layer) =>
+					!layer.id.startsWith("indoor-selection") &&
+					!layer.id.startsWith("indoor-edited"),
+			)
 			.filter((layer) => {
 				if (!("filter" in layer) || !layer.filter) return true;
 				return featureFilter(layer.filter, `layers.${layer.id}.filter`).filter(
@@ -233,6 +237,27 @@ describe("indoorLayers: presentation and theme", () => {
 			};
 			expect(validateStyleMin(style)).toEqual([]);
 		}
+	});
+});
+
+describe("indoorLayers: edits and labels", () => {
+	const paint = (id: string) =>
+		indoorLayers(0).find((l) => l.id === id)?.paint as Record<string, unknown>;
+
+	it("draws iD's halo colours under edited features, by their feature state", () => {
+		const line = JSON.stringify(paint("indoor-edited-line"));
+		expect(line).toContain('["feature-state","edited"]');
+		for (const colour of ["rgb(133, 255, 103)", "#fcde5a", "rgb(255, 126, 46)"])
+			expect(line).toContain(colour);
+	});
+
+	it("hides labels near the pointer", () => {
+		expect(paint("indoor-labels")["text-opacity"]).toEqual([
+			"case",
+			["boolean", ["feature-state", "nearPointer"], false],
+			0,
+			1,
+		]);
 	});
 });
 

@@ -15,6 +15,8 @@ import type {
 import type { AreaFill, Theme } from "./style/colors.ts";
 import { loadIconsOnDemand } from "./style/icons.ts";
 import {
+	EDITED_LINE_LAYER,
+	type EditKind,
 	FILL_BAND_LAYER,
 	INDOOR_SOURCE,
 	indoorLayers,
@@ -34,6 +36,8 @@ export interface IndoorLook {
 
 /** The labels' layer: an area's label doesn't pick the area unless areas are filled whole. */
 const LABELS_LAYER = "indoor-labels";
+/** How far around the pointer labels are hidden, in pixels. */
+const LABEL_CLEARANCE = 30;
 
 /** The slot of each indoor layer: fills under floor plans, outlines and lines over them,
  * doors, labels and the selection over the basemap's labels. */
@@ -41,6 +45,7 @@ const SLOTS: Record<string, Slot> = {
 	"indoor-fill": "indoor-fill",
 	[FILL_BAND_LAYER]: "indoor-fill",
 	"indoor-outline": "indoor-lines",
+	[EDITED_LINE_LAYER]: "indoor-lines",
 	"indoor-lines": "indoor-lines",
 	"indoor-rails-left": "indoor-lines",
 	"indoor-rails-right": "indoor-lines",
@@ -72,6 +77,10 @@ export class IndoorMap {
 	#planMode = false;
 	#buildingsVisible = true;
 	#look: IndoorLook = { presentation: "edit", theme: "light" };
+	/** How features were edited, as the feature state `edited`. */
+	#edited: ReadonlyMap<string, EditKind> = new Map();
+	/** Labels hidden near the pointer. */
+	#nearPointer = new Set<string>();
 	/** Rooms' uses (V.3), as the feature state `use`. */
 	#uses: ReadonlyMap<string, string> = new Map();
 
@@ -185,6 +194,72 @@ export class IndoorMap {
 				this.#map.setFeatureState({ source: INDOOR_SOURCE, id }, { use });
 			}
 		}
+	}
+
+	/** Highlights edited features (iD's "Highlight changes"): how each was edited, by `@id`. */
+	setEdited(edited: ReadonlyMap<string, EditKind>): void {
+		const before = this.#edited;
+		this.#edited = edited;
+		if (!this.#ready) return;
+		this.#applyEdited(before, edited);
+	}
+
+	#applyEdited(
+		before: ReadonlyMap<string, EditKind>,
+		after: ReadonlyMap<string, EditKind>,
+	): void {
+		for (const id of before.keys()) {
+			if (!after.has(id)) {
+				this.#map.setFeatureState(
+					{ source: INDOOR_SOURCE, id },
+					{ edited: null },
+				);
+			}
+		}
+		for (const [id, kind] of after) {
+			if (before.get(id) !== kind) {
+				this.#map.setFeatureState(
+					{ source: INDOOR_SOURCE, id },
+					{ edited: kind },
+				);
+			}
+		}
+	}
+
+	/**
+	 * Hides the labels around the pointer (iD), to see what they cover; null shows them all.
+	 * Labels within `LABEL_CLEARANCE` pixels of it are hidden.
+	 */
+	hideLabelsNear(point: { x: number; y: number } | null): void {
+		if (!this.#ready) return;
+		const near = new Set<string>();
+		if (point) {
+			for (const f of this.#map.queryRenderedFeatures(
+				[
+					[point.x - LABEL_CLEARANCE, point.y - LABEL_CLEARANCE],
+					[point.x + LABEL_CLEARANCE, point.y + LABEL_CLEARANCE],
+				],
+				{ layers: [LABELS_LAYER] },
+			)) {
+				const id = f.properties["@id"];
+				if (typeof id === "string") near.add(id);
+			}
+		}
+		for (const id of this.#nearPointer) {
+			if (!near.has(id))
+				this.#map.setFeatureState(
+					{ source: INDOOR_SOURCE, id },
+					{ nearPointer: false },
+				);
+		}
+		for (const id of near) {
+			if (!this.#nearPointer.has(id))
+				this.#map.setFeatureState(
+					{ source: INDOOR_SOURCE, id },
+					{ nearPointer: true },
+				);
+		}
+		this.#nearPointer = near;
 	}
 
 	/** Outlines the selected features, by `@id`. */
@@ -334,6 +409,7 @@ export class IndoorMap {
 		for (const [id, use] of this.#uses) {
 			map.setFeatureState({ source: INDOOR_SOURCE, id }, { use });
 		}
+		this.#applyEdited(new Map(), this.#edited);
 		this.#mark("selected", [], this.#selected);
 		this.#mark("hover", [], this.#hover);
 	}
