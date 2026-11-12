@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ArrowRightFromLine from "@lucide/svelte/icons/arrow-right-from-line";
+	import BetweenVerticalStart from "@lucide/svelte/icons/between-vertical-start";
 	import ClipboardPaste from "@lucide/svelte/icons/clipboard-paste";
 	import Combine from "@lucide/svelte/icons/combine";
 	import Copy from "@lucide/svelte/icons/copy";
@@ -8,6 +9,7 @@
 	import Layers2 from "@lucide/svelte/icons/layers-2";
 	import MapPin from "@lucide/svelte/icons/map-pin";
 	import Move from "@lucide/svelte/icons/move";
+	import Octagon from "@lucide/svelte/icons/octagon";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import RectangleHorizontal from "@lucide/svelte/icons/rectangle-horizontal";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
@@ -620,6 +622,8 @@
 		side: ArrowRightFromLine,
 		offset: SquareSquare,
 		"square-frame": Grid2x2Check,
+		straighten: Octagon,
+		symmetric: BetweenVerticalStart,
 	};
 
 	/** The tool editing the selection by clicks or typed values (C.6), or null. */

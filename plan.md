@@ -492,6 +492,17 @@ JOSM's extrude that adds a new face (moving a side covers the indoor case), a si
 typed while dragging a vertex, offset's inner-ring (atrium hole) mode, and dragging (rather than
 clicking) in the move, rotate and scale tools. Nudges are one undo step each.
 
+Added after C (2026-11-12, asked by the user for a building drawn freehand that is all 90° and
+45° in reality): `actions/straighten.ts`, two operations on one closed way. **Straighten to
+45°** (`A`) turns every side to the nearest 45° step from the building's frame; neighbouring
+sides in one direction become one straight run through their middles (weighted by length), and
+the corners are where runs cross. **Make symmetric** (`Y`) finds the mirror line along the
+frame's axes or diagonals that pairs every corner with a twin (within 1.5 m, or 8% of the
+outline's size) and moves each pair halfway to mirror each other. Both move existing nodes only,
+so rooms sharing them stay joined, and each is one undo step. Not done: a side picked as the
+mirror line, a 90° only variant in the toolbar (the action takes a step of 90), and equal
+lengths for sides that should match.
+
 Order inside C: C.0 and C.1 together first (one PR each), then C.2, then C.3; C.4 to C.6 can
 be reordered after users have tried C.1–C.3.
 

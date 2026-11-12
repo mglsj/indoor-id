@@ -145,3 +145,35 @@ test("a room and an area drawn inside it make a room with a hole", async ({
 		inspector(page).root.getByRole("button", { name: /^Members \(2\)$/ }),
 	).toBeVisible();
 });
+
+/** Room 100 drawn by hand: its north-east corner a little off, so no side is straight. */
+function wobblyRoom() {
+	const elements = room(100, LON, LAT, "0");
+	const corner = elements[2] as { lon: number; lat: number };
+	corner.lon += 0.00002;
+	corner.lat -= 0.000015;
+	return elements;
+}
+
+test("Straighten turns a hand-drawn outline's sides to 45° steps, in one undo step", async ({
+	page,
+}) => {
+	await selectRoom(page, {}, wobblyRoom());
+	await expect(
+		page.getByRole("button", { name: "Straighten to 45°" }),
+	).toBeVisible();
+	await page.keyboard.press("a");
+	await expect(page.getByTestId("edit-count")).not.toHaveText("0");
+	await expect(inspector(page).root).toBeVisible();
+	await page.getByRole("button", { name: "Undo" }).click();
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+});
+
+test("Make symmetric mirrors a hand-drawn outline's corners", async ({
+	page,
+}) => {
+	await selectRoom(page, {}, wobblyRoom());
+	await page.getByRole("button", { name: "Make symmetric" }).click();
+	await expect(page.getByTestId("edit-count")).not.toHaveText("0");
+	await expect(inspector(page).root).toBeVisible();
+});
