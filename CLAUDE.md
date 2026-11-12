@@ -148,6 +148,10 @@ runs the same commands.
   edits (C.6): `actions/transform.ts`, run by clicks or typed values in
   `edit/modes/transform.ts` (operations of kind `"tool"`). Modes report feedback through a
   `show` callback; `map/guide-layer.ts` draws guides and marks, `ui/MeasureLabels.svelte` the lengths.
+- Building mode (B): `edit/scope.ts` (`scopeOf`, `inScope`, `scopeAt`: what can be entered
+  and what belongs to it, by position only, never by relation membership),
+  `state/scope.svelte.ts` (`BuildingScope`, held as `editor.scope`), `&building=w123` in the
+  URL hash (`map/hash.ts`).
 - Viewer (V.1): `/view` is `ui/ViewerView.svelte` on `MapShell` (`presentation="view"`,
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`
   laid over its answers (the editor records each upload through `onupload`); a click shows

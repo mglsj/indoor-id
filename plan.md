@@ -45,7 +45,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | T      | One theme, background pane                 | Done         |
 | C      | CAD-style precision (C.0–C.6)              | C.0–C.6 done |
 | I      | iD's area fill, colours and safeguards     | Done         |
-| B      | Building mode: map and building scopes     | Not started  |
+| B      | Building mode: map and building scopes     | B.0 done     |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
 | P6     | Parity and polish                          | Not started  |
@@ -572,6 +572,20 @@ Slices, each agreeing its test seams first:
    with `contains(feature)` by position (`validation/outlines.ts`), `building=` in the URL hash
    both ways (`map/hash.ts`). Unit tests: a room inside, a room across two buildings (in both;
    W already warns), a point on the facade, an `indoor=level` scope, parts without a relation.
+   Done ✅ (2026-11-12): the pure part is `edit/scope.ts`: `scopeOf(graph, id)` (a building
+   way or multipolygon by its closed outers, a `type=building` relation by its `outline`, else
+   its parts, or an `indoor=level` outline; rings and extent), `inScope(graph, scope, id)` (a
+   point inside or within 5 cm of a wall; a way with a node strictly inside, or every node
+   inside or on a wall, so a neighbour's room against a shared wall stays out and a space
+   across two buildings is in both; another building only when wholly inside; a relation by
+   its members) and `scopeAt(graph, loc)` (the smallest building holding a position, else the
+   smallest level outline, for "Edit indoor here"; it scans the graph, so it is for clicks).
+   `state/scope.svelte.ts` (`BuildingScope`, `editor.scope`) keeps the id while its data
+   loads and refuses a loaded feature that can't be entered. The hash is
+   `#zoom/lat/lon/level&building=w123` (way or relation ids on the server only), read on load
+   and on hash edits, written back with the view. Not done: outer rings made of several open
+   ways (B.1 can reuse the map features' assembled polygons); `inScope` is per feature with
+   no index yet, which B.1 needs before it fades thousands of features.
 1. **B.1 Drawing and picking by scope — M.** `IndoorMap.setScope`: in map mode indoor layers
    faded and left out of `selectableLayers`; in building mode features outside faded and left
    out, the outline drawn in a reference layer that is not selectable but still a snap source.

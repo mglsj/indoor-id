@@ -118,3 +118,57 @@ describe("formatHash", () => {
 		expect(parsed.lon).toBeCloseTo(view.lon, 6);
 	});
 });
+
+describe("the building entered (B.0)", () => {
+	it("reads `&building=` after the view", () => {
+		expect(parseHash("#19/48.1/-1.6/1&building=w123")).toEqual({
+			zoom: 19,
+			lat: 48.1,
+			lon: -1.6,
+			level: 1,
+			building: "w123",
+		});
+		expect(parseHash("#19/48.1/-1.6/0&building=r45")?.building).toBe("r45");
+	});
+
+	it("reads it without a level too", () => {
+		expect(parseHash("#19/48.1/-1.6&building=w123")).toMatchObject({
+			level: 0,
+			building: "w123",
+		});
+	});
+
+	it.each([
+		["#19/48.1/-1.6/0&building=n1"],
+		["#19/48.1/-1.6/0&building=w-1"],
+		["#19/48.1/-1.6/0&building=way/1"],
+		["#19/48.1/-1.6/0&building="],
+		["#19/48.1/-1.6/0&other=w1"],
+	])("ignores what isn't a way or relation id in %j", (hash) => {
+		const view = parseHash(hash);
+		expect(view?.zoom).toBe(19);
+		expect(view?.building).toBeUndefined();
+	});
+
+	it("still rejects a broken view", () => {
+		expect(parseHash("#19/48.1&building=w1")).toBeNull();
+	});
+
+	it("writes it after the level, and round-trips", () => {
+		const hash = formatHash({
+			zoom: 19,
+			lat: 1,
+			lon: 2,
+			level: -1,
+			building: "w123",
+		});
+		expect(hash).toBe("#19/1/2/-1&building=w123");
+		expect(parseHash(hash)?.building).toBe("w123");
+	});
+
+	it("writes nothing when no building is entered", () => {
+		expect(formatHash({ zoom: 19, lat: 1, lon: 2, level: 0 })).toBe(
+			"#19/1/2/0",
+		);
+	});
+});

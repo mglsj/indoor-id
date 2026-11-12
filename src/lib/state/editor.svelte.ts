@@ -22,6 +22,7 @@ import {
 	type SyncApi,
 } from "./data-sync.svelte.ts";
 import { EditHistory } from "./edit-history.svelte.ts";
+import { BuildingScope } from "./scope.svelte.ts";
 import { Selection } from "./selection.svelte.ts";
 
 export type { LoadStatus } from "./data-sync.svelte.ts";
@@ -48,6 +49,8 @@ export class Editor {
 	});
 	readonly catalog: Catalog;
 	readonly sync: DataSync;
+	/** The building entered in building mode, or none (B.0: nothing reads it yet but the URL). */
+	readonly scope = new BuildingScope(() => this.graph);
 
 	/** The map's features, built again only for what each change touched. */
 	readonly features: StoredFeatures;

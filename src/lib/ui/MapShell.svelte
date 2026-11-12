@@ -91,6 +91,7 @@
 	}: Props = $props();
 
 	const editor = getEditor();
+	if (fromUrl?.building) editor.scope.enter(fromUrl.building);
 	let lastHash = "";
 	const settings = new BackgroundSettings(browserStorage());
 	background = settings;
@@ -167,7 +168,14 @@
 	});
 
 	// Keep the URL hash in sync with the map camera and the shown level.
-	const hash = $derived(camera && formatHash({ ...camera, level }));
+	const hash = $derived(
+		camera &&
+			formatHash({
+				...camera,
+				level,
+				...(editor.scope.id && { building: editor.scope.id }),
+			}),
+	);
 	$effect(() => {
 		if (hash && hash !== lastHash) {
 			lastHash = hash;
@@ -206,6 +214,8 @@
 		const view = parseHash(location.hash);
 		if (!view) return;
 		level = view.level;
+		if (view.building) editor.scope.enter(view.building);
+		else editor.scope.leave();
 		map?.jumpTo({ center: [view.lon, view.lat], zoom: view.zoom });
 	}
 
