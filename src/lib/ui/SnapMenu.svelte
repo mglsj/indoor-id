@@ -93,6 +93,10 @@
 		planVertices: msg("snap_plan_vertices"),
 		angles: msg("snap_angles"),
 		grid: msg("snap_grid"),
+		extensions: msg("snap_extensions"),
+		parallels: msg("snap_parallels"),
+		tracking: msg("snap_tracking"),
+		intersections: msg("snap_intersections"),
 	};
 </script>
 

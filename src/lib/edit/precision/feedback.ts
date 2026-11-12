@@ -4,9 +4,10 @@
  * hand it to `show`; the map draws the guides (`map/guide-layer.ts`) and the labels
  * (`ui/MeasureLabels.svelte`).
  */
+import { type Message, msg } from "#lib/i18n/messages.ts";
 import type { Loc } from "#lib/osm/entity.ts";
 import { bearingOf, type Frame, lengthOf, normalizeAngle } from "./frame.ts";
-import type { SnapTarget } from "./snap.ts";
+import type { Inference, SnapTarget } from "./snap.ts";
 import type { TypedInput } from "./typed.ts";
 
 /** A length (and an angle) shown on the map. */
@@ -28,6 +29,8 @@ export interface Feedback {
 	readonly measures: readonly Measure[];
 	/** What was typed, while something is (C.2). */
 	readonly input?: TypedInput;
+	/** Corners armed for tracking (C.4), marked on the map. */
+	readonly armed?: readonly Loc[];
 }
 
 /** Shows feedback, or hides it (null). */
@@ -48,4 +51,30 @@ export function sideMeasure(
 		? Math.abs(normalizeAngle(bearing - bearingOf(from, previous)))
 		: (((bearing - frame.angle) % 360) + 360) % 360;
 	return { at: to, pointer: true, length: lengthOf(from, to), angle };
+}
+
+const INFERENCE_LABELS: Record<Inference, Message> = {
+	extension: msg("inference_extension"),
+	parallel: msg("inference_parallel"),
+	perpendicular: msg("inference_perpendicular"),
+	tracking: msg("inference_tracking"),
+};
+
+/**
+ * What a snap means, in a word shown by the pointer (C.4): the inference it came from, or a
+ * midpoint or crossing; none for a plain node, side or angle.
+ */
+export function inferenceLabel(target: SnapTarget | null): Message | undefined {
+	if (!target) return undefined;
+	const kind =
+		"guides" in target ? target.guides?.find((g) => g.kind)?.kind : undefined;
+	if (kind) return INFERENCE_LABELS[kind];
+	if (target.kind === "segment" && target.mark === "midpoint")
+		return msg("inference_midpoint");
+	if (
+		(target.kind === "segment" && target.mark === "intersection") ||
+		target.kind === "intersection"
+	)
+		return msg("inference_intersection");
+	return undefined;
 }

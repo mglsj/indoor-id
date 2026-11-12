@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { Feedback } from "#lib/edit/precision/feedback.ts";
+import { Inferences } from "#lib/edit/precision/inference.ts";
 import type { SnapTarget } from "#lib/edit/precision/snap.ts";
 import type { EntityId } from "#lib/osm/entity.ts";
 import { node, way } from "#lib/osm/fixtures.ts";
-import { local } from "#lib/osm/geometry.ts";
+import { fromLocal, local } from "#lib/osm/geometry.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { EditHistory } from "#lib/state/edit-history.svelte.ts";
 import type { MapPoint } from "../mode.ts";
-import { drawPointMode, drawWayMode } from "./draw.ts";
+import {
+	type DrawSnap,
+	drawPointMode,
+	drawWayMode,
+	type SnapConstraints,
+} from "./draw.ts";
 
 const at = (lon: number, lat: number): MapPoint => ({
 	point: { x: lon, y: lat },
@@ -253,6 +259,73 @@ describe("drawWayMode with typed values (C.2)", () => {
 	it("leaves digits to the tool shortcuts before the first corner", () => {
 		const { mode } = typing();
 		expect(mode.key?.(key("2"))).toBe(false);
+	});
+});
+
+describe("drawWayMode with inferences (C.4)", () => {
+	const inferring = (snap: DrawSnap) => {
+		let now = 0;
+		const inferences = new Inferences(() => now);
+		const { history, finished, options } = setup();
+		const mode = drawWayMode("line", {
+			...options,
+			snap,
+			precision: {
+				frameAt: (loc) => ({ origin: loc, angle: 0 }),
+				step: () => null,
+				units: () => "metric",
+				show: () => {},
+				inferences,
+			},
+		});
+		return {
+			history,
+			finished,
+			mode,
+			wait: (ms: number) => {
+				now += ms;
+			},
+		};
+	};
+
+	it("a corner hovered for a moment gives lines in line with it, before the first click too", () => {
+		const seen: (SnapConstraints | undefined)[] = [];
+		const n2: SnapTarget = { kind: "node", id: "n2", loc: [2, 0] };
+		const { mode, wait } = inferring((p, _exclude, _keep, constraints) => {
+			seen.push(constraints);
+			return p.lngLat[0] === 2 && p.lngLat[1] === 0 ? n2 : null;
+		});
+		mode.hover?.(at(2, 0));
+		wait(500);
+		mode.hover?.(at(2, 0));
+		mode.hover?.(at(2, 5));
+		const lines = seen.at(-1)?.lines ?? [];
+		expect(lines.length).toBeGreaterThan(0);
+		expect(
+			lines.every((l) => l.kind === "tracking" && l.origin === n2.loc),
+		).toBe(true);
+	});
+
+	it("a typed length on a tracking line is measured from the tracked corner", () => {
+		const tracked = fromLocal([0, 0], [10, 0]);
+		const onLine = fromLocal([0, 0], [10, 7]);
+		const { history, finished, mode } = inferring((p) =>
+			p.lngLat[0] === 0.5
+				? {
+						kind: "angle",
+						loc: onLine,
+						guides: [{ from: tracked, to: onLine, kind: "tracking" }],
+					}
+				: null,
+		);
+		mode.click?.(at(0, 0));
+		mode.hover?.(at(0.5, 0.5));
+		for (const k of ["4", "Enter", "Enter"]) mode.key?.(key(k));
+		const w = history.graph.entity(finished[0] ?? "w0");
+		const n =
+			w?.type === "way" ? history.graph.entity(w.nodes[1] ?? "n0") : null;
+		const placed = n?.type === "node" ? local([0, 0], n.loc) : [];
+		expect(placed.map((v) => Math.round(v * 100) / 100)).toEqual([10, 4]);
 	});
 });
 

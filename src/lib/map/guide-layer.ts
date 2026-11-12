@@ -28,7 +28,9 @@ export type MarkKind =
 	| "plan"
 	| "grid"
 	| "angle"
-	| "lock";
+	| "lock"
+	| "perpendicular"
+	| "armed";
 
 interface GuideProperties {
 	readonly role: "guide" | "mark";
@@ -59,6 +61,14 @@ export function guideFeatures(feedback: Feedback | null): GuideData {
 			type: "Feature",
 			properties: { role: "mark", mark: markOf(snap) },
 			geometry: { type: "Point", coordinates: [...snap.loc] },
+		});
+	}
+	// Corners armed for tracking (C.4): a small hollow mark each.
+	for (const loc of feedback?.armed ?? []) {
+		features.push({
+			type: "Feature",
+			properties: { role: "mark", mark: "armed" },
+			geometry: { type: "Point", coordinates: [...loc] },
 		});
 	}
 	return { type: "FeatureCollection", features };
@@ -128,14 +138,16 @@ export class GuideLayer {
 						"case",
 						mark(["node", "intersection"]),
 						7,
-						mark(["midpoint", "plan", "grid"]),
+						mark(["midpoint", "plan", "grid", "perpendicular"]),
 						5,
+						mark(["armed"]),
+						3,
 						4,
 					],
 					// Hollow on a free spot (an angle ray, a locked direction), filled on geometry.
 					"circle-color": [
 						"case",
-						mark(["angle", "lock", "node"]),
+						mark(["angle", "lock", "node", "armed"]),
 						"rgba(0, 0, 0, 0)",
 						C.guide,
 					],

@@ -8,12 +8,18 @@
  * after 10,000 local edits (each its own undo step) under a frame, 16 ms. R4.4: a downloaded
  * tile merged under 500 and 10,000 undo steps (every step is rebased onto the new data), and
  * the full `changes()` scan the Save dialog's issues run, before P5.4a fixes the saved history.
+ * C.4: a pointer move while drawing, every snap kind on (angles at 5°, four armed sides and
+ * four armed corners, the grid, perpendiculars, crossings), under 2 ms.
  */
 import { changeTags } from "#lib/actions/change-tags.ts";
 import { deleteEntities } from "#lib/actions/delete.ts";
+import { angleLines } from "#lib/edit/precision/angles.ts";
+import { Inferences } from "#lib/edit/precision/inference.ts";
+import { areaAround, LINE_PIXELS, snapAt } from "#lib/edit/precision/snap.ts";
 import { diffFeatures, FeatureStore } from "#lib/map/feature-store.ts";
 import { buildFeatures } from "#lib/map/features.ts";
 import type { Entity, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
+import { fromMercator, toMercator } from "#lib/osm/geometry.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { History } from "#lib/osm/history.ts";
 import { loadPresetIndex } from "#lib/presets/load.ts";
@@ -206,6 +212,63 @@ report(
 		);
 	}),
 	"< 1 ms",
+);
+
+// C.4: one pointer move while drawing, at zoom 19 (about 0.1 m a pixel), every snap kind on.
+const PIXELS_PER_METRE = (512 * 2 ** 19) / 40_075_016.686;
+const project = (loc: Loc) => {
+	const [x, y] = toMercator(loc);
+	return { x: x * PIXELS_PER_METRE, y: -y * PIXELS_PER_METRE };
+};
+const unproject = ({ x, y }: { x: number; y: number }): Loc =>
+	fromMercator([x / PIXELS_PER_METRE, -y / PIXELS_PER_METRE]);
+const from: Loc = [click[0] - 3 * SIZE, click[1] - 2 * SIZE];
+const frame = { origin: from, angle: 12 };
+let clock = 0;
+const armed = new Inferences(() => clock);
+for (let i = 0; i < 4; i++) {
+	const a: Loc = [click[0] + i * SIZE, click[1] + SIZE];
+	const b: Loc = [a[0] + SIZE, a[1]];
+	const side = { kind: "side", key: `s${i}`, a, b } as const;
+	const corner = {
+		kind: "corner",
+		key: `c${i}`,
+		loc: a,
+		directions: [0, 90],
+	} as const;
+	for (const item of [side, corner]) {
+		armed.hover(item);
+		clock += 1000;
+		armed.hover(item);
+	}
+}
+report(
+	"Pointer move, every snap kind",
+	time(100, () => {
+		const point = project([click[0] + SIZE * 0.31, click[1] + SIZE * 0.27]);
+		const pointer = unproject(point);
+		const area = areaAround(point, unproject, LINE_PIXELS);
+		const lines = [
+			...angleLines({ from, frame, step: 5 }),
+			...armed.lines({ from, frame }),
+		];
+		snapAt(
+			point,
+			{
+				nodes: nodes.nodesNear(area, 0),
+				segments: nodes.segmentsNear(area, 0),
+				midpoints: true,
+				lines,
+				grid: { frame, step: 0.5 },
+				from,
+				crossings: true,
+			},
+			project,
+			undefined,
+			pointer,
+		);
+	}),
+	"< 2 ms",
 );
 
 // R1.12: the history after 10,000 local edits, each an undo step (every room renamed).

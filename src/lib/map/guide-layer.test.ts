@@ -43,4 +43,19 @@ describe("guideFeatures", () => {
 			{ role: "mark", mark: "midpoint" },
 		]);
 	});
+
+	it("marks the corners armed for tracking", () => {
+		const { features } = guideFeatures({
+			snap: null,
+			measures: [],
+			armed: [[2, 3]],
+		});
+		expect(features).toEqual([
+			{
+				type: "Feature",
+				properties: { role: "mark", mark: "armed" },
+				geometry: { type: "Point", coordinates: [2, 3] },
+			},
+		]);
+	});
 });

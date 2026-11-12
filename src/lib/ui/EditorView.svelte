@@ -68,7 +68,10 @@
 		floorFeature,
 		overlayFeatures,
 	} from "#lib/edit/overlay.ts";
-	import type { Feedback } from "#lib/edit/precision/feedback.ts";
+	import {
+		type Feedback,
+		inferenceLabel,
+	} from "#lib/edit/precision/feedback.ts";
 	import {
 		bearingOf,
 		type Frame,
@@ -76,6 +79,7 @@
 		northFrame,
 	} from "#lib/edit/precision/frame.ts";
 	import { drawnSpacing, gridLines } from "#lib/edit/precision/grid.ts";
+	import { Inferences } from "#lib/edit/precision/inference.ts";
 	import {
 		areaAround,
 		LINE_PIXELS,
@@ -131,6 +135,7 @@
 	} from "#lib/state/floorplans.svelte.ts";
 	import { type BuildingFrame, Frames } from "#lib/state/frames.svelte.ts";
 	import {
+		INFERENCE_OPTIONS,
 		PrecisionSettings,
 		setPrecision,
 	} from "#lib/state/precision.svelte.ts";
@@ -213,6 +218,8 @@
 	/** What the pointer snapped to and the lengths shown while drawing or dragging. */
 	let feedback = $state.raw<Feedback | null>(null);
 	const showFeedback = (shown: Feedback | null) => (feedback = shown);
+	/** Sides and corners armed by resting the pointer on them while drawing (C.4). */
+	const inferences = new Inferences();
 
 	/** The drawing frame at a position: its level outline's or building's, else north. */
 	function frameAt(loc: Loc): Frame {
@@ -734,6 +741,7 @@
 									step: () => precision.step,
 									units: () => precision.units,
 									show: showFeedback,
+									inferences,
 								},
 							}),
 						);
@@ -902,7 +910,9 @@
 	): SnapTarget | null {
 		if (!map || at.altKey) return null;
 		const points = precision.snaps("points");
-		const lines = precision.snaps("angles") ? constraints.lines : undefined;
+		const lines = constraints.lines?.filter((line) =>
+			precision.snaps(line.kind ? INFERENCE_OPTIONS[line.kind] : "angles"),
+		);
 		const reach = lines?.length ? LINE_PIXELS : undefined;
 		const area = areaAround(at.point, unprojectPoint, reach);
 		const segments =
@@ -931,6 +941,8 @@
 				lines,
 				lock: constraints.lock,
 				grid: gridSnap(),
+				from: precision.snaps("parallels") ? constraints.from : undefined,
+				crossings: precision.snaps("intersections"),
 			},
 			projectLoc,
 			undefined,
@@ -1340,6 +1352,7 @@
 		<MeasureLabels
 			measures={feedback.measures}
 			input={feedback.input}
+			inference={inferenceLabel(feedback.snap)}
 			project={projectLoc}
 			units={precision.units}
 			{camera}
