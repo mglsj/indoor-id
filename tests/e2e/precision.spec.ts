@@ -383,8 +383,11 @@ test("a guide at a typed distance from a side is snapped to, and kept", async ({
 }) => {
 	await metric(page);
 	const { x, y } = await roomMap(page);
-	await page.keyboard.press("m");
-	await page.keyboard.press("Tab");
+	await page.getByRole("button", { name: "Measure and guide" }).click();
+	await page
+		.getByTestId("measure-mode")
+		.getByRole("radio", { name: "Guide" })
+		.click();
 	await expect(page.getByTestId("draw-hint")).toContainText("guide");
 	// The room's north side, then 2 m north of it.
 	await page.mouse.click(x, y - 223);
@@ -411,10 +414,18 @@ test("a guide at a typed distance from a side is snapped to, and kept", async ({
 	await expect(page.getByTestId("guides-count")).toHaveText(
 		"Guides on this level: 1",
 	);
-	await page.getByRole("button", { name: "Clear this level's guides" }).click();
-	await expect(page.getByTestId("guides-count")).toHaveText(
-		"Guides on this level: 0",
-	);
+	await page.getByRole("button", { name: "Manage guides…" }).click();
+	const pane = page.getByTestId("guides-pane");
+	await expect(
+		pane.getByTestId("guides-list").getByRole("listitem"),
+	).toHaveCount(1);
+	await pane.getByRole("button", { name: "Hide guide 1" }).click();
+	await expect(
+		pane.getByRole("button", { name: "Show guide 1" }),
+	).toBeVisible();
+	await pane.getByRole("button", { name: "Delete guide 1" }).click();
+	await expect(pane.getByTestId("guides-list")).toBeHidden();
+	await expect.poll(() => storedGuides(page)).toBe(0);
 });
 
 /** How many construction guides IndexedDB holds. */

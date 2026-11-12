@@ -99,6 +99,19 @@ describe("measureMode: measuring", () => {
 		expect(mode.key?.(key("Tab"))).toBe(true);
 		expect(variants).toEqual(["guide"]);
 	});
+
+	it("the toolbar's switch changes the variant, dropping what was started", () => {
+		const { mode, variants, guides } = setup("guide", snapToSide);
+		mode.click?.(at(5, 0.2));
+		mode.setVariant("guide");
+		expect(variants).toEqual([]);
+		mode.setVariant("measure");
+		mode.setVariant("guide");
+		expect(variants).toEqual(["measure", "guide"]);
+		// The side clicked before the switch is forgotten: this click starts again.
+		mode.click?.(at(4, 6));
+		expect(guides).toEqual([]);
+	});
 });
 
 describe("measureMode: guides", () => {

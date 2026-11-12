@@ -14,6 +14,10 @@ export interface ConstructionGuide extends DirectionLine {
 	readonly level: number;
 	/** The outline (building or level) it was placed in, as frames are kept. */
 	readonly building?: string;
+	/** Its colour on the map (`#rrggbb`); the default guide colour when unset. */
+	readonly color?: string;
+	/** Hidden by the user: kept, but neither drawn nor snapped to. */
+	readonly hidden?: boolean;
 }
 
 /** The line parallel to side `a`–`b`, `offset` metres from it on the side of `toward`. */

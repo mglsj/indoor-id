@@ -316,6 +316,28 @@ describe("plan files, version 2: an archive of plans and the files they come fro
 		expect(read.guides).toEqual([guides[1]]);
 	});
 
+	it("keeps a guide's colour and hidden state, dropping a colour that isn't one", () => {
+		const coloured = {
+			origin: [1, 2] as const,
+			angle: 0,
+			level: 0,
+			color: "#22c55e",
+			hidden: true,
+		};
+		const read = readPlanArchive(
+			manifest({
+				guides: [
+					coloured,
+					{ origin: [1, 2], angle: 0, level: 0, color: "red", hidden: "yes" },
+				],
+			}),
+		);
+		expect(read.guides).toEqual([
+			coloured,
+			{ origin: [1, 2], angle: 0, level: 0 },
+		]);
+	});
+
 	const manifest = (changes: Record<string, unknown>, plan = {}) =>
 		zipSync({
 			"plans.json": strToU8(

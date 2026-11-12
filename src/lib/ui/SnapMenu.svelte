@@ -14,12 +14,13 @@
 		onnorth(): void;
 	}
 
-	/** The shown level's construction guides (C.5): how many, shown or not, cleared. */
+	/** The shown level's construction guides (C.5): how many, shown or not, and their pane. */
 	export interface GuideControls {
 		readonly count: number;
 		readonly shown: boolean;
 		onshow(shown: boolean): void;
-		onclear(): void;
+		/** Opens the guides pane, which lists them. */
+		onmanage(): void;
 	}
 </script>
 
@@ -336,15 +337,16 @@
 						/>
 						<Label for="{id}-guides-shown">{t(msg("guides_show"))}</Label>
 					</div>
-					{#if guides.count > 0}
-						<Button
-							variant="outline"
-							size="sm"
-							class="self-start"
-							onclick={() => guides.onclear()}
-							>{t(msg("guides_clear"))}</Button
-						>
-					{/if}
+					<Button
+						variant="outline"
+						size="sm"
+						class="self-start"
+						onclick={() => {
+							opened(false);
+							guides.onmanage();
+						}}
+						>{t(msg("guides_manage"))}</Button
+					>
 				</section>
 			{/if}
 		</Popover.Content>
