@@ -8,6 +8,7 @@
 	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import RectangleHorizontal from "@lucide/svelte/icons/rectangle-horizontal";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
+	import Ruler from "@lucide/svelte/icons/ruler";
 	import Scissors from "@lucide/svelte/icons/scissors";
 	import Spline from "@lucide/svelte/icons/spline";
 	import Square from "@lucide/svelte/icons/square";
@@ -52,6 +53,7 @@
 		floorPlanToolMode,
 	} from "#lib/edit/modes/floorplan.ts";
 	import { type FramePick, framePickMode } from "#lib/edit/modes/frame-pick.ts";
+	import { type MeasureVariant, measureMode } from "#lib/edit/modes/measure.ts";
 	import {
 		drawRectangleMode,
 		type RectangleVariant,
@@ -98,6 +100,7 @@
 	import { planDecoders } from "#lib/floorplans/import.ts";
 	import { type Message, msg, t } from "#lib/i18n/messages.ts";
 	import type { Imagery } from "#lib/map/backgrounds.ts";
+	import { ConstructionLayer } from "#lib/map/construction-layer.ts";
 	import { EditOverlay } from "#lib/map/edit-overlay.ts";
 	import type { Segment } from "#lib/map/feature-store.ts";
 	import {
@@ -134,6 +137,7 @@
 		type View as PlanView,
 	} from "#lib/state/floorplans.svelte.ts";
 	import { type BuildingFrame, Frames } from "#lib/state/frames.svelte.ts";
+	import { Guides } from "#lib/state/guides.svelte.ts";
 	import {
 		INFERENCE_OPTIONS,
 		PrecisionSettings,
@@ -270,6 +274,9 @@
 	/** Drawing frames set per building (C.3), kept with the floor plans. */
 	const frames = new Frames(planStore);
 	void frames.load();
+	/** Construction guides placed with the measure tool (C.5), kept with the floor plans. */
+	const construction = new Guides(planStore);
+	void construction.load();
 
 	/** The snapping menu is open: the frame in view is worked out for it. */
 	let snapMenuOpen = $state(false);
@@ -386,17 +393,22 @@
 
 	/** The drawing tool on (P5.3.4; the split tool, P5.3.5), or null when browsing. */
 	let drawing = $state<
-		"point" | "line" | "area" | "rectangle" | "split" | null
+		"point" | "line" | "area" | "rectangle" | "split" | "measure" | null
 	>(null);
 	/** How the rectangle tool draws (Tab switches). */
 	let rectangleVariant = $state<RectangleVariant>("corners");
+	/** Whether the measure tool measures or places guides (Tab switches). */
+	let measureVariant = $state<MeasureVariant>("measure");
 	/** The split tool's cut line, or the lasso, as drawn so far. */
 	let cut = $state.raw<readonly Loc[]>([]);
 
 	/** Turns a drawing tool on, or off when it is on already. */
-	function draw(kind: "point" | "line" | "area" | "rectangle" | "split") {
+	function draw(
+		kind: "point" | "line" | "area" | "rectangle" | "split" | "measure",
+	) {
 		drawing = drawing === kind ? null : kind;
 		rectangleVariant = "corners";
+		measureVariant = "measure";
 		if (drawing) editor.select(null);
 	}
 
@@ -412,6 +424,7 @@
 		area: msg("draw_area_hint"),
 		rectangle: msg("draw_rectangle_hint"),
 		split: msg("split_hint"),
+		measure: msg("measure_hint"),
 	};
 
 	/** Cuts the rooms, corridors and areas on the shown level the line crosses, in one step. */
@@ -550,6 +563,10 @@
 		const overlay = new EditOverlay(instance);
 		const guides = new GuideLayer(instance);
 		$effect(() => guides.show(feedback));
+		const constructionLayer = new ConstructionLayer(instance);
+		$effect(() =>
+			constructionLayer.setGuides(planMode ? [] : construction.on(level)),
+		);
 		const grid = new GridLayer(instance);
 		$effect(() => {
 			void camera;
@@ -746,6 +763,32 @@
 							}),
 						);
 						break;
+					case "draw-measure":
+						manager.setMode(
+							measureMode({
+								snap: snapNode,
+								variant: measureVariant,
+								onvariant: (variant) => (measureVariant = variant),
+								onguide: (line) =>
+									construction.add(
+										line,
+										level,
+										frames.at(
+											[...editor.features.byId.values()],
+											line.origin,
+											level,
+										)?.id,
+									),
+								onexit: () => (drawing = null),
+								precision: {
+									frameAt,
+									step: () => precision.step,
+									units: () => precision.units,
+									show: showFeedback,
+								},
+							}),
+						);
+						break;
 					case "draw-rectangle":
 						manager.setMode(
 							drawRectangleMode({
@@ -825,6 +868,7 @@
 			overlay.remove();
 			guides.remove();
 			grid.remove();
+			constructionLayer.remove();
 			marks.remove();
 			layers.remove();
 		};
@@ -942,6 +986,7 @@
 				lock: constraints.lock,
 				grid: gridSnap(),
 				from: precision.snaps("parallels") ? constraints.from : undefined,
+				guides: points ? construction.on(level) : [],
 				crossings: precision.snaps("intersections"),
 			},
 			projectLoc,
@@ -1081,6 +1126,7 @@
 		{ combo: "X", run: () => draw("split") },
 		{ combo: "S", run: () => precision.toggle() },
 		{ combo: "G", run: () => precision.toggleGrid() },
+		{ combo: "M", run: () => draw("measure") },
 		{ combo: "Mod+Z", run: () => editor.history.undo() },
 		{ combo: "Mod+Shift+Z", run: () => editor.history.redo() },
 		{ combo: "Mod+Y", run: () => editor.history.redo() },
@@ -1157,7 +1203,7 @@
 {/snippet}
 
 {#snippet drawButton(
-	kind: "point" | "line" | "area" | "rectangle" | "split",
+	kind: "point" | "line" | "area" | "rectangle" | "split" | "measure",
 	label: string,
 	key: string,
 	Icon: Component,
@@ -1171,7 +1217,9 @@
 					size="icon"
 					aria-label={kind === "split"
 						? "Split rooms"
-						: `Draw ${label.toLowerCase()}`}
+						: kind === "measure"
+							? "Measure"
+							: `Draw ${label.toLowerCase()}`}
 					aria-pressed={drawing === kind}
 					disabled={editor.history.locked}
 				>
@@ -1268,12 +1316,19 @@
 						RectangleHorizontal,
 					)}
 					{@render drawButton("split", "Split", "X", Scissors)}
+					{@render drawButton("measure", "Measure", "M", Ruler)}
 				</ButtonGroup.Root>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
 				<SnapMenu
 					{precision}
 					frame={frameControls}
+					guides={{
+						count: construction.countOn(level),
+						shown: construction.shown,
+						onshow: (shown) => (construction.shown = shown),
+						onclear: () => construction.clear(level),
+					}}
 					onopenchange={(open) => (snapMenuOpen = open)}
 				/>
 			</div>
@@ -1336,6 +1391,7 @@
 					onshowlevel={(shown) => (level = shown)}
 					buildings={planBuildings}
 					buildingName={planBuildingName}
+					guides={construction}
 				/>
 			{/if}
 			<PanelResizer
@@ -1380,7 +1436,9 @@
 			{t(
 				drawing === "rectangle" && rectangleVariant === "side"
 					? msg("draw_rectangle_side_hint")
-					: DRAW_HINTS[drawing],
+					: drawing === "measure" && measureVariant === "guide"
+						? msg("guide_hint")
+						: DRAW_HINTS[drawing],
 			)}
 		</p>
 	{/if}

@@ -42,7 +42,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | LN     | License notices                            | Done         |
 | V      | Viewer mode (V.1–V.3)                      | Done         |
 | T      | One theme, background pane                 | Done         |
-| C      | CAD-style precision (C.0–C.6)              | C.0–C.4 done |
+| C      | CAD-style precision (C.0–C.6)              | C.0–C.5 done |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started  |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
@@ -452,6 +452,17 @@ corner (extensions and tracking) in the line and area tools; a typed length on a
 is measured from the tracked corner. The rectangle tool and vertex drags don't infer yet. The
 bench's pointer move with every snap kind on takes 0.1 ms (target 2 ms). Guides are all drawn
 with one dash style; the label by the pointer says the kind.
+
+Landed with C.5: `edit/modes/measure.ts` (`M`, a Ruler button; Tab switches "measure" and
+"guide"), `edit/precision/construction.ts` (`parallelAt`, `offsetFrom`, `guideEnds`),
+`state/guides.svelte.ts` (`Guides`, saved in plan-store schema 6, `guides` store by id, and in
+plan files as an optional `guides` list in `plans.json`; imported guides get new ids),
+`map/construction-layer.ts` (faint dashed lines, 2 km each way). Guides snap like sides (a
+point on one, where one crosses a side, another guide or a direction line); the snapping
+menu shows the level's count, hides them, and clears the level's. A measure is kept until the
+next first click, as a side label; the measured line is drawn through `Feedback.lines`. Not
+done: a list to delete one guide (clear the level instead), and guides on other levels are
+only reachable by switching level. Plan files are exported only when there is a plan.
 
 Order inside C: C.0 and C.1 together first (one PR each), then C.2, then C.3; C.4 to C.6 can
 be reordered after users have tried C.1–C.3.

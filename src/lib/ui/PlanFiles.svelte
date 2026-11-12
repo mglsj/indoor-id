@@ -19,6 +19,7 @@
 	} from "#lib/floorplans/plan-io.ts";
 	import { MessageError, msg } from "#lib/i18n/messages.ts";
 	import type { FloorPlans, View } from "#lib/state/floorplans.svelte.ts";
+	import type { Guides } from "#lib/state/guides.svelte.ts";
 	import PdfPageDialog from "#lib/ui/PdfPageDialog.svelte";
 
 	interface Props {
@@ -29,9 +30,11 @@
 		getView: () => View | undefined;
 		/** The level shown, which new plans are assigned to. */
 		level: number;
+		/** Construction guides, written to plan files and read back from them (C.5). */
+		guides?: Guides;
 	}
 
-	let { floorplans, decoders, getView, level }: Props = $props();
+	let { floorplans, decoders, getView, level, guides }: Props = $props();
 
 	let busy = $state(false);
 	let error = $state<string | null>(null);
@@ -57,6 +60,7 @@
 					break;
 				case "plans":
 					floorplans.insertPlans(opened.plans);
+					if (opened.plans.guides) guides?.addAll(opened.plans.guides);
 			}
 		} catch (e) {
 			error = (e as Error).message;
@@ -102,6 +106,7 @@
 			floorplans.plans,
 			floorplans.buildings,
 			(plan) => floorplans.fileOf(plan),
+			guides?.all.map(({ id: _, ...guide }) => guide),
 		);
 		const url = URL.createObjectURL(archive);
 		const link = document.createElement("a");

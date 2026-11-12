@@ -315,3 +315,50 @@ describe("snapAt with inferences (C.4)", () => {
 		).not.toEqual(target.loc);
 	});
 });
+
+describe("snapAt with construction guides (C.5)", () => {
+	/** A guide straight up through x = 0.5°. */
+	const guide = { origin: [0.5, 0] as Loc, angle: 90 };
+
+	it("snaps onto a guide like onto a side", () => {
+		const target = snapAt({ x: 53, y: -40 }, { guides: [guide] }, project);
+		expect(target?.kind).toBe("guide");
+		expect(target?.loc[0]).toBeCloseTo(0.5, 6);
+		expect(target?.loc[1]).toBeCloseTo(0.4, 6);
+	});
+
+	it("snaps to where a guide crosses a side, as a point on the side", () => {
+		const target = snapAt(
+			{ x: 54, y: 3 },
+			{ guides: [guide], segments: [side] },
+			project,
+		);
+		expect(target?.kind).toBe("segment");
+		if (target?.kind !== "segment") return;
+		expect(target.mark).toBe("intersection");
+		expect(target.loc[0]).toBeCloseTo(0.5, 6);
+		expect(target.loc[1]).toBeCloseTo(0, 6);
+	});
+
+	it("snaps to where two guides cross, and where a direction line crosses a guide", () => {
+		const across = { origin: [0, 0.3] as Loc, angle: 0 };
+		const crossing = snapAt(
+			{ x: 54, y: -27 },
+			{ guides: [guide, across] },
+			project,
+		);
+		expect(crossing?.kind).toBe("intersection");
+		expect(crossing?.loc[0]).toBeCloseTo(0.5, 6);
+		expect(crossing?.loc[1]).toBeCloseTo(0.3, 6);
+		const lined = snapAt(
+			{ x: 52, y: -48 },
+			{ guides: [guide], lines: [{ origin: [0, 0], angle: 45 }] },
+			project,
+			8,
+			[0.52, 0.48],
+		);
+		expect(lined?.kind).toBe("intersection");
+		expect(lined?.loc[0]).toBeCloseTo(0.5, 4);
+		expect(lined?.loc[1]).toBeCloseTo(0.5, 4);
+	});
+});

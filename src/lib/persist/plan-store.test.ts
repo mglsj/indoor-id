@@ -251,6 +251,25 @@ describe("IndexedDbPlanStore: frames (schema 5)", () => {
 	});
 });
 
+describe("IndexedDbPlanStore: construction guides (schema 6)", () => {
+	it("keeps guides by id, and deletes them", async () => {
+		const store = freshStore();
+		const guide = {
+			id: "g1",
+			origin: [1, 2] as [number, number],
+			angle: 30,
+			level: 0,
+			building: "w1",
+		};
+		await store.saveGuides([guide, { ...guide, id: "g2", level: -1 }]);
+		expect(
+			(await store.loadGuides()).sort((a, b) => a.id.localeCompare(b.id)),
+		).toEqual([guide, { ...guide, id: "g2", level: -1 }]);
+		await store.deleteGuides(["g1"]);
+		expect((await store.loadGuides()).map((g) => g.id)).toEqual(["g2"]);
+	});
+});
+
 describe("IndexedDbPlanStore: other tabs", () => {
 	it("fails at once when an older version is held open elsewhere, and tries again after", async () => {
 		const store = freshStore();
@@ -266,8 +285,8 @@ describe("IndexedDbPlanStore: other tabs", () => {
 	it("lets a newer tab upgrade, closing its own connection", async () => {
 		const store = freshStore();
 		await store.save(plan("a", 0));
-		const newer = await openDB(name, 5);
-		expect(newer.version).toBe(5);
+		const newer = await openDB(name, 7);
+		expect(newer.version).toBe(7);
 		newer.close();
 	});
 });

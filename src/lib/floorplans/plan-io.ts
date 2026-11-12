@@ -21,6 +21,7 @@ import {
 	planName,
 } from "./import.ts";
 import {
+	type ArchivedGuide,
 	type ArchivedPlan,
 	isPlanArchive,
 	type PlanFileBuildings,
@@ -58,6 +59,8 @@ export interface ImportedPlan extends PlanFields, PlanOrigin {
 export interface ImportedPlans {
 	readonly plans: readonly ImportedPlan[];
 	readonly buildings?: PlanFileBuildings;
+	/** Construction guides the file carries (C.5). */
+	readonly guides?: readonly ArchivedGuide[];
 }
 
 /** A PDF opened for its pages to be picked. */
@@ -163,7 +166,7 @@ async function readArchive(
 	bytes: Uint8Array,
 	decoders: PlanDecoders,
 ): Promise<ImportedPlans> {
-	const { plans, files, buildings } = readPlanArchive(bytes);
+	const { plans, files, buildings, guides } = readPlanArchive(bytes);
 	// Each file gets a new id here: its plans share it, other plans don't.
 	const blobs = new Map(
 		[...files].map(([path, data]) => [
@@ -188,7 +191,11 @@ async function readArchive(
 				content: await contentOf(plan, file.blob, decoders, pdfs),
 			});
 		}
-		return { plans: imported, ...(buildings ? { buildings } : {}) };
+		return {
+			plans: imported,
+			...(buildings ? { buildings } : {}),
+			...(guides ? { guides } : {}),
+		};
 	} finally {
 		for (const pdf of pdfs.values()) void pdf.then((d) => d.close());
 	}
@@ -287,6 +294,7 @@ export async function writePlanFile(
 	plans: readonly ExportedPlan[],
 	buildings: PlanFileBuildings,
 	fileOf: (plan: ExportedPlan) => Promise<Blob | undefined>,
+	guides: readonly ArchivedGuide[] = [],
 ): Promise<Blob> {
 	const blobs = await Promise.all(plans.map(fileOf));
 	const paths = new Map<string, string>();
@@ -310,6 +318,7 @@ export async function writePlanFile(
 		plans: archived,
 		files,
 		buildings: { below, visible: buildings.visible },
+		guides,
 	});
 	return new Blob([new Uint8Array(bytes)], { type: "application/zip" });
 }

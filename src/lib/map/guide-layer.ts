@@ -30,7 +30,8 @@ export type MarkKind =
 	| "angle"
 	| "lock"
 	| "perpendicular"
-	| "armed";
+	| "armed"
+	| "guide";
 
 interface GuideProperties {
 	readonly role: "guide" | "mark";
@@ -47,6 +48,13 @@ export function markOf(target: SnapTarget): MarkKind {
 /** What the guide layer draws for some feedback. */
 export function guideFeatures(feedback: Feedback | null): GuideData {
 	const features: Feature<LineString | Point, GuideProperties>[] = [];
+	for (const { from, to } of feedback?.lines ?? []) {
+		features.push({
+			type: "Feature",
+			properties: { role: "guide" },
+			geometry: { type: "LineString", coordinates: [[...from], [...to]] },
+		});
+	}
 	const snap = feedback?.snap;
 	if (snap) {
 		const guides = "guides" in snap ? (snap.guides ?? []) : [];
@@ -138,7 +146,7 @@ export class GuideLayer {
 						"case",
 						mark(["node", "intersection"]),
 						7,
-						mark(["midpoint", "plan", "grid", "perpendicular"]),
+						mark(["midpoint", "plan", "grid", "perpendicular", "guide"]),
 						5,
 						mark(["armed"]),
 						3,

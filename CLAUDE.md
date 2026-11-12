@@ -95,7 +95,7 @@ runs the same commands.
   WebGL layer, and `map/plan-matrix.ts`; their text through `map/plan-labels.ts`),
   `state/floorplans.svelte.ts` (`FloorPlans`: plans, edit sessions, alignment tools; a
   plan's visibility and hidden CAD layers are saved at once, outside the edit session),
-  `persist/plan-store.ts` (IndexedDB schema 5: settings, tiles, files, thumbnails, vectors, frames; tested on
+  `persist/plan-store.ts` (IndexedDB schema 6: settings, tiles, files, thumbnails, vectors, frames, guides; tested on
   fake-indexeddb; content loads for the shown level only, `FloorPlans.showLevel`; tests use
   `state/testing/plan-store.ts`), `ui/FloorPlansPanel.svelte` (`PlanFiles`, `PlanList`,
   `PlanTools`). Pixels go through a `PlanCodec`
@@ -139,7 +139,9 @@ runs the same commands.
   `formatLength`), never hand-formatted. Settings (`S`, the snapping menu, units) are
   `state/precision.svelte.ts`, read with `getPrecision()`. Drawing frames per building are
   `state/frames.svelte.ts` (`Frames`, saved in the plan store), set in the snapping menu or with
-  `edit/modes/frame-pick.ts`; `map/grid-layer.ts` draws the grid. Modes report feedback through a
+  `edit/modes/frame-pick.ts`; `map/grid-layer.ts` draws the grid. Construction guides (C.5):
+  `edit/precision/construction.ts`, `state/guides.svelte.ts` (`Guides`, also in plan files),
+  placed with `edit/modes/measure.ts` (`M`), drawn by `map/construction-layer.ts`. Modes report feedback through a
   `show` callback; `map/guide-layer.ts` draws guides and marks, `ui/MeasureLabels.svelte` the lengths.
 - Viewer (V.1): `/view` is `ui/ViewerView.svelte` on `MapShell` (`presentation="view"`,
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`
