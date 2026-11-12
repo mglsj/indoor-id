@@ -412,8 +412,8 @@ test("draws a plan over the rooms already mapped", async ({ page }) => {
 	// The plan, ~540 px wide, covers the room in the map's centre.
 	const { mx, cy } = await initialLayout(page, 300);
 	await page.getByRole("button", { name: "Close" }).click();
-	// Back to editing: the room's fill (80% opaque), then the plan at half opacity on top.
-	const roomFill = blend([0xd6, 0xd1, 0xc7], 0.8, BACKGROUND);
+	// Back to editing: the room's fill (iD's, filled whole), then the plan at half opacity on top.
+	const roomFill = blend([120, 120, 120], 0.22, BACKGROUND);
 	await expectPixel(page, mx, cy, blend(RED, 0.5, roomFill));
 });
 

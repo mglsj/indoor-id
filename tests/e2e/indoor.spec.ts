@@ -15,8 +15,8 @@ import {
 	test,
 } from "./fixtures.ts";
 
-/** The room colour of the style, drawn at its fill opacity over the background. */
-const ROOM = blend([0xd6, 0xd1, 0xc7], 0.8, BACKGROUND);
+/** The room fill of the editor's light colours (`LIGHT_EDIT_COLORS.room.fill`), filled whole. */
+const ROOM = blend([120, 120, 120], 0.22, BACKGROUND);
 
 test("draws a room on its level only", async ({ page }) => {
 	await serveOsm(page, [

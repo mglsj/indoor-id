@@ -1289,3 +1289,23 @@ Before V and 3D (decided ✔). From P5.4's first step:
   outline, as Split). Tags: the type's, `indoor=area` unless it sets `indoor`, the level, no
   `area=yes`. A floor with holes is a multipolygon; a hole that is exactly one room's ring is
   that room's way, not a copy.
+
+## I: iD's area fill, colours and safeguards (November 2026)
+
+Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept
+selecting it. Done ✅: areas are filled as iD's default **partial fill** (`css/70_fills.css`): a
+band inside the outline (`indoor-fill-band`, a line layer with a positive `line-offset`, which
+MapLibre insets on rings), 10 px inside indoor features and 30 px inside buildings from z19,
+half that at z17. Wireframe (outlines only, 1 px) and full fill are chosen in the background
+pane (`BackgroundSettings.areaFill`, saved as `indoorid.area-fill`); W toggles the wireframe.
+Unless areas are filled whole, a click picks an area by its band or outline only
+(`selectableLayers`, and area labels don't count), as iD's `pointer-events: visibleStroke`.
+The viewer still fills areas whole. Editor colours come from iD's stylesheet
+(`style/colors.ts`, `EditColors`): grey outlines with white bands on dark maps, its building
+red, the platform tan for open spaces, the steps green for stairs and elevators, iD's footway,
+corridor and steps line colours; the light map darkens the greys and strengthens the bands.
+iD's `too_large` guard (`edit/visibility.ts`): moving, rotating, scaling, squaring,
+disconnecting, nudging or deleting is refused while less than 80% of the selection's extent is
+in view, and a press on a large selected area pans instead. Small iD shortcuts with it: Z zooms
+to the selection, Mod+B swaps back to the previous background. E2E tests fill areas whole
+(`fixtures.ts`) except `area-fill.spec.ts`.

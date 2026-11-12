@@ -4,7 +4,7 @@ import {
 	validateStyleMin,
 } from "@maplibre/maplibre-gl-style-spec";
 import { describe, expect, it } from "vitest";
-import { INDOOR_SOURCE, indoorLayers } from "./layers.ts";
+import { INDOOR_SOURCE, indoorLayers, selectableLayers } from "./layers.ts";
 
 /** Geometry codes used by MapLibre's filter evaluation. */
 const GEOMETRY = { Point: 1, LineString: 2, Polygon: 3 } as const;
@@ -57,10 +57,12 @@ describe("indoorLayers", () => {
 		const room = { "@kind": "room", "@lv": ";0;" };
 		expect(drawnBy(0, "Polygon", room)).toEqual([
 			"indoor-fill",
+			"indoor-fill-band",
 			"indoor-outline",
 		]);
 		expect(drawnBy(0, "Polygon", { ...room, "@label": "B12" })).toEqual([
 			"indoor-fill",
+			"indoor-fill-band",
 			"indoor-outline",
 			"indoor-labels",
 		]);
@@ -104,6 +106,7 @@ describe("indoorLayers", () => {
 	it("draws features without level information on every level", () => {
 		expect(drawnBy(3, "Polygon", { "@kind": "building", "@lv": "*" })).toEqual([
 			"indoor-fill",
+			"indoor-fill-band",
 			"indoor-outline",
 		]);
 	});
@@ -114,9 +117,10 @@ describe("indoorLayers: presentation and theme", () => {
 		layers.find((l) => l.id === id)?.paint as Record<string, unknown>;
 
 	it("draws dark colours for a dark map", () => {
-		const light = JSON.stringify(paint(indoorLayers(0), "indoor-fill"));
+		const view = { presentation: "view" } as const;
+		const light = JSON.stringify(paint(indoorLayers(0, view), "indoor-fill"));
 		const dark = JSON.stringify(
-			paint(indoorLayers(0, { theme: "dark" }), "indoor-fill"),
+			paint(indoorLayers(0, { ...view, theme: "dark" }), "indoor-fill"),
 		);
 		expect(light).toContain("#d6d1c7");
 		expect(dark).not.toContain("#d6d1c7");
@@ -126,25 +130,76 @@ describe("indoorLayers: presentation and theme", () => {
 		).toBe("#eeeeee");
 	});
 
-	it("draws rooms nearly opaque in the viewer, translucent in the editor", () => {
-		const opacity = (presentation: "edit" | "view") =>
-			paint(indoorLayers(0, { presentation }), "indoor-fill")["fill-opacity"];
-		expect(opacity("edit")).toEqual([
+	it("draws rooms nearly opaque in the viewer", () => {
+		expect(
+			paint(indoorLayers(0, { presentation: "view" }), "indoor-fill")[
+				"fill-opacity"
+			],
+		).toEqual(["match", ["get", "@kind"], "building", 0.85, 0.95]);
+	});
+
+	it("edits with iD's colours: its building red, white bands on a dark map", () => {
+		const dark = JSON.stringify(
+			paint(indoorLayers(0, { theme: "dark" }), "indoor-fill-band"),
+		);
+		expect(dark).toContain("rgba(224, 110, 95, 0.3)");
+		expect(dark).toContain("rgba(255, 255, 255, 0.3)");
+		// White bands would vanish on the light map: grey ones instead.
+		const light = JSON.stringify(paint(indoorLayers(0), "indoor-fill-band"));
+		expect(light).not.toContain("rgba(255, 255, 255, 0.3)");
+	});
+
+	it("fills areas with a band inside their outline unless asked otherwise (iD)", () => {
+		const shown = (fill: "wireframe" | "partial" | "full") => {
+			const layers = indoorLayers(0, { fill });
+			return {
+				band: paint(layers, "indoor-fill-band")["line-opacity"],
+				fill: paint(layers, "indoor-fill")["fill-opacity"],
+			};
+		};
+		expect(shown("partial")).toEqual({ band: 1, fill: 0 });
+		expect(shown("full")).toEqual({ band: 0, fill: 1 });
+		expect(shown("wireframe")).toEqual({ band: 0, fill: 0 });
+		expect(
+			paint(indoorLayers(0, { fill: "wireframe" }), "indoor-outline")[
+				"line-width"
+			],
+		).toBe(1);
+		// The viewer fills areas whole whatever the editor's fill.
+		expect(
+			paint(
+				indoorLayers(0, { presentation: "view", fill: "wireframe" }),
+				"indoor-fill-band",
+			)["line-opacity"],
+		).toBe(0);
+	});
+
+	it("insets the band by half its width, 10 px inside rooms and 30 px inside buildings", () => {
+		const band = paint(indoorLayers(0), "indoor-fill-band");
+		const at19 = (expression: unknown) =>
+			(expression as unknown[]).at(-1) as unknown[];
+		expect(at19(band["line-width"])).toEqual([
 			"match",
 			["get", "@kind"],
 			"building",
-			0.5,
-			"wall",
-			0.9,
-			0.8,
+			30,
+			10,
 		]);
-		expect(opacity("view")).toEqual([
+		expect(at19(band["line-offset"])).toEqual([
 			"match",
 			["get", "@kind"],
 			"building",
-			0.85,
-			0.95,
+			15,
+			5,
 		]);
+	});
+
+	it("picks areas by their band or outline unless they are filled whole", () => {
+		expect(selectableLayers("partial")).toContain("indoor-fill-band");
+		expect(selectableLayers("partial")).not.toContain("indoor-fill");
+		expect(selectableLayers("wireframe")).not.toContain("indoor-fill-band");
+		expect(selectableLayers("wireframe")).toContain("indoor-outline");
+		expect(selectableLayers("full")).toContain("indoor-fill");
 	});
 
 	it("is a valid style in every presentation and theme", () => {
@@ -163,6 +218,20 @@ describe("indoorLayers: presentation and theme", () => {
 				};
 				expect(validateStyleMin(style)).toEqual([]);
 			}
+		}
+		for (const fill of ["wireframe", "partial", "full"] as const) {
+			const style: StyleSpecification = {
+				version: 8,
+				sources: {
+					[INDOOR_SOURCE]: {
+						type: "geojson",
+						data: { type: "FeatureCollection", features: [] },
+					},
+				},
+				glyphs: "https://example.org/fonts/{fontstack}/{range}.pbf",
+				layers: indoorLayers(0, { fill }),
+			};
+			expect(validateStyleMin(style)).toEqual([]);
 		}
 	});
 });

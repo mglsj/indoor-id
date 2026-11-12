@@ -24,7 +24,8 @@ OsmInEdit is distributed under the ISC license:
 Presets and fields are generated from iD's
 [tagging schema](https://github.com/openstreetmap/id-tagging-schema), and several editing
 actions, fields and services follow iD's own code (`openstreetmap/iD`: orthogonalize, connect,
-disconnect, copy, members, taginfo, Wikidata, the tag editor). Both are distributed under the
+disconnect, copy, members, taginfo, Wikidata, the tag editor; the map colours, area fills and
+the `too_large` guard). Both are distributed under the
 ISC license:
 
 > Copyright (c) iD Contributors

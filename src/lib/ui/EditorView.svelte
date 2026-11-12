@@ -100,6 +100,7 @@
 		snapAt,
 	} from "#lib/edit/precision/snap.ts";
 	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
+	import { tooLargeToEdit } from "#lib/edit/visibility.ts";
 	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
 	import { workerCodec } from "#lib/floorplans/codec.ts";
 	import {
@@ -140,6 +141,7 @@
 	import { Autosave } from "#lib/persist/autosave.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
 	import { EditAutosave } from "#lib/state/autosave.svelte.ts";
+	import type { BackgroundSettings } from "#lib/state/background.svelte.ts";
 	import { performEdit } from "#lib/state/commands.ts";
 	import { Editor, setEditor } from "#lib/state/editor.svelte.ts";
 	import {
@@ -375,6 +377,8 @@
 	let level = $state(parseHash(location.hash)?.level ?? 0);
 	/** The indoor layers, which `MapShell` puts on the map. */
 	let indoor = $state.raw<IndoorMap>();
+	/** The background and area fill settings (W toggles the wireframe). */
+	let backgroundSettings = $state.raw<BackgroundSettings>();
 	let background: Imagery | null = null;
 	/** Imagery shown since the last upload, for the changeset's imagery_used tag. */
 	let imageryUsed = $state<string[]>([]);
@@ -501,6 +505,8 @@
 			pasteAt: lastPointer ?? (center ? [center.lng, center.lat] : [0, 0]),
 			clipboard,
 			frameAngle: selectionFrameAngle(),
+			// Read with the camera: the toolbar follows the map's moves.
+			view: camera && extentOfView(map),
 		};
 	}
 
@@ -598,6 +604,11 @@
 			event.altKey
 		)
 			return false;
+		// iD's too_large: what can't be seen isn't nudged.
+		if (tooLargeToEdit(editor.graph, ids, extentOfView(map))) {
+			showNote(msg("operation_too_large"));
+			return true;
+		}
 		const step = event.shiftKey ? 1 : 0.1;
 		// Screen right and up on the ground, as the map is turned.
 		const b = ((map?.getBearing() ?? 0) * Math.PI) / 180;
@@ -781,12 +792,23 @@
 								hitTest: (point) => indoorLayers.hitTest(point),
 								select: (id) => editor.select(id as EntityId | null),
 								toggle: (id) => editor.selection.toggle(id as EntityId),
-								move: (at) =>
-									selectedAt(at.point)
-										? featureDrag(editor.selection.ids, at, editor.history, {
-												onhint: (hint) => (dragHint = hint),
-											})
-										: null,
+								move: (at) => {
+									if (!selectedAt(at.point)) return null;
+									// iD's too_large: a press inside a large area pans the map instead.
+									if (
+										tooLargeToEdit(
+											editor.graph,
+											editor.selection.ids,
+											extentOfView(map),
+										)
+									) {
+										showNote(msg("operation_too_large"));
+										return null;
+									}
+									return featureDrag(editor.selection.ids, at, editor.history, {
+										onhint: (hint) => (dragHint = hint),
+									});
+								},
 								lasso: (at) =>
 									lassoDrag(at.lngLat, {
 										onchange: (line) => (cut = line),
@@ -1132,7 +1154,22 @@
 
 	/** Fits a feature in the part of the map the side panel leaves visible. */
 	function zoomTo(id: EntityId) {
-		const extent = entityExtent(editor.graph, id);
+		zoomToAll([id]);
+	}
+
+	/** Fits features in the part of the map the side panel leaves visible (iD's Z for the selection). */
+	function zoomToAll(ids: readonly EntityId[]) {
+		const extent = extentOf(
+			ids.flatMap((id) => {
+				const e = entityExtent(editor.graph, id);
+				return e
+					? [
+							[e.west, e.south],
+							[e.east, e.north],
+						]
+					: [];
+			}),
+		);
 		if (!map || !extent) return;
 		map.fitBounds(
 			[
@@ -1235,6 +1272,9 @@
 		{ combo: "S", run: () => precision.toggle() },
 		{ combo: "G", run: () => precision.toggleGrid() },
 		{ combo: "M", run: () => draw("measure") },
+		{ combo: "W", run: () => backgroundSettings?.toggleWireframe() },
+		{ combo: "Z", run: () => zoomToAll(editor.selection.ids) },
+		{ combo: "Mod+B", run: () => backgroundSettings?.swapPrevious() },
 		{ combo: "Mod+Z", run: () => editor.history.undo() },
 		{ combo: "Mod+Shift+Z", run: () => editor.history.redo() },
 		{ combo: "Mod+Y", run: () => editor.history.redo() },
@@ -1377,6 +1417,7 @@
 	bind:map
 	bind:camera
 	bind:indoor
+	bind:background={backgroundSettings}
 	left={panelOpen ? shownPanelWidth : 0}
 	{planTiles}
 	onbackground={backgroundPicked}

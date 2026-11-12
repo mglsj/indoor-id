@@ -24,6 +24,12 @@ export const blankStyle = {
 export const test = base.extend({
 	page: async ({ page }, use) => {
 		await blockExternal(page);
+		// Areas filled whole, so tests select a room by a click anywhere inside it;
+		// `area-fill.spec.ts` tests iD's partial fill, the app's default.
+		await page.addInitScript(() => {
+			if (!localStorage.getItem("indoorid.area-fill"))
+				localStorage.setItem("indoorid.area-fill", "full");
+		});
 		await use(page);
 	},
 });

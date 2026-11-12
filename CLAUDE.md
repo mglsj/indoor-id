@@ -129,7 +129,9 @@ runs the same commands.
   (P5.3.6): Shift+click and `edit/lasso.ts`, edited in `ui/MultiInspector.svelte`; a press on
   a selected feature moves the selection (`edit/feature-drag.ts`). Spatial checks (P5.3.9) are
   `validation/spatial.ts`; `BLOCKING_RULES` stop the upload; `Editor.editIssues` leaves out
-  the warnings the downloaded data had (a second `Validator` on `graph.base()`).
+  the warnings the downloaded data had (a second `Validator` on `graph.base()`). What moves,
+  reshapes or deletes the selection is refused while it isn't 80% in view
+  (`edit/visibility.ts`, iD's `too_large`): wrap such operations in `inView`.
 - Precision (C): `edit/precision/` holds the pure parts: `frame.ts` (`Frame`, `toFrame`/`fromFrame`,
   `outlineFrame` of a building), `snap.ts` (`snapAt`: the snap pipeline, scored by kind; results carry
   `guides`), `angles.ts` (direction lines for angle snapping), `feedback.ts` (what a mode shows:
@@ -149,8 +151,10 @@ runs the same commands.
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`
   laid over its answers (the editor records each upload through `onupload`); a click shows
   `ui/FeatureCard.svelte`. Both pages render inside `ui/AppPage.svelte` (header, config).
-  `indoorLayers(level, { presentation, theme })`: colours from `style/colors.ts`
-  (`indoorColors(theme)`), applied with `IndoorMap.setLook`. Floor labels for unnamed levels:
+  `indoorLayers(level, { presentation, theme, fill })`: colours from `style/colors.ts`
+  (`indoorColors(theme)` for the viewer, iD's `editColors(theme)` for the editor), applied with
+  `IndoorMap.setLook`; the editor's area fill (iD's wireframe, partial or full) also decides what
+  a click can pick (`selectableLayers`). Floor labels for unnamed levels:
   `levels/floor-numbering.ts`. Discovery (V.2): `state/discovery.svelte.ts` (centres from
   `Overpass.indoorCentres`) drawn by `map/discovery-layer.ts`, opened by `edit/modes/view.ts`.
   Side panel (V.3): `ui/ViewerPanel.svelte` on `view/places.ts`; rooms by use from

@@ -43,6 +43,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | V      | Viewer mode (V.1–V.3)                      | Done         |
 | T      | One theme, background pane                 | Done         |
 | C      | CAD-style precision (C.0–C.6)              | C.0–C.6 done |
+| I      | iD's area fill, colours and safeguards     | Done         |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Not started  |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |

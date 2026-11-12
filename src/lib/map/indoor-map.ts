@@ -9,27 +9,37 @@ import { type Slot, slotId, slotsReady } from "./layer-slots.ts";
 import type {
 	FilterSpecification,
 	GeoJSONSource,
+	MapGeoJSONFeature,
 	Map as MapLibreMap,
 } from "./maplibre.ts";
-import type { Theme } from "./style/colors.ts";
+import type { AreaFill, Theme } from "./style/colors.ts";
 import { loadIconsOnDemand } from "./style/icons.ts";
 import {
+	FILL_BAND_LAYER,
 	INDOOR_SOURCE,
 	indoorLayers,
 	type Presentation,
-	SELECTABLE_LAYER_IDS,
+	selectableLayers,
 } from "./style/layers.ts";
 
-/** How the indoor layers look: for editing or viewing, on a light or dark map. */
+/**
+ * How the indoor layers look: for editing or viewing, on a light or dark map, with areas filled
+ * partly (iD's default), whole or not at all while editing.
+ */
 export interface IndoorLook {
 	readonly presentation: Presentation;
 	readonly theme: Theme;
+	readonly fill?: AreaFill;
 }
+
+/** The labels' layer: an area's label doesn't pick the area unless areas are filled whole. */
+const LABELS_LAYER = "indoor-labels";
 
 /** The slot of each indoor layer: fills under floor plans, outlines and lines over them,
  * doors, labels and the selection over the basemap's labels. */
 const SLOTS: Record<string, Slot> = {
 	"indoor-fill": "indoor-fill",
+	[FILL_BAND_LAYER]: "indoor-fill",
 	"indoor-outline": "indoor-lines",
 	"indoor-lines": "indoor-lines",
 	"indoor-rails-left": "indoor-lines",
@@ -111,7 +121,8 @@ export class IndoorMap {
 	setLook(look: IndoorLook): void {
 		if (
 			look.presentation === this.#look.presentation &&
-			look.theme === this.#look.theme
+			look.theme === this.#look.theme &&
+			look.fill === this.#look.fill
 		) {
 			return;
 		}
@@ -226,9 +237,29 @@ export class IndoorMap {
 		return () => this.#map.off("idle", onIdle);
 	}
 
-	/** The `@id` of the feature drawn at a screen point, topmost first, or null. */
+	/**
+	 * The `@id` of the feature drawn at a screen point, topmost first, or null. Unless areas
+	 * are filled whole, an area is found by its band or outline only (iD), not by a point
+	 * inside it or its label: working inside a large area doesn't select it.
+	 */
 	hitTest(point: { x: number; y: number }): string | null {
-		return this.#hit(point, SELECTABLE_LAYER_IDS);
+		const fill = this.#fill();
+		return this.#hit(
+			point,
+			selectableLayers(fill),
+			fill === "full"
+				? undefined
+				: (feature) =>
+						feature.layer.id !== LABELS_LAYER ||
+						feature.geometry.type === "Point",
+		);
+	}
+
+	/** The fill clicks follow: the viewer's areas are filled whole. */
+	#fill(): AreaFill {
+		return this.#look.presentation === "view"
+			? "full"
+			: (this.#look.fill ?? "partial");
 	}
 
 	/** The `@id` of the area whose outline is drawn at a screen point, or null. */
@@ -236,7 +267,11 @@ export class IndoorMap {
 		return this.#hit(point, [OUTLINE_LAYER]);
 	}
 
-	#hit(point: { x: number; y: number }, layers: string[]): string | null {
+	#hit(
+		point: { x: number; y: number },
+		layers: string[],
+		keep?: (feature: MapGeoJSONFeature) => boolean,
+	): string | null {
 		if (!this.#ready) return null;
 		const features = this.#map.queryRenderedFeatures(
 			[
@@ -245,7 +280,8 @@ export class IndoorMap {
 			],
 			{ layers },
 		);
-		const id = features[0]?.properties["@id"];
+		const hit = keep ? features.find(keep) : features[0];
+		const id = hit?.properties["@id"];
 		return typeof id === "string" ? id : null;
 	}
 

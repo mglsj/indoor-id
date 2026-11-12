@@ -9,8 +9,11 @@ import {
 	NO_OFFSET,
 	type Offset,
 } from "#lib/map/backgrounds.ts";
+import { AREA_FILLS, type AreaFill } from "#lib/map/style/colors.ts";
 
 const KEY = "indoorid.background";
+/** The area fill, kept on its own as iD's `area-fill` preference. */
+const FILL_KEY = "indoorid.area-fill";
 const IDS: readonly BackgroundId[] = ["map", "esri", "esri-clarity", "custom"];
 
 /** Offsets are kept to the centimetre, and within this many metres. */
@@ -27,10 +30,16 @@ export class BackgroundSettings {
 	/** The custom tile URL, as typed. */
 	custom = $state("");
 	#offsets = $state.raw<Record<string, Offset>>({});
+	/** How areas are filled while editing (iD's Map Data pane); partly at first, as iD. */
+	areaFill = $state<AreaFill>("partial");
+	/** The fill W goes back to from the wireframe. */
+	#lastFill: Exclude<AreaFill, "wireframe"> = "partial";
 	readonly #storage: Storage | undefined;
 
 	constructor(storage: Storage | undefined) {
 		this.#storage = storage;
+		this.areaFill = readFill(storage);
+		if (this.areaFill !== "wireframe") this.#lastFill = this.areaFill;
 		const saved = read(storage);
 		if (saved) {
 			this.id = saved.id;
@@ -47,13 +56,23 @@ export class BackgroundSettings {
 		return (this.imagery && this.#offsets[this.imagery.id]) ?? NO_OFFSET;
 	}
 
+	/** The background shown before the last choice, for iD's Mod+B; none at first. */
+	#previous: BackgroundId | null = null;
+
 	choose(id: BackgroundId) {
+		if (id !== this.id) this.#previous = this.id;
 		this.id = id;
 		this.#save();
 	}
 
+	/** iD's Mod+B: back to the background shown before, and again to this one. */
+	swapPrevious() {
+		if (this.#previous !== null) this.choose(this.#previous);
+	}
+
 	setCustom(template: string) {
 		this.custom = template.trim();
+		if (this.id !== "custom") this.#previous = this.id;
 		this.id = "custom";
 		this.#save();
 	}
@@ -69,6 +88,23 @@ export class BackgroundSettings {
 	nudge(east: number, north: number) {
 		const { east: e, north: n } = this.offset;
 		this.setOffset({ east: e + east, north: n + north });
+	}
+
+	setAreaFill(fill: AreaFill) {
+		this.areaFill = fill;
+		if (fill !== "wireframe") this.#lastFill = fill;
+		try {
+			this.#storage?.setItem(FILL_KEY, fill);
+		} catch {
+			// Blocked storage: kept for this page only.
+		}
+	}
+
+	/** iD's W: the wireframe, or back to the fill shown before it. */
+	toggleWireframe() {
+		this.setAreaFill(
+			this.areaFill === "wireframe" ? this.#lastFill : "wireframe",
+		);
 	}
 
 	#save() {
@@ -89,6 +125,15 @@ function clamp({ east, north }: Offset): Offset {
 	const round = (value: number) =>
 		Math.round(Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, value)) * 100) / 100;
 	return { east: round(east), north: round(north) };
+}
+
+function readFill(storage: Storage | undefined): AreaFill {
+	try {
+		const saved = storage?.getItem(FILL_KEY);
+		return AREA_FILLS.find((fill) => fill === saved) ?? "partial";
+	} catch {
+		return "partial";
+	}
 }
 
 function read(storage: Storage | undefined): Saved | null {

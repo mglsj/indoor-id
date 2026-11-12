@@ -14,12 +14,14 @@
 	import * as Field from "#lib/components/shadcn/field/index.ts";
 	import { Input } from "#lib/components/shadcn/input/index.ts";
 	import * as RadioGroup from "#lib/components/shadcn/radio-group/index.ts";
-	import { msg, t } from "#lib/i18n/messages.ts";
+	import { formatCombo, isMac } from "#lib/edit/keys.ts";
+	import { type Message, msg, t } from "#lib/i18n/messages.ts";
 	import {
 		type BackgroundId,
 		customImagery,
 		ESRI_IMAGERY,
 	} from "#lib/map/backgrounds.ts";
+	import type { AreaFill } from "#lib/map/style/colors.ts";
 	import {
 		type BackgroundSettings,
 		formatOffset,
@@ -28,10 +30,30 @@
 
 	interface Props {
 		settings: BackgroundSettings;
+		/** Whether the area fill is offered (the editor's; the viewer fills areas whole). */
+		showFill?: boolean;
 		onclose: () => void;
 	}
 
-	let { settings, onclose }: Props = $props();
+	let { settings, showFill = false, onclose }: Props = $props();
+
+	const FILLS: { fill: AreaFill; name: Message; hint: Message }[] = [
+		{
+			fill: "wireframe",
+			name: msg("area_fill_wireframe"),
+			hint: msg("area_fill_wireframe_hint"),
+		},
+		{
+			fill: "partial",
+			name: msg("area_fill_partial"),
+			hint: msg("area_fill_partial_hint"),
+		},
+		{
+			fill: "full",
+			name: msg("area_fill_full"),
+			hint: msg("area_fill_full_hint"),
+		},
+	];
 
 	/** Metres moved by a nudge button, and with Shift. */
 	const STEP = 0.5;
@@ -114,19 +136,27 @@
 	<div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-4">
 		<Field.Set>
 			<Field.Legend variant="label">{t(msg("background_choice"))}</Field.Legend>
+			{#if showFill}
+				<Field.Description>
+					{t(
+						msg("background_swap_hint", { key: formatCombo("Mod+B", isMac()) }),
+					)}
+				</Field.Description>
+			{/if}
 			<RadioGroup.Root
 				value={settings.id}
 				onValueChange={(id) => settings.choose(id as BackgroundId)}
 			>
 				{@render option(
+					"background",
 					"map",
 					t(msg("background_map")),
 					t(msg("background_map_hint")),
 				)}
 				{#each ESRI_IMAGERY as imagery (imagery.id)}
-					{@render option(imagery.id, imagery.name)}
+					{@render option("background", imagery.id, imagery.name)}
 				{/each}
-				{@render option("custom", t(msg("background_custom")))}
+				{@render option("background", "custom", t(msg("background_custom")))}
 			</RadioGroup.Root>
 			{#if settings.id === "custom"}
 				<Field.Field data-invalid={customInvalid || undefined}>
@@ -223,11 +253,25 @@
 				{/if}
 			</Field.Field>
 		</Field.Set>
+
+		{#if showFill}
+			<Field.Set>
+				<Field.Legend variant="label">{t(msg("area_fill"))}</Field.Legend>
+				<RadioGroup.Root
+					value={settings.areaFill}
+					onValueChange={(fill) => settings.setAreaFill(fill as AreaFill)}
+				>
+					{#each FILLS as { fill, name, hint } (fill)}
+						{@render option("area-fill", fill, t(name), t(hint))}
+					{/each}
+				</RadioGroup.Root>
+			</Field.Set>
+		{/if}
 	</div>
 </aside>
 
-{#snippet option(value: BackgroundId, name: string, hint?: string)}
-	{@const id = `background-${value}`}
+{#snippet option(group: string, value: string, name: string, hint?: string)}
+	{@const id = `${group}-${value}`}
 	<Field.Field orientation="horizontal">
 		<RadioGroup.Item {value} {id} />
 		<Field.Content>

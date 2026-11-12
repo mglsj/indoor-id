@@ -162,3 +162,29 @@ describe("OPERATIONS", () => {
 		expect(annotation).toEqual(msg("undo_paste"));
 	});
 });
+
+describe("operations on features not in view (iD's too_large)", () => {
+	/** w1 spans 0–0.001 in both directions. */
+	const half = { west: 0.0005, south: -1, east: 1, north: 1 };
+	const all = { west: -1, south: -1, east: 1, north: 1 };
+
+	it("refuses to move, reshape or delete a feature less than 80% in view", () => {
+		for (const id of ["move", "rotate", "square", "delete"] as const) {
+			expect(operation(id).disabled(context(["w1"], { view: half }))).toEqual(
+				msg("operation_too_large"),
+			);
+		}
+	});
+
+	it("allows it once enough is in view, and allows copying anyway", () => {
+		expect(operation("move").disabled(context(["w1"], { view: all }))).toBe(
+			null,
+		);
+		expect(operation("delete").disabled(context(["w1"], { view: all }))).toBe(
+			null,
+		);
+		expect(operation("copy").disabled(context(["w1"], { view: half }))).toBe(
+			null,
+		);
+	});
+});

@@ -43,6 +43,8 @@
 		map?: MapLibreMap;
 		/** The camera after the last move. */
 		camera?: Camera;
+		/** The background and area fill settings, for the editor's shortcuts. */
+		background?: BackgroundSettings;
 		/** The indoor features' layers on the map, once the map exists. */
 		indoor?: IndoorMap;
 		/** Pixels the left side covers (a side panel): the controls go right of it. */
@@ -71,6 +73,7 @@
 		map = $bindable(),
 		camera = $bindable(),
 		indoor = $bindable(),
+		background = $bindable(),
 		left = 0,
 		planTiles,
 		presentation = "edit",
@@ -83,7 +86,8 @@
 
 	const editor = getEditor();
 	let lastHash = "";
-	const background = new BackgroundSettings(browserStorage());
+	const settings = new BackgroundSettings(browserStorage());
+	background = settings;
 	/** The background pane, on the right of the map. */
 	let backgroundOpen = $state(false);
 	/** Its width in pixels (20rem). */
@@ -102,6 +106,7 @@
 			layers.setLook({
 				presentation,
 				theme,
+				fill: settings.areaFill,
 			}),
 		);
 		$effect(() => layers.setFeatures(editor.features));
@@ -129,10 +134,10 @@
 		if (map) void setBasemap(map, BASEMAP_STYLES[theme]).catch(() => {});
 	});
 	$effect(() => {
-		if (map) void setBackground(map, background.imagery, background.offset);
+		if (map) void setBackground(map, settings.imagery, settings.offset);
 	});
 	$effect(() => {
-		onbackground?.(background.imagery);
+		onbackground?.(settings.imagery);
 	});
 
 	/** The levels of the data in view, named, for the switcher; followed after each move. */
@@ -254,7 +259,8 @@
 		style:width="{PANE_WIDTH}px"
 	>
 		<BackgroundPane
-			settings={background}
+			{settings}
+			showFill={presentation === "edit"}
 			onclose={() => (backgroundOpen = false)}
 		/>
 	</div>

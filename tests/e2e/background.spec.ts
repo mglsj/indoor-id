@@ -38,7 +38,9 @@ test("shows Esri imagery chosen in the background pane", async ({ page }) => {
 	await camera(page);
 
 	const pane = await openPane(page);
-	await expect(pane.getByRole("radio")).toHaveCount(4);
+	await expect(
+		pane.getByRole("group", { name: "Map or imagery" }).getByRole("radio"),
+	).toHaveCount(4);
 	await expect(pane.getByRole("radio", { name: /^Map/ })).toBeChecked();
 
 	// MapLibre zoom levels count 512 px tiles: 256 px imagery comes from the next zoom level.
