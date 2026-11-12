@@ -62,6 +62,34 @@ describe("Guides", () => {
 		expect([...kept.saved.keys()]).toEqual([other.id]);
 	});
 
+	it("hides one guide, or recolours it, saved at once", async () => {
+		const kept = store();
+		const guides = new Guides(kept);
+		const a = guides.add({ origin: [1, 2], angle: 30 }, 0);
+		const b = guides.add({ origin: [1, 2], angle: 60 }, 0);
+		guides.update(a.id, { hidden: true });
+		guides.update(b.id, { color: "#22c55e" });
+		expect(guides.on(0).map((g) => g.id)).toEqual([b.id]);
+		expect(guides.countOn(0)).toBe(2);
+		expect(guides.on(0)[0]?.color).toBe("#22c55e");
+		guides.update(a.id, { hidden: false });
+		expect(guides.on(0)).toHaveLength(2);
+		await settle();
+		expect(kept.saved.get(b.id)?.color).toBe("#22c55e");
+		expect(kept.saved.get(a.id)?.hidden).toBe(false);
+	});
+
+	it("lists the levels that have guides, with how many", () => {
+		const guides = new Guides();
+		guides.add({ origin: [1, 2], angle: 0 }, 2);
+		guides.add({ origin: [1, 2], angle: 0 }, -1);
+		guides.add({ origin: [1, 2], angle: 0 }, 2);
+		expect(guides.levels()).toEqual([
+			{ level: 2, count: 2 },
+			{ level: -1, count: 1 },
+		]);
+	});
+
 	it("adds a plan file's guides with new ids, and shows them", () => {
 		const guides = new Guides();
 		guides.shown = false;

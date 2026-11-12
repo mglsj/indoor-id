@@ -1,7 +1,8 @@
 /**
  * Construction guides (C.5): the lines the user placed, kept per building and level in
  * IndexedDB with the floor plans and exported with them, never in OSM. The shown level's
- * guides are drawn and snapped to; the snapping menu hides them or clears a level's.
+ * guides are drawn and snapped to; the guides pane (`ui/GuidesPane.svelte`) lists them to hide,
+ * recolour or delete one, and hides them all or clears a level's.
  */
 import type { ConstructionGuide } from "#lib/edit/precision/construction.ts";
 import type { DirectionLine } from "#lib/edit/precision/snap.ts";
@@ -42,9 +43,26 @@ export class Guides {
 		}
 	}
 
-	/** The guides of a level, while shown. */
+	/** The guides of a level drawn and snapped to: none while hidden, nor one hidden itself. */
 	on(level: number): readonly ConstructionGuide[] {
-		return this.shown ? this.#all.filter((g) => g.level === level) : [];
+		return this.shown
+			? this.#all.filter((g) => g.level === level && !g.hidden)
+			: [];
+	}
+
+	/** Every guide of a level, hidden or not, oldest first. */
+	listOn(level: number): readonly ConstructionGuide[] {
+		return this.#all.filter((g) => g.level === level);
+	}
+
+	/** The levels that have guides, highest first, with how many each has. */
+	levels(): { level: number; count: number }[] {
+		const counts = new Map<number, number>();
+		for (const g of this.#all)
+			counts.set(g.level, (counts.get(g.level) ?? 0) + 1);
+		return [...counts]
+			.sort(([a], [b]) => b - a)
+			.map(([level, count]) => ({ level, count }));
 	}
 
 	/** How many guides a level has, shown or not. */
@@ -78,6 +96,18 @@ export class Guides {
 		this.#all = [...this.#all, ...added];
 		this.shown = true;
 		this.#save(() => this.#store?.saveGuides(added.map(stored)));
+	}
+
+	/** Hides or shows one guide, or changes its colour. */
+	update(
+		id: string,
+		change: Pick<ConstructionGuide, "color" | "hidden">,
+	): void {
+		const guide = this.#all.find((g) => g.id === id);
+		if (!guide) return;
+		const changed = { ...guide, ...change };
+		this.#all = this.#all.map((g) => (g.id === id ? changed : g));
+		this.#save(() => this.#store?.saveGuides([stored(changed)]));
 	}
 
 	remove(id: string): void {

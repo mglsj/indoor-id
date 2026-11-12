@@ -470,10 +470,15 @@ Landed with C.5: `edit/modes/measure.ts` (`M`, a Ruler button; Tab switches "mea
 plan files as an optional `guides` list in `plans.json`; imported guides get new ids),
 `map/construction-layer.ts` (faint dashed lines, 2 km each way). Guides snap like sides (a
 point on one, where one crosses a side, another guide or a direction line); the snapping
-menu shows the level's count, hides them, and clears the level's. A measure is kept until the
-next first click, as a side label; the measured line is drawn through `Feedback.lines`. Not
-done: a list to delete one guide (clear the level instead), and guides on other levels are
-only reachable by switching level. Plan files are exported only when there is a plan.
+menu shows the level's count and opens the guides pane. A measure is kept until the
+next first click, as a side label; the measured line is drawn through `Feedback.lines`. Plan
+files are exported only when there is a plan. Then, as users missed that the tool places
+guides at all: the tool is "Measure and guide", with a Measure / Guide switch under the
+toolbar while it is on (Tab still switches), and `ui/GuidesPane.svelte`, a pane on the right
+beside the background's (`MapShell`'s `panes`, one open at a time), lists the level's guides
+to recolour (`color`), hide one (`hidden`), delete or find on the map (pointing at one draws it
+bold), hides them all or clears the level's, and lists the other levels that have guides. The
+first guide placed on a page points at the pane.
 
 Landed with C.6: `actions/transform.ts` (`translateNodes`, `rotateNodes`, `scaleNodes`,
 `setSideLength`, `moveSide`: neighbours keep their directions, `offsetWay`: positive inside a
