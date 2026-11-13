@@ -24,6 +24,17 @@ let lastLayer = 0;
 /** The imagery layers on each map, oldest first. */
 const layers = new WeakMap<MapLibreMap, ImageryLayer[]>();
 const displays = new WeakMap<MapLibreMap, ImageryDisplay>();
+/** Maps showing a solid colour in place of the basemap. */
+const solid = new WeakSet<MapLibreMap>();
+
+/**
+ * Shows the basemap unless a solid colour replaces it, or imagery is drawn behind the canvas
+ * (a server without CORS, `ImageryLayer.behind`), where the basemap would cover it.
+ */
+function updateBasemap(map: MapLibreMap): void {
+	const behind = (layers.get(map) ?? []).some((layer) => layer.behind);
+	setBasemapShown(map, !solid.has(map) && !behind);
+}
 
 /** The layer of the solid colour shown in place of the basemap. */
 const SOLID_LAYER = "background-solid";
@@ -37,6 +48,7 @@ function removeImagery(map: MapLibreMap, layer: ImageryLayer) {
 	const attribution = layer.id + ATTRIBUTION;
 	if (map.getLayer(attribution)) map.removeLayer(attribution);
 	if (map.getSource(attribution)) map.removeSource(attribution);
+	if (layer.behind) updateBasemap(map);
 }
 
 /**
@@ -60,7 +72,9 @@ export async function setBackground(
 		for (const layer of before) removeImagery(map, layer);
 		return;
 	}
-	const layer = new ImageryLayer(`${PREFIX}-${++lastLayer}`, imagery);
+	const layer = new ImageryLayer(`${PREFIX}-${++lastLayer}`, imagery, () =>
+		updateBasemap(map),
+	);
 	layer.setOffset(offset);
 	layer.setDisplay(displays.get(map) ?? PLAIN_DISPLAY);
 	map.addLayer(layer, slotId("imagery"));
@@ -105,7 +119,9 @@ export async function setSolidBackground(
 	color: string | null,
 ): Promise<void> {
 	await slotsReady(map);
-	setBasemapShown(map, color === null);
+	if (color === null) solid.delete(map);
+	else solid.add(map);
+	updateBasemap(map);
 	if (color === null) {
 		if (map.getLayer(SOLID_LAYER)) map.removeLayer(SOLID_LAYER);
 		return;

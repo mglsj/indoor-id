@@ -251,3 +251,37 @@ test("imagery is moved by dragging in the pane, and dimmed with its sliders (iD)
 	await pane.getByRole("button", { name: "Reset the display" }).click();
 	await expectPixel(page, x, y, [255, 0, 0]);
 });
+
+test("shows a custom tile server that doesn't allow CORS, as iD does", async ({
+	page,
+}) => {
+	// No Access-Control-Allow-Origin: WebGL may not read these tiles, an <img> may show them.
+	await page.route(`${CUSTOM}/**`, (route) =>
+		route.fulfill({ contentType: "image/png", body: RED_PNG }),
+	);
+	await page.goto("/#19/48.13/-1.69/0");
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	const pane = await openPane(page);
+	await pane.getByRole("radio", { name: "Custom" }).check();
+	const url = pane.getByLabel("Tile URL");
+	await url.fill(`${CUSTOM}/tile?z={z}&x={x}&y={y}`);
+	await url.press("Enter");
+	await expectPixel(page, x, y, [255, 0, 0]);
+
+	// Moved by its offset, and dimmed, as imagery drawn by WebGL.
+	await pane.getByRole("button", { name: "Move the imagery east" }).click();
+	await expect(pane.getByLabel("Offset in metres (east, north)")).toHaveValue(
+		"0.5, 0",
+	);
+	await expectPixel(page, x, y, [255, 0, 0]);
+	const brightness = pane.getByRole("slider").first();
+	await brightness.focus();
+	for (let i = 0; i < 10; i++) await brightness.press("ArrowLeft");
+	await expectPixel(page, x, y, [128, 0, 0], 6);
+
+	// The basemap is back with it gone.
+	await pane.getByRole("radio", { name: "OpenFreeMap Light" }).check();
+	await expectPixel(page, x, y, BACKGROUND);
+	await expect(page.locator(".imagery-images")).toHaveCount(0);
+});

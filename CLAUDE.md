@@ -55,7 +55,8 @@ runs the same commands.
   `ui/MapShell.svelte` (R5: the map with its indoor layers, level switcher, URL hash,
   background, search and load status, for any page; backgrounds (T): `map/backgrounds.ts`, a
   fixed list, `map/background.ts` (the imagery, the solid colour) on `map/imagery-layer.ts` (imagery
-  drawn by a custom WebGL layer: the offset is a uniform, so a drag fetches nothing), `state/background.svelte.ts`,
+  drawn by a custom WebGL layer: the offset is a uniform, so a drag fetches nothing; a server
+  without CORS gets its tiles as `<img>` behind the canvas instead, `map/imagery-dom.ts`, as iD), `state/background.svelte.ts`,
   `ui/BackgroundPane.svelte` on the right) under `ui/EditorView.svelte` (the editor's modes,
   toolbar, side panel and dialogs; `map/view.ts` for the view extent and projections). Change how a tag is drawn in `classify.ts`, not
   in the style.
