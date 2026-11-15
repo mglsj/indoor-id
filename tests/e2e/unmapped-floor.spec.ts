@@ -57,7 +57,8 @@ test("a click in a room selects the room, and Escape drops the floor", async ({
 }) => {
 	await levelWithRoom(page);
 	const { x, y } = await mapCenter(page);
-	await page.mouse.click(x - 4 * UNIT, y);
+	// In the room's east half: its west half is under the building panel (B.2).
+	await page.mouse.click(x - 3 * UNIT, y);
 	await expect(inspector(page).root).toBeVisible();
 	await page.mouse.click(x + 3 * UNIT, y);
 	const panel = page.getByRole("complementary", { name: "Unmapped floor" });
