@@ -45,6 +45,23 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 		expect(history.graph.entity("n1")?.tags).toEqual({ amenity: "bench" });
 	});
 
+	it("downloads an area whatever the zoom, each tile once (a building entered)", async () => {
+		const asked: Bbox[] = [];
+		const { history, sync } = setup({
+			loadMap: async (bbox) => {
+				asked.push(bbox);
+				return [node("n1", { amenity: "bench" }, [2.35, 48.85])];
+			},
+		});
+		await sync.loadArea(VIEW);
+		expect(sync.status).toEqual({ kind: "idle" });
+		expect(history.graph.entity("n1")).toBeDefined();
+		const tiles = asked.length;
+		expect(tiles).toBeGreaterThan(0);
+		await sync.loadView(VIEW, 18);
+		expect(asked).toHaveLength(tiles);
+	});
+
 	it("reports areas that failed", async () => {
 		const { sync } = setup({
 			loadMap: () => Promise.reject(new Error("offline")),

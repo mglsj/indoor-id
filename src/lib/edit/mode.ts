@@ -44,6 +44,11 @@ export interface Mode {
 	hover?(at: MapPoint): string;
 	/** A click (a press and release without dragging). */
 	click?(at: MapPoint): void;
+	/**
+	 * A double-click, after the two clicks it is made of; true when the mode took it, and the
+	 * map then doesn't zoom (B.2: a double-click on a building enters it).
+	 */
+	doubleClick?(at: MapPoint): boolean;
 	/** A press: a drag to take it (the map then stays still), or null to let the map pan. */
 	press?(at: MapPoint): Drag | null;
 	/** The pointer left the map. */

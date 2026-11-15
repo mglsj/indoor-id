@@ -12,12 +12,18 @@ export interface MapView {
 	lat: number;
 	lon: number;
 	level: number;
-	/** The building (or level outline) entered in building mode, if any. */
-	building?: WayId | RelationId;
+	/**
+	 * The building (or level outline) entered in building mode, if any; `here` for the indoor
+	 * data no building holds (B.3).
+	 */
+	building?: WayId | RelationId | "here";
 }
 
-/** A way or relation already on the server: new ones (negative) can't be linked to. */
-const BUILDING_ID = /^[wr][1-9]\d*$/;
+/**
+ * A way or relation already on the server (new ones, negative, can't be linked to), or `here`
+ * for the loose indoor data.
+ */
+const BUILDING_ID = /^(?:[wr][1-9]\d*|here)$/;
 
 export const MIN_ZOOM = 0;
 export const MAX_ZOOM = 24;
@@ -63,7 +69,7 @@ export function parseHash(hash: string): MapView | null {
 		level: isFiniteNumber(level) ? level : 0,
 		...(building &&
 			BUILDING_ID.test(building) && {
-				building: building as WayId | RelationId,
+				building: building as WayId | RelationId | "here",
 			}),
 	};
 }

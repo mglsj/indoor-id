@@ -93,6 +93,14 @@ export class DataSync {
 			this.status = { kind: "zoom-in" };
 			return;
 		}
+		return this.loadArea(bounds);
+	}
+
+	/**
+	 * Downloads an area whatever the zoom: a building entered (B.2), loaded whole once even
+	 * when part of it is out of view. Tiles already downloaded aren't downloaded again.
+	 */
+	async loadArea(bounds: Bbox): Promise<void> {
 		this.#loads++;
 		this.status = { kind: "loading" };
 		const result = await this.#loader.load(bounds);

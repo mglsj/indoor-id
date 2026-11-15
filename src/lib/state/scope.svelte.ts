@@ -5,7 +5,7 @@
  */
 import { inScope, isMapFeature, type Scope, scopeOf } from "#lib/edit/scope.ts";
 import type { IndoorFeature } from "#lib/map/features.ts";
-import type { EntityId, RelationId, WayId } from "#lib/osm/entity.ts";
+import type { EntityId, NodeId, RelationId, WayId } from "#lib/osm/entity.ts";
 import { extentOf } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import { Outlines } from "#lib/validation/outlines.ts";
@@ -15,6 +15,19 @@ export type ScopeId = WayId | RelationId;
 export class BuildingScope {
 	/** The way or relation entered, null in map mode. */
 	id = $state<ScopeId | null>(null);
+	/**
+	 * Indoor data with no building around it entered ("Edit indoor here" where no building or
+	 * level outline is, B.3): the indoor features that none holds, new ones included.
+	 */
+	loose = $state(false);
+	/**
+	 * Whether the outline entered is locked (B.4): drawn and snapped to, but not picked, and its
+	 * nodes don't move, so indoor edits never move the shell by accident. "Edit outline"
+	 * unlocks it for this visit.
+	 */
+	outlineLocked = $state(true);
+	/** Whether what is outside the building entered is drawn, faded (B.2); hidden when off. */
+	surroundings = $state(true);
 	readonly #graph: () => Graph;
 	/** Buildings and level outlines by position, for `unscoped`. */
 	readonly #outlines = new Outlines();
@@ -45,13 +58,31 @@ export class BuildingScope {
 	enter(id: ScopeId): boolean {
 		const graph = this.#graph();
 		if (graph.entity(id) && !scopeOf(graph, id)) return false;
+		if (id !== this.id) this.outlineLocked = true;
 		this.id = id;
+		this.loose = false;
 		return true;
+	}
+
+	/** Enters the indoor data that no building or level outline holds (B.3). */
+	enterLoose(): void {
+		this.id = null;
+		this.loose = true;
 	}
 
 	/** Back to map mode. */
 	leave(): void {
 		this.id = null;
+		this.loose = false;
+		this.outlineLocked = true;
+	}
+
+	/**
+	 * Building mode: a building, a level outline or the loose indoor data entered (a building
+	 * from a link counts while its data loads).
+	 */
+	get active(): boolean {
+		return this.loose || this.id !== null;
 	}
 
 	/** Of these features, those in the scope entered; none in map mode. */
@@ -66,13 +97,23 @@ export class BuildingScope {
 
 	/**
 	 * Of these features, the indoor ones that no building or level outline holds (by the middle
-	 * of their extent): map mode leaves them unfaded, since there is no building to enter.
+	 * of their extent): map mode leaves them unfaded, since there is no building to enter, and
+	 * they are what the loose scope works on (with `entrances`, the entrances too).
 	 */
-	unscoped(features: Iterable<IndoorFeature>): Set<string> {
+	unscoped(
+		features: Iterable<IndoorFeature>,
+		{ entrances = false } = {},
+	): Set<string> {
 		this.#outlines.update(this.#graph());
 		const loose = new Set<string>();
 		for (const feature of features) {
-			if (isMapFeature(feature.properties)) continue;
+			const { properties } = feature;
+			if (
+				entrances
+					? properties["@kind"] === "building"
+					: isMapFeature(properties)
+			)
+				continue;
 			const extent = extentOf(coordinates(feature.geometry));
 			if (!extent) continue;
 			const middle: [number, number] = [
@@ -93,6 +134,28 @@ export class BuildingScope {
 		return (
 			scope !== null && (scope.id === id || scope.ways.includes(id as never))
 		);
+	}
+
+	/** Whether the outline entered is locked and draws this way: a click doesn't pick it (B.4). */
+	isLocked(id: EntityId): boolean {
+		return this.outlineLocked && this.isOutline(id);
+	}
+
+	/**
+	 * Whether moving these nodes would move the locked outline (B.4): one of them is a node of
+	 * its ways (a room's corner on the facade, shared with the outline).
+	 */
+	movesOutline(nodes: Iterable<NodeId>): boolean {
+		const scope = this.current;
+		if (!scope || !this.outlineLocked) return false;
+		const graph = this.#graph();
+		const locked = new Set<NodeId>();
+		for (const id of scope.ways) {
+			const way = graph.entity(id);
+			if (way?.type === "way") for (const node of way.nodes) locked.add(node);
+		}
+		for (const node of nodes) if (locked.has(node)) return true;
+		return false;
 	}
 
 	/** Whether a feature belongs to the scope entered; false in map mode. */

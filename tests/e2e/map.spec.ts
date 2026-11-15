@@ -10,14 +10,14 @@ import {
 } from "./fixtures.ts";
 
 test("centres the map on an OsmInEdit-style URL hash", async ({ page }) => {
-	await page.goto("/#19/48.13/-1.69/1");
+	await page.goto("/#19/48.13/-1.69/1&building=here");
 
 	const view = await camera(page);
 	expect(view.zoom).toBeCloseTo(19, 5);
 	expect(view.lat).toBeCloseTo(48.13, 5);
 	expect(view.lon).toBeCloseTo(-1.69, 5);
 	await expect(page.getByTestId("level")).toHaveText("1");
-	expect(await hash(page)).toBe("#19/48.13/-1.69/1");
+	expect(await hash(page)).toBe("#19/48.13/-1.69/1&building=here");
 });
 
 test("opens on the configured default view when the hash is missing", async ({
@@ -34,25 +34,26 @@ test("opens on the configured default view when the hash is missing", async ({
 test("level buttons step through levels and update the hash", async ({
 	page,
 }) => {
-	await page.goto("/#19/48.13/-1.69/1");
+	// The level switcher is building mode's (B.5).
+	await page.goto("/#19/48.13/-1.69/1&building=here");
 	await camera(page);
 
 	await page.getByRole("button", { name: "Level up" }).click();
-	await expect.poll(() => hash(page)).toBe("#19/48.13/-1.69/2");
+	await expect.poll(() => hash(page)).toBe("#19/48.13/-1.69/2&building=here");
 
 	const down = page.getByRole("button", { name: "Level down" });
 	await down.click();
 	await down.click();
 	await down.click();
 	await expect(page.getByTestId("level")).toHaveText("-1");
-	await expect.poll(() => hash(page)).toBe("#19/48.13/-1.69/-1");
+	await expect.poll(() => hash(page)).toBe("#19/48.13/-1.69/-1&building=here");
 });
 
 test("follows hash edits made after loading", async ({ page }) => {
 	await page.goto("/#19/48.13/-1.69/1");
 	await camera(page);
 
-	await page.evaluate(() => (location.hash = "#17/40.1/2.5/0.5"));
+	await page.evaluate(() => (location.hash = "#17/40.1/2.5/0.5&building=here"));
 
 	await expect.poll(async () => (await camera(page)).lat).toBeCloseTo(40.1, 5);
 	const view = await camera(page);
@@ -90,11 +91,10 @@ test("keeps the building entered in the hash (B.0)", async ({ page }) => {
 	await page.getByRole("button", { name: "Level up" }).click();
 	await expect.poll(() => hash(page)).toBe("#19/48.13/-1.69/1&building=w123");
 
-	// Left by a hash without it.
+	// Left by a hash without it, which leaves the level switcher to building mode (B.5).
 	await page.evaluate(() => (location.hash = "#19/48.13/-1.69/1"));
-	await expect(page.getByTestId("level")).toHaveText("1");
-	await page.getByRole("button", { name: "Level up" }).click();
-	await expect.poll(() => hash(page)).toBe("#19/48.13/-1.69/2");
+	await expect(page.getByTestId("level")).toBeHidden();
+	await expect.poll(() => hash(page)).toBe("#19/48.13/-1.69/1");
 });
 
 test("reports a basemap that cannot be loaded, and still shows indoor data", async ({

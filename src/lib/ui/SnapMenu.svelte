@@ -51,9 +51,18 @@
 		guides?: GuideControls;
 		/** The menu opened or closed (the frame is worked out while it is open). */
 		onopenchange?: (open: boolean) => void;
+		/**
+		 * What the scope offers (B.3): the kinds of snap listed, and the grid. Everything when
+		 * unset.
+		 */
+		offered?: { snap(option: SnapOption): boolean; readonly grid: boolean };
 	}
 
-	let { precision, frame, guides, onopenchange }: Props = $props();
+	let { precision, frame, guides, onopenchange, offered }: Props = $props();
+	const options = $derived(
+		SNAP_OPTIONS.filter((option) => offered?.snap(option) ?? true),
+	);
+	const gridOffered = $derived(offered?.grid ?? true);
 	let open = $state(false);
 	let angleText = $state("");
 	let minorText = $state("");
@@ -130,24 +139,26 @@
 			>{t(msg("snap_menu_hint", { key: "S" }))}</Tooltip.Content
 		>
 	</Tooltip.Root>
-	<Tooltip.Root>
-		<Tooltip.Trigger onclick={() => precision.toggleGrid()}>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant={precision.grid ? "secondary" : "outline"}
-					size="icon"
-					aria-label={t(msg("grid_show"))}
-					aria-pressed={precision.grid}
-				>
-					<Grid3x3 />
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content side="bottom"
-			>{t(msg("grid_show_hint", { key: "G" }))}</Tooltip.Content
-		>
-	</Tooltip.Root>
+	{#if gridOffered}
+		<Tooltip.Root>
+			<Tooltip.Trigger onclick={() => precision.toggleGrid()}>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant={precision.grid ? "secondary" : "outline"}
+						size="icon"
+						aria-label={t(msg("grid_show"))}
+						aria-pressed={precision.grid}
+					>
+						<Grid3x3 />
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content side="bottom"
+				>{t(msg("grid_show_hint", { key: "G" }))}</Tooltip.Content
+			>
+		</Tooltip.Root>
+	{/if}
 	<Popover.Root bind:open={() => open, opened}>
 		<Popover.Trigger>
 			{#snippet child({ props })}
@@ -175,7 +186,7 @@
 				<Label for="{id}-enabled">{t(msg("snap_enabled"))}</Label>
 			</div>
 			<fieldset class="flex flex-col gap-2 ps-6" disabled={!precision.enabled}>
-				{#each SNAP_OPTIONS as option (option)}
+				{#each options as option (option)}
 					<div class="flex items-center gap-2">
 						<Checkbox
 							id="{id}-{option}"
@@ -229,31 +240,33 @@
 				</ToggleGroup.Root>
 			</div>
 			<p class="text-xs text-muted-foreground">{t(msg("snap_note"))}</p>
-			<Separator />
-			<div class="flex items-center gap-2">
-				<Checkbox
-					id="{id}-grid"
-					checked={precision.grid}
-					onCheckedChange={() => precision.toggleGrid()}
-				/>
-				<Label for="{id}-grid">{t(msg("grid_show"))} (G)</Label>
-			</div>
-			<form
-				class="grid grid-cols-2 gap-2"
-				onsubmit={(event) => {
-					event.preventDefault();
-					applySpacing();
-				}}
-			>
-				<Label class="flex flex-col items-start gap-1 text-xs"
-					>{t(msg("grid_minor"))}
-					<Input bind:value={minorText} onchange={applySpacing} class="h-7" />
-				</Label>
-				<Label class="flex flex-col items-start gap-1 text-xs"
-					>{t(msg("grid_major"))}
-					<Input bind:value={majorText} onchange={applySpacing} class="h-7" />
-				</Label>
-			</form>
+			{#if gridOffered}
+				<Separator />
+				<div class="flex items-center gap-2">
+					<Checkbox
+						id="{id}-grid"
+						checked={precision.grid}
+						onCheckedChange={() => precision.toggleGrid()}
+					/>
+					<Label for="{id}-grid">{t(msg("grid_show"))} (G)</Label>
+				</div>
+				<form
+					class="grid grid-cols-2 gap-2"
+					onsubmit={(event) => {
+						event.preventDefault();
+						applySpacing();
+					}}
+				>
+					<Label class="flex flex-col items-start gap-1 text-xs"
+						>{t(msg("grid_minor"))}
+						<Input bind:value={minorText} onchange={applySpacing} class="h-7" />
+					</Label>
+					<Label class="flex flex-col items-start gap-1 text-xs"
+						>{t(msg("grid_major"))}
+						<Input bind:value={majorText} onchange={applySpacing} class="h-7" />
+					</Label>
+				</form>
+			{/if}
 			{#if frame}
 				<Separator />
 				<section class="flex flex-col gap-2" aria-labelledby="{id}-frame">

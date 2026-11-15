@@ -5,14 +5,16 @@
  * draws a lasso. The edit overlay's vertices and midpoints come first: a click on a vertex
  * selects it, a press on one drags it (`drag`); a press on a selected feature moves the
  * selection whole (`move`). A click on empty floor may select it instead (`floor`, P5.4a).
- * In a building, Escape with nothing selected leaves it (`leave`, B.1).
+ * In a building, Escape with nothing selected leaves it (`leave`, B.1); a double-click enters
+ * the building under it (`enter`, B.2), or zooms the map where there is none.
  */
 import type { Drag, MapPoint, Mode } from "../mode.ts";
 
 export interface BrowseOptions {
 	/** The feature drawn at a screen point, topmost first, if any. */
 	readonly hitTest: (point: { x: number; y: number }) => string | null;
-	readonly select: (id: string | null) => void;
+	/** Selects a feature, or nothing; `at` is the click's, when a click selected. */
+	readonly select: (id: string | null, at?: MapPoint) => void;
 	/** The feature under the pointer, or null. */
 	readonly hover: (id: string | null) => void;
 	/** What a press at this point would drag (a vertex, a midpoint, the selected point). */
@@ -38,6 +40,8 @@ export interface BrowseOptions {
 	readonly hasSelection?: () => boolean;
 	/** Leaves the building entered (B.1), on Escape with nothing selected; true when it did. */
 	readonly leave?: () => boolean;
+	/** Enters the building at a double-click (B.2); true when it did, and the map doesn't zoom. */
+	readonly enter?: (at: MapPoint) => boolean;
 }
 
 export function browseMode({
@@ -54,12 +58,13 @@ export function browseMode({
 	floor,
 	hasSelection,
 	leave,
+	enter,
 }: BrowseOptions): Mode {
 	function click(at: MapPoint) {
 		const vertex = vertexAt?.(at.point) ?? null;
 		const id = vertex ?? hitTest(at.point);
 		if (!vertex && !at.shiftKey && floor?.(at, id)) return;
-		if (!at.shiftKey || !toggle) select(id);
+		if (!at.shiftKey || !toggle) select(id, at);
 		// Shift+click on the empty map keeps the selection.
 		else if (id) toggle(id);
 	}
@@ -85,6 +90,7 @@ export function browseMode({
 			pointer?.(null);
 		},
 		click,
+		doubleClick: (at) => enter?.(at) ?? false,
 		press(at) {
 			const taken = drag?.(at);
 			if (taken) return taken;

@@ -76,6 +76,30 @@ describe("browseMode in a building (B.1)", () => {
 	});
 });
 
+describe("browseMode entering a building (B.2)", () => {
+	it("enters what a double-click is on, and leaves the map to zoom elsewhere", () => {
+		const entered: number[] = [];
+		const mode = browseMode({
+			hitTest: () => null,
+			select: () => {},
+			hover: () => {},
+			enter: (where) => {
+				if (where.point.x <= 50) return false;
+				entered.push(where.point.x);
+				return true;
+			},
+		});
+		expect(mode.doubleClick?.(at(60))).toBe(true);
+		expect(mode.doubleClick?.(at(10))).toBe(false);
+		expect(entered).toEqual([60]);
+	});
+
+	it("lets the map zoom on a double-click when nothing can be entered", () => {
+		const { mode } = setup();
+		expect(mode.doubleClick?.(at(60)) ?? false).toBe(false);
+	});
+});
+
 describe("browseMode with Shift+click", () => {
 	it("adds what is clicked to the selection, or takes it out, and keeps it on the empty map", () => {
 		const toggled: string[] = [];

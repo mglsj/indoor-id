@@ -1,4 +1,5 @@
 import {
+	expression,
 	featureFilter,
 	type StyleSpecification,
 	validateStyleMin,
@@ -6,8 +7,10 @@ import {
 import { describe, expect, it } from "vitest";
 import {
 	BAND_SOURCE,
+	FADED_OPACITY,
 	INDOOR_SOURCE,
 	indoorLayers,
+	scopeFade,
 	selectableLayers,
 } from "./layers.ts";
 
@@ -290,5 +293,28 @@ describe("indoorLayers: tracks", () => {
 			0,
 			1,
 		]);
+	});
+});
+
+describe("scopeFade (B.1, B.2)", () => {
+	/** The factor for a room, inside the building entered or not. */
+	function fadeOf(scope: Parameters<typeof scopeFade>[0], inside: boolean) {
+		const fade = scopeFade(scope);
+		if (fade === 1) return 1;
+		const parsed = expression.createExpression(fade, "fade");
+		if (parsed.result !== "success") throw new Error("invalid expression");
+		return parsed.value.evaluate(
+			{ zoom: 18 },
+			{ type: 3, properties: { "@kind": "room" } },
+			{ inside },
+		);
+	}
+
+	it("fades what is outside the building entered, and hides it without surroundings", () => {
+		expect(fadeOf("building", true)).toBe(1);
+		expect(fadeOf("building", false)).toBe(FADED_OPACITY);
+		expect(fadeOf("alone", true)).toBe(1);
+		expect(fadeOf("alone", false)).toBe(0);
+		expect(fadeOf(undefined, false)).toBe(1);
 	});
 });

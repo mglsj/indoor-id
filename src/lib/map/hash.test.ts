@@ -131,6 +131,13 @@ describe("the building entered (B.0)", () => {
 		expect(parseHash("#19/48.1/-1.6/0&building=r45")?.building).toBe("r45");
 	});
 
+	it("reads `here`, the indoor data no building holds (B.3)", () => {
+		expect(parseHash("#19/48.1/-1.6/0&building=here")?.building).toBe("here");
+		expect(
+			formatHash({ zoom: 19, lat: 1, lon: 2, level: 0, building: "here" }),
+		).toBe("#19/1/2/0&building=here");
+	});
+
 	it("reads it without a level too", () => {
 		expect(parseHash("#19/48.1/-1.6&building=w123")).toMatchObject({
 			level: 0,

@@ -53,7 +53,8 @@ export class Editor {
 	readonly scope = new BuildingScope(() => this.graph);
 	/**
 	 * The drawn features shown unfaded (B.1): in a building, those in it; on the map, indoor
-	 * features no building or level outline holds, which can't be entered.
+	 * features no building or level outline holds, which can't be entered; in the loose scope
+	 * (B.3), those and the entrances.
 	 */
 	readonly inside: ReadonlySet<EntityId>;
 
@@ -98,7 +99,9 @@ export class Editor {
 		this.inside = $derived(
 			this.scope.current
 				? this.scope.members(this.features.byId.keys() as Iterable<EntityId>)
-				: (this.scope.unscoped(this.features.byId.values()) as Set<EntityId>),
+				: (this.scope.unscoped(this.features.byId.values(), {
+						entrances: this.scope.loose,
+					}) as Set<EntityId>),
 		);
 		this.sync = new DataSync({
 			api,

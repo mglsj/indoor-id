@@ -78,7 +78,7 @@ function fakeMap() {
 	const fire = (type: string, x = 0, y = 0, extra: object = {}) => {
 		let prevented = false;
 		const preventDefault = () => (prevented = true);
-		if (type === "click") {
+		if (type === "click" || type === "dblclick") {
 			const event = {
 				point: { x, y },
 				lngLat: { lng: x / 10, lat: y / 10 },
@@ -152,6 +152,20 @@ describe("ModeManager", () => {
 			point: { x: 30, y: 40 },
 			lngLat: [3, 4],
 		});
+	});
+
+	it("hands double-clicks to the mode, which keeps the map from zooming when it takes one", () => {
+		const doubleClick = vi.fn((at: MapPoint) => at.point.x > 10);
+		const { fire } = setup({ name: "test", doubleClick });
+		expect(fire("dblclick", 30, 40).prevented).toBe(true);
+		expect(doubleClick.mock.calls[0]?.[0]).toMatchObject({
+			point: { x: 30, y: 40 },
+			lngLat: [3, 4],
+		});
+		expect(fire("dblclick", 5, 5).prevented).toBe(false);
+		// A mode without double-clicks leaves them to the map.
+		const other = setup({ name: "other" });
+		expect(other.fire("dblclick").prevented).toBe(false);
 	});
 
 	it("leaves the map to pan when the mode takes no drag", () => {

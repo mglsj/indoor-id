@@ -4,7 +4,14 @@ import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { fromLocal } from "#lib/osm/geometry.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import type { Tags } from "#lib/osm/tags.ts";
-import { inScope, isMapFeature, scopeAt, scopeFor, scopeOf } from "./scope.ts";
+import {
+	inScope,
+	isMapFeature,
+	scopeAt,
+	scopedIssues,
+	scopeFor,
+	scopeOf,
+} from "./scope.ts";
 
 const ORIGIN: Loc = [13.4, 52.5];
 /** A position `east` and `north` metres from the origin. */
@@ -256,5 +263,23 @@ describe("isMapFeature: what map mode picks", () => {
 		expect(isMapFeature({ "@kind": "door", entrance: "main" })).toBe(true);
 		expect(isMapFeature({ "@kind": "door", door: "yes" })).toBe(false);
 		expect(isMapFeature({ "@kind": "room", indoor: "room" })).toBe(false);
+	});
+});
+
+describe("scopedIssues (B.5)", () => {
+	const issues = [
+		{ entityId: "w2" as const, severity: "warning" },
+		{ entityId: "w9" as const, severity: "warning" },
+		{ entityId: "w8" as const, severity: "error" },
+	];
+
+	it("shows the building's issues and every error, counting the warnings elsewhere", () => {
+		const result = scopedIssues(issues, (id) => id === "w2");
+		expect(result.shown.map((i) => i.entityId)).toEqual(["w2", "w8"]);
+		expect(result.elsewhere).toBe(1);
+	});
+
+	it("shows all of them on the map", () => {
+		expect(scopedIssues(issues, null)).toEqual({ shown: issues, elsewhere: 0 });
 	});
 });

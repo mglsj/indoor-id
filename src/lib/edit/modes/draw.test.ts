@@ -174,7 +174,7 @@ describe("drawWayMode with typed values (C.2)", () => {
 	/** Metres east and north of [0, 0] (flat there). */
 	const metres = (loc: readonly number[] | undefined) =>
 		local([0, 0], loc ?? [0, 0]).map((v) => Math.round(v * 100) / 100);
-	const typing = () => {
+	const typing = (typed?: boolean) => {
 		const { history, finished, options } = setup();
 		const shown: (Feedback | null)[] = [];
 		const mode = drawWayMode("line", {
@@ -184,6 +184,7 @@ describe("drawWayMode with typed values (C.2)", () => {
 				step: () => null,
 				units: () => "metric",
 				show: (f) => shown.push(f),
+				typed,
 			},
 		});
 		const type = (...keys: string[]) => {
@@ -210,6 +211,13 @@ describe("drawWayMode with typed values (C.2)", () => {
 		expect(shown.at(-1)?.input).toBeUndefined();
 		mode.key?.(key("Enter"));
 		expect(metres(corner(history, finished[0], 1))).toEqual([0, 3.5]);
+	});
+
+	it("takes no typed value on the map (B.3): digits are left to the page", () => {
+		const { mode } = typing(false);
+		mode.click?.(at(0, 0));
+		mode.hover?.(at(0, 0.001));
+		expect(mode.key?.(key("3"))).toBe(false);
 	});
 
 	it("shows what is typed, and a corner there before Enter", () => {

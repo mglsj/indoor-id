@@ -11,6 +11,7 @@
 	import { Input } from "#lib/components/shadcn/input/index.ts";
 	import { Spinner } from "#lib/components/shadcn/spinner/index.ts";
 	import { Textarea } from "#lib/components/shadcn/textarea/index.ts";
+	import { scopedIssues } from "#lib/edit/scope.ts";
 	import { msg, t } from "#lib/i18n/messages.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
 	import type { Session } from "#lib/state/session.svelte.ts";
@@ -51,9 +52,19 @@
 		| { kind: "error"; message: string; uploaded?: number }
 	>({ kind: "form" });
 
-	const issues = $derived(editor.editIssues);
+	const allIssues = $derived(editor.editIssues);
 	/** Issues the upload waits on: the server would take the data broken. */
-	const blocking = $derived(issues.filter((i) => BLOCKING_RULES.has(i.rule)));
+	const blocking = $derived(
+		allIssues.filter((i) => BLOCKING_RULES.has(i.rule)),
+	);
+	/** Inside a building, its warnings and every error; the rest counted (B.5). */
+	const scoped = $derived(
+		scopedIssues(
+			allIssues,
+			editor.scope.current ? (id) => editor.scope.contains(id) : null,
+		),
+	);
+	const issues = $derived(scoped.shown);
 	const busy = $derived(
 		phase.kind === "uploading" || phase.kind === "signing-in",
 	);
@@ -191,7 +202,7 @@
 				<Button onclick={() => (open = false)}>Close</Button>
 			</Dialog.Footer>
 		{:else}
-			{#if issues.length > 0}
+			{#if issues.length > 0 || scoped.elsewhere > 0}
 				<Alert.Root role="note" aria-label="Issues in your edits">
 					<TriangleAlert />
 					<Alert.Title>Please check before uploading</Alert.Title>
@@ -201,6 +212,15 @@
 								<li>{t(issue.message)} ({issue.entityId})</li>
 							{/each}
 						</ul>
+						{#if scoped.elsewhere > 0}
+							<p class="mt-1" data-testid="issues-elsewhere">
+								{t(
+									msg("save_warnings_elsewhere", {
+										count: String(scoped.elsewhere),
+									}),
+								)}
+							</p>
+						{/if}
 					</Alert.Description>
 				</Alert.Root>
 			{/if}

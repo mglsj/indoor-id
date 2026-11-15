@@ -56,6 +56,26 @@ function buildingWithRoom(): Element[] {
 	];
 }
 
+/** Where a position is on screen, from the map's camera (Web Mercator, 512 px tiles). */
+async function screenOf(
+	page: Parameters<typeof serveOsm>[0],
+	[lon, lat]: [number, number],
+): Promise<{ x: number; y: number }> {
+	const view = await camera(page);
+	const centre = await mapCenter(page);
+	const world = 512 * 2 ** view.zoom;
+	const mercatorY = (degrees: number) => {
+		const phi = (degrees * Math.PI) / 180;
+		return (
+			((1 - Math.log(Math.tan(Math.PI / 4 + phi / 2)) / Math.PI) / 2) * world
+		);
+	};
+	return {
+		x: centre.x + ((lon - view.lon) / 360) * world,
+		y: centre.y + mercatorY(lat) - mercatorY(view.lat),
+	};
+}
+
 async function open(page: Parameters<typeof serveOsm>[0], url: string) {
 	await serveOsm(page, buildingWithRoom());
 	await page.goto(url);
@@ -79,7 +99,12 @@ test("on the map a click on a facade picks the building; inside it, the room", a
 	await expect(page.getByTestId("building-scope")).toBeVisible();
 	await expect.poll(() => hash(page)).toContain("&building=w1");
 
-	await page.mouse.click(wall.x, wall.y);
+	// Entering fits the building beside its panel: the wall moved on screen.
+	await expect
+		.poll(async () => (await camera(page)).lon)
+		.toBeLessThan(LON - 0.0001);
+	const moved = await screenOf(page, [LON - 0.0004, LAT]);
+	await page.mouse.click(moved.x, moved.y);
 	await expect(inspector(page).root).toBeVisible();
 	await expect(await tagsBox(page)).toHaveValue("indoor=room\nlevel=0");
 });
@@ -128,4 +153,130 @@ test("Escape with nothing selected, or Done, goes back to the map", async ({
 	await page.mouse.click(x, y + 5 * UNIT);
 	await page.keyboard.press("Escape");
 	await expect(scope).toBeHidden();
+});
+
+test("a double-click on a building enters it, fitting it in view beside its panel", async ({
+	page,
+}) => {
+	await open(page, `/#19/${LAT}/${LON}/0`);
+	const { x, y } = await mapCenter(page);
+	await page.mouse.dblclick(x + 2 * UNIT, y);
+	await expect(page.getByTestId("building-scope")).toBeVisible();
+	await expect.poll(() => hash(page)).toContain("&building=w1");
+	// The panel shows the building, with nothing selected.
+	const panel = page.getByTestId("building-panel");
+	await expect(panel).toBeVisible();
+	await expect(panel.getByRole("button", { name: "Level 0" })).toBeVisible();
+	await expect(inspector(page).root).toBeHidden();
+	// The camera fits the building instead of zooming in.
+	await expect.poll(async () => (await camera(page)).zoom).toBeLessThan(19.9);
+	await expect
+		.poll(async () => (await camera(page)).lon)
+		.toBeLessThan(LON - 0.0001);
+
+	await panel.getByRole("button", { name: "Back to the map (Escape)" }).click();
+	await expect(page.getByTestId("building-scope")).toBeHidden();
+	await expect(await tagsBox(page)).toHaveValue("building=yes");
+});
+
+test("a double-click on the open map still zooms in", async ({ page }) => {
+	await open(page, `/#19/${LAT}/${LON}/0`);
+	const { x, y } = await mapCenter(page);
+	await page.mouse.dblclick(x + 6 * UNIT, y);
+	await expect
+		.poll(async () => (await camera(page)).zoom)
+		.toBeGreaterThan(19.5);
+	await expect(page.getByTestId("building-scope")).toBeHidden();
+});
+
+test("with iD's partial fill, Edit indoor here enters the building clicked in", async ({
+	page,
+}) => {
+	await page.addInitScript(() =>
+		localStorage.setItem("indoorid.area-fill", "partial"),
+	);
+	await open(page, `/#19/${LAT}/${LON}/0`);
+	const { x, y } = await mapCenter(page);
+	const here = page.getByRole("button", { name: "Edit indoor here" });
+	// In the building's empty east half, away from every band: nothing is picked.
+	await page.mouse.click(x + 2 * UNIT, y);
+	await expect(here).toBeVisible();
+	await page.mouse.click(x + 2 * UNIT, y);
+	await here.click();
+	await expect(page.getByTestId("building-scope")).toBeVisible();
+	await expect.poll(() => hash(page)).toContain("&building=w1");
+});
+
+test("outside any building, Edit indoor here opens the indoor data no building holds", async ({
+	page,
+}) => {
+	await open(page, `/#19/${LAT}/${LON}/0`);
+	const { x, y } = await mapCenter(page);
+	await page.mouse.click(x + 6 * UNIT, y);
+	await page.getByRole("button", { name: "Edit indoor here" }).click();
+	await expect(page.getByTestId("building-scope")).toContainText(
+		"Indoor data here",
+	);
+	await expect.poll(() => hash(page)).toContain("&building=here");
+	await page.keyboard.press("Escape");
+	await expect(page.getByTestId("building-scope")).toBeHidden();
+});
+
+test("the map offers iD's tools; CAD tools, floor plans and levels are building mode's", async ({
+	page,
+}) => {
+	await open(page, `/#19/${LAT}/${LON}/0`);
+	const draw = page.getByRole("group", { name: "Draw" });
+	await expect(draw.getByRole("button")).toHaveCount(3);
+	await expect(page.getByRole("button", { name: "Floor plans" })).toBeHidden();
+	await expect(page.getByTestId("level")).toBeHidden();
+	// Keys of tools not offered do nothing.
+	await page.keyboard.press("4");
+	await expect(page.getByTestId("draw-hint")).toBeHidden();
+
+	await page.goto(`/#19/${LAT}/${LON}/0&building=w1`);
+	await expect(page.getByTestId("building-scope")).toBeVisible();
+	await expect(
+		draw.getByRole("button", { name: "Draw rectangle" }),
+	).toBeVisible();
+	await expect(draw.getByRole("button")).toHaveCount(6);
+	await expect(page.getByRole("button", { name: "Floor plans" })).toBeVisible();
+	await expect(page.getByTestId("level")).toBeVisible();
+});
+
+test("inside, the outline is locked: a corner it shares with a room stays until Edit outline", async ({
+	page,
+}) => {
+	// The building's west side right of the building panel.
+	await open(page, `/#19/${LAT}/${LON - 0.0003}/0&building=w1`);
+	const panel = page.getByTestId("building-panel");
+	await expect(panel).toBeVisible();
+	// From the camera each time: a refused drag pans the map.
+	const corner = () => screenOf(page, [LON - 0.0004, LAT - 0.0002]);
+	const clickRoom = async () => {
+		const inRoom = await screenOf(page, [LON - 0.0002, LAT]);
+		await page.mouse.click(inRoom.x, inRoom.y);
+	};
+	const dragCorner = async () => {
+		const at = await corner();
+		await page.mouse.move(at.x, at.y);
+		await page.mouse.down();
+		await page.mouse.move(at.x - 40, at.y + 40, { steps: 8 });
+		await page.mouse.up();
+	};
+
+	await clickRoom();
+	await expect(await tagsBox(page)).toHaveValue("indoor=room\nlevel=0");
+	await dragCorner();
+	await expect(page.getByTestId("operation-note")).toContainText(
+		"Shared with the building outline",
+	);
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+
+	await page.keyboard.press("Escape");
+	await panel.getByRole("checkbox", { name: "Edit outline" }).click();
+	await clickRoom();
+	await expect(await tagsBox(page)).toHaveValue("indoor=room\nlevel=0");
+	await dragCorner();
+	await expect(page.getByTestId("edit-count")).toHaveText("1");
 });

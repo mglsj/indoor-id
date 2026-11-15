@@ -3,6 +3,7 @@ import {
 	camera,
 	expect,
 	expectPixel,
+	INDOOR,
 	LAT,
 	LON,
 	mapCenter,
@@ -161,7 +162,7 @@ test("a line is finished with Enter, and Escape stops a drawing too short", asyn
 	page,
 }) => {
 	await serveOsm(page, []);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	const { x, y } = await mapCenter(page);
 	await page.keyboard.press("2");
@@ -181,7 +182,7 @@ test("Mod+Z while drawing takes the last corner back, not the step before", asyn
 	page,
 }) => {
 	await serveOsm(page, []);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	const { x, y } = await mapCenter(page);
 	await page.keyboard.press("2");
@@ -212,7 +213,7 @@ test("changing level ends a drawing, kept on the level it was drawn on", async (
 	page,
 }) => {
 	await serveOsm(page, []);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	const { x, y } = await mapCenter(page);
 	await page.keyboard.press("2");

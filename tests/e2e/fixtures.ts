@@ -326,7 +326,13 @@ export async function serveWiki(
 	});
 }
 
-/** Opens the map on a room and selects it. */
+/**
+ * The URL hash opening building mode on the indoor data no building holds ("Edit indoor here",
+ * B.3), where CAD tools, floor plans and the level switcher are offered.
+ */
+export const INDOOR = "&building=here";
+
+/** Opens the map on a room and selects it, in building mode on the indoor data around it. */
 export async function selectRoom(
 	page: Page,
 	tags: Record<string, string> = {},
@@ -335,7 +341,7 @@ export async function selectRoom(
 	const way = elements.at(-1) as { tags: Record<string, string> };
 	way.tags = { ...way.tags, ...tags };
 	await serveOsm(page, elements);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	// The room is drawn once its data has loaded.
 	await mapDrawn(page);

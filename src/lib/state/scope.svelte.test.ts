@@ -79,4 +79,52 @@ describe("BuildingScope: the building entered", () => {
 			]),
 		).toEqual(new Set(["n9"]));
 	});
+
+	it("enters loose indoor data: what no building holds, entrances included (B.3)", () => {
+		const scope = new BuildingScope(() => data());
+		expect(scope.active).toBe(false);
+		scope.enterLoose();
+		expect(scope.active).toBe(true);
+		expect(scope.current).toBeNull();
+		expect(scope.isOutline("w1")).toBe(false);
+		const feature = (id: string, kind: string, loc: Loc, tags = {}) => ({
+			type: "Feature" as const,
+			properties: { "@id": id, "@lv": "*", "@kind": kind, ...tags },
+			geometry: { type: "Point" as const, coordinates: [...loc] },
+		});
+		expect(
+			scope.unscoped(
+				[
+					feature("n7", "poi", at(5, 5)),
+					feature("n9", "poi", at(50, 50)),
+					feature("n8", "poi", at(60, 60), { entrance: "main" }),
+					feature("w1", "building", at(10, 5)),
+				],
+				{ entrances: true },
+			),
+		).toEqual(new Set(["n9", "n8"]));
+		expect(scope.enter("w1")).toBe(true);
+		expect(scope.loose).toBe(false);
+		scope.enterLoose();
+		expect(scope.id).toBeNull();
+		scope.leave();
+		expect(scope.active).toBe(false);
+	});
+
+	it("locks the outline entered: its nodes don't move until Edit outline (B.4)", () => {
+		const scope = new BuildingScope(() => data());
+		expect(scope.movesOutline(["n1"])).toBe(false);
+		scope.enter("w1");
+		expect(scope.isLocked("w1")).toBe(true);
+		expect(scope.isLocked("w2")).toBe(false);
+		expect(scope.movesOutline(["n5", "n1"])).toBe(true);
+		expect(scope.movesOutline(["n5", "n6"])).toBe(false);
+		scope.outlineLocked = false;
+		expect(scope.isLocked("w1")).toBe(false);
+		expect(scope.movesOutline(["n1"])).toBe(false);
+		// Locked again on the next visit.
+		scope.leave();
+		scope.enter("w1");
+		expect(scope.movesOutline(["n1"])).toBe(true);
+	});
 });
