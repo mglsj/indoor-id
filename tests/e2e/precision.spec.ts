@@ -477,6 +477,28 @@ test("guides line up with each other: parallel at a typed distance, or square th
 	await expect(items.nth(2)).toContainText("127° from east");
 });
 
+test("a middle-button drag pans the map while a tool is on, drawing nothing", async ({
+	page,
+}) => {
+	const { x, y } = await emptyMap(page);
+	await page.keyboard.press("2");
+	await page.mouse.click(x - 100, y);
+	const before = await camera(page);
+	await page.mouse.move(x, y);
+	await page.mouse.down({ button: "middle" });
+	await page.mouse.move(x - 200, y, { steps: 8 });
+	await page.mouse.up({ button: "middle" });
+	// Dragged 200 px west: the map's centre is now 200 px east of where it was.
+	await expect
+		.poll(async () => (await camera(page)).lon)
+		.toBeGreaterThan(before.lon + 0.0001);
+	expect((await camera(page)).lat).toBeCloseTo(before.lat, 6);
+	// The line is still being drawn from its first corner.
+	await expect(page.getByTestId("draw-hint")).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+});
+
 /** How many construction guides IndexedDB holds. */
 function storedGuides(page: Page): Promise<number> {
 	return page.evaluate(

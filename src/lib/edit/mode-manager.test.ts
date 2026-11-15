@@ -34,6 +34,8 @@ function fakeMap() {
 		};
 	};
 	const captured = new Set<number>();
+	/** What the map was panned by, in pixels. */
+	const panned: [number, number][] = [];
 	const container = {
 		addEventListener: (type: string, listener: Listener) => {
 			const set = domListeners.get(type) ?? new Set();
@@ -61,6 +63,7 @@ function fakeMap() {
 		getCanvas: () => canvas,
 		getCanvasContainer: () => container,
 		unproject: ([x, y]: [number, number]) => ({ lng: x / 10, lat: y / 10 }),
+		panBy: (offset: [number, number]) => panned.push(offset),
 		doubleClickZoom: gesture(),
 		boxZoom: gesture(),
 		dragRotate: gesture(),
@@ -109,6 +112,7 @@ function fakeMap() {
 		canvas,
 		raw: map,
 		captured,
+		panned,
 	};
 }
 
@@ -334,5 +338,43 @@ describe("ModeManager", () => {
 		fire("pointercancel", 30, 10, { pointerType: "touch" });
 		expect(log).toEqual(["move 30,10", "cancel"]);
 		expect(raw.dragPan.state.on).toBe(true);
+	});
+
+	it("pans the map with the middle button in any mode, the mode seeing nothing", () => {
+		const { drag, log } = recordingDrag();
+		const hovered: string[] = [];
+		const { fire, panned, captured, canvas } = setup({
+			name: "draw",
+			press: () => drag,
+			hover: (at) => {
+				hovered.push(`${at.point.x},${at.point.y}`);
+				return "crosshair";
+			},
+		});
+		const down = fire("mousedown", 10, 10, { button: 1, buttons: 4 });
+		expect(down.prevented).toBe(true);
+		expect(captured.has(1)).toBe(true);
+		expect(canvas.style.cursor).toBe("grabbing");
+		fire("mousemove", 30, 5, { buttons: 4 });
+		fire("mousemove", 35, 0, { buttons: 4 });
+		expect(panned).toEqual([
+			[-20, 5],
+			[-5, 5],
+		]);
+		fire("mouseup", 35, 0, { button: 1 });
+		expect(captured.has(1)).toBe(false);
+		expect(log).toEqual([]);
+		expect(hovered).toEqual([]);
+		// Back to the mode: hovering shows its cursor again.
+		fire("mousemove", 40, 0);
+		expect(canvas.style.cursor).toBe("crosshair");
+		expect(panned).toHaveLength(2);
+	});
+
+	it("keeps the browser from autoscrolling on a middle press", () => {
+		const { fire } = setup({ name: "browse" });
+		expect(
+			fire("mousedown", 0, 0, { type: "mousedown", button: 1 }).prevented,
+		).toBe(true);
 	});
 });
