@@ -300,8 +300,9 @@ test("inside, the level switcher offers every floor building:levels counts, mapp
 	await expect(page.getByTestId("level")).toHaveAttribute("data-level", "2");
 	await expect(page.getByRole("button", { name: "Level 2" })).toBeVisible();
 
-	// On the map, building:levels alone lists no floor.
+	// Back on the map, which has no switcher, the ground floor shows again.
 	await page.getByRole("button", { name: "Done" }).click();
 	await expect(page.getByTestId("building-scope")).toBeHidden();
-	await expect(page.getByRole("group", { name: "Levels" })).toBeHidden();
+	await expect(page.getByTestId("level")).toBeHidden();
+	await expect.poll(() => hash(page)).toMatch(/\/0$/);
 });

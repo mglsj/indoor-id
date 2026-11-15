@@ -406,6 +406,9 @@
 		// Tools of building mode end with it (B.3).
 		drawing = null;
 		editor.scope.leave();
+		// The map has no level switcher (B.3): back to the ground floor, or an upper floor
+		// left shown would stay with no way down.
+		level = 0;
 		editor.select(id && editor.graph.entity(id) ? id : null);
 	}
 
