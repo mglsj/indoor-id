@@ -143,11 +143,14 @@
 			layers.setLook({
 				presentation,
 				fill: settings.areaFill,
-				// Building mode (B.1): the map fades indoor features, a building what is outside.
+				// Building mode (B.1): the map fades indoor features, a building what is outside
+				// (or hides it, its surroundings off: B.2).
 				scope:
 					presentation === "edit"
 						? editor.scope.current
-							? "building"
+							? editor.scope.surroundings
+								? "building"
+								: "alone"
 							: "map"
 						: undefined,
 			}),

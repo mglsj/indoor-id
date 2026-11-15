@@ -196,8 +196,11 @@ export interface IndoorStyleOptions {
 	readonly scope?: ScopeLook;
 }
 
-/** Which features the editor's scope fades: indoor ones on the map, the rest in a building. */
-export type ScopeLook = "map" | "building";
+/**
+ * Which features the editor's scope fades: indoor ones on the map, the rest in a building;
+ * `alone` hides what is outside the building (its surroundings turned off, B.2).
+ */
+export type ScopeLook = "map" | "building" | "alone";
 
 /** How much of its opacity a faded feature keeps. */
 export const FADED_OPACITY = 0.3;
@@ -222,6 +225,7 @@ export function scopeFade(
 	if (scope === "map")
 		return ["case", ["any", mapFeature, inside], 1, FADED_OPACITY];
 	if (scope === "building") return ["case", inside, 1, FADED_OPACITY];
+	if (scope === "alone") return ["case", inside, 1, 0];
 	return 1;
 }
 

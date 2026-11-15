@@ -15,6 +15,8 @@ export type ScopeId = WayId | RelationId;
 export class BuildingScope {
 	/** The way or relation entered, null in map mode. */
 	id = $state<ScopeId | null>(null);
+	/** Whether what is outside the building entered is drawn, faded (B.2); hidden when off. */
+	surroundings = $state(true);
 	readonly #graph: () => Graph;
 	/** Buildings and level outlines by position, for `unscoped`. */
 	readonly #outlines = new Outlines();

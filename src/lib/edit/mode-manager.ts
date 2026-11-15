@@ -58,6 +58,7 @@ export class ModeManager {
 			((callback) => globalThis.requestAnimationFrame(callback));
 		this.#onpointer = options.onpointer;
 		map.on("click", this.#onClick);
+		map.on("dblclick", this.#onDoubleClick);
 		const target = this.#target;
 		target.addEventListener("pointerdown", this.#onDown);
 		target.addEventListener("pointermove", this.#onMove);
@@ -100,6 +101,7 @@ export class ModeManager {
 	remove(): void {
 		this.setMode(IDLE);
 		this.#map.off("click", this.#onClick);
+		this.#map.off("dblclick", this.#onDoubleClick);
 		const target = this.#target;
 		target.removeEventListener("pointerdown", this.#onDown);
 		target.removeEventListener("pointermove", this.#onMove);
@@ -115,6 +117,12 @@ export class ModeManager {
 			return;
 		}
 		this.#mode.click?.(clickPoint(event));
+	};
+
+	readonly #onDoubleClick = (event: MapMouseEvent) => {
+		// The second click of a drag's release isn't a double-click on anything.
+		if (this.#press) return;
+		if (this.#mode.doubleClick?.(clickPoint(event))) event.preventDefault();
 	};
 
 	readonly #onDown = (event: PointerEvent) => {

@@ -153,7 +153,9 @@ runs the same commands.
 - Building mode (B): `edit/scope.ts` (`scopeOf`, `inScope`, `scopeAt`: what can be entered
   and what belongs to it, by position only, never by relation membership),
   `state/scope.svelte.ts` (`BuildingScope`, held as `editor.scope`), `&building=w123` in the
-  URL hash (`map/hash.ts`).
+  URL hash (`map/hash.ts`). Entering (B.2): a double-click (`Mode.doubleClick`), "Edit indoor"
+  or "Edit indoor here" fit the camera; the building is downloaded whole (`DataSync.loadArea`);
+  with nothing selected the side panel is `ui/BuildingPanel.svelte`.
 - Viewer (V.1): `/view` is `ui/ViewerView.svelte` on `MapShell` (`presentation="view"`,
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`
   laid over its answers (the editor records each upload through `onupload`); a click shows

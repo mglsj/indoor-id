@@ -110,7 +110,13 @@
 		type SnapTarget,
 		snapAt,
 	} from "#lib/edit/precision/snap.ts";
-	import { isMapFeature, scopeFor, scopeOf } from "#lib/edit/scope.ts";
+	import {
+		isMapFeature,
+		type Scope,
+		scopeAt,
+		scopeFor,
+		scopeOf,
+	} from "#lib/edit/scope.ts";
 	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 	import { tooLargeToEdit } from "#lib/edit/visibility.ts";
 	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
@@ -170,6 +176,7 @@
 	} from "#lib/state/precision.svelte.ts";
 	import type { ScopeId } from "#lib/state/scope.svelte.ts";
 	import { Session } from "#lib/state/session.svelte.ts";
+	import BuildingPanel from "#lib/ui/BuildingPanel.svelte";
 	import FloorPanel from "#lib/ui/FloorPanel.svelte";
 	import FloorPlansPanel from "#lib/ui/FloorPlansPanel.svelte";
 	import GuidesPane from "#lib/ui/GuidesPane.svelte";
@@ -294,10 +301,88 @@
 		return tags.name ?? tags.ref ?? tags["addr:housenumber"] ?? scope.id;
 	});
 
-	/** Enters a building or level outline (B.1): its features become the ones worked on. */
-	function enterBuilding(id: ScopeId) {
+	/**
+	 * The building (or level outline) around the last click on the empty map, which "Edit indoor
+	 * here" enters (B.2); null elsewhere.
+	 */
+	let here = $state.raw<ScopeId | null>(null);
+	const enterableHere = $derived(
+		here &&
+			!editor.scope.current &&
+			!planMode &&
+			editor.selection.ids.length === 0
+			? here
+			: null,
+	);
+
+	/**
+	 * Enters a building or level outline (B.1): its features become the ones worked on. Asked
+	 * for (a double-click, "Edit indoor"), the camera fits it (B.2).
+	 */
+	function enterBuilding(id: ScopeId, { fit = true } = {}) {
 		modes?.finish();
-		if (editor.scope.enter(id)) editor.select(null);
+		here = null;
+		if (!editor.scope.enter(id)) return;
+		editor.select(null);
+		const scope = editor.scope.current;
+		if (fit && scope) fitScope(scope);
+	}
+
+	/**
+	 * Shows the whole of a building, right of the side panel its entering opens. At the next
+	 * frame: MapLibre stops a camera move started while it handles a double-click.
+	 */
+	function fitScope({ extent }: Scope) {
+		requestAnimationFrame(() =>
+			map?.fitBounds(
+				[
+					[extent.west, extent.south],
+					[extent.east, extent.north],
+				],
+				{
+					padding: {
+						top: 60,
+						bottom: 60,
+						right: 60,
+						left: shownPanelWidth + 60,
+					},
+					maxZoom: 20,
+				},
+			),
+		);
+	}
+
+	// A building entered is downloaded whole, once (B.2): the view may show only part of it.
+	let downloaded: ScopeId | null = null;
+	$effect(() => {
+		const id = editor.scope.id;
+		if (!id) {
+			downloaded = null;
+			return;
+		}
+		const scope = editor.scope.current;
+		if (!scope || id === downloaded) return;
+		downloaded = id;
+		untrack(() => void editor.sync.loadArea(scope.extent));
+	});
+
+	/**
+	 * What a double-click enters (B.2): the building drawn under it, else the smallest holding
+	 * that position; null where there is none, the building already entered, or a neighbour
+	 * hidden with the surroundings.
+	 */
+	function enterableAt(at: MapPoint): ScopeId | null {
+		if (planMode) return null;
+		if (editor.scope.current && !editor.scope.surroundings) return null;
+		const hit = indoor?.hitTest(
+			at.point,
+			(p) => p["@kind"] === "building" && p["@id"] !== editor.scope.id,
+		);
+		const id =
+			hit && scopeOf(editor.graph, hit as EntityId)
+				? (hit as ScopeId)
+				: (scopeAt(editor.graph, at.lngLat)?.id as ScopeId | undefined);
+		return id && id !== editor.scope.id ? id : null;
 	}
 
 	/** Back to the map, selecting the building left (B.1). */
@@ -855,8 +940,16 @@
 			);
 		};
 
-		/** Selects a feature; on the map, an indoor one enters its building first (B.1). */
-		const selectOrEnter = (id: EntityId | null) => {
+		/**
+		 * Selects a feature; on the map, an indoor one enters its building first (B.1), and a
+		 * click on the empty map offers to enter the building around it ("Edit indoor here", B.2).
+		 */
+		const selectOrEnter = (id: EntityId | null, at?: MapPoint) => {
+			here =
+				!id && at && !editor.scope.current
+					? ((scopeAt(editor.graph, at.lngLat)?.id as ScopeId | undefined) ??
+						null)
+					: null;
 			const properties = id ? editor.features.byId.get(id)?.properties : null;
 			if (
 				id &&
@@ -865,7 +958,8 @@
 				!isMapFeature(properties)
 			) {
 				const scope = scopeFor(editor.graph, id);
-				if (scope) editor.scope.enter(scope.id as ScopeId);
+				// The room clicked stays where it is: no camera move.
+				if (scope) enterBuilding(scope.id as ScopeId, { fit: false });
 			}
 			editor.select(id);
 		};
@@ -910,7 +1004,13 @@
 						manager.setMode(
 							browseMode({
 								hitTest: pick,
-								select: (id) => selectOrEnter(id as EntityId | null),
+								select: (id, at) => selectOrEnter(id as EntityId | null, at),
+								enter: (at) => {
+									const id = enterableAt(at);
+									if (!id) return false;
+									enterBuilding(id);
+									return true;
+								},
 								hasSelection: () =>
 									editor.selection.ids.length > 0 || editor.floor !== null,
 								leave: () => {
@@ -1327,11 +1427,14 @@
 		});
 		return entities.length > 1 ? entities : null;
 	});
+	/** The building entered, shown in the side panel while nothing is selected (B.2). */
+	const buildingShown = $derived(planMode ? null : editor.scope.current);
 	const panelOpen = $derived(
 		editor.selected !== null ||
 			several !== null ||
 			editor.floor !== null ||
-			planMode,
+			planMode ||
+			buildingShown !== null,
 	);
 
 	/** The side panel, which covers the left of the map while it is open. */
@@ -1595,21 +1698,36 @@
 					</Tooltip.Content>
 				</Tooltip.Root>
 			</div>
-		{:else if enterable}
+		{:else if enterable || enterableHere}
 			<div class="rounded-md bg-background shadow-md">
 				<Tooltip.Root>
 					<Tooltip.Trigger
-						onclick={() => enterable && enterBuilding(enterable)}
+						onclick={() => {
+							const id = enterable ?? enterableHere;
+							if (id) enterBuilding(id);
+						}}
 					>
 						{#snippet child({ props })}
 							<Button {...props} variant="outline">
 								<DoorOpen data-icon="inline-start" />
-								{t(msg("building_edit_indoor"))}
+								{t(
+									msg(
+										enterable
+											? "building_edit_indoor"
+											: "building_edit_indoor_here",
+									),
+								)}
 							</Button>
 						{/snippet}
 					</Tooltip.Trigger>
 					<Tooltip.Content side="bottom">
-						{t(msg("building_edit_indoor_hint"))}
+						{t(
+							msg(
+								enterable
+									? "building_edit_indoor_hint"
+									: "building_edit_indoor_here_hint",
+							),
+						)}
 					</Tooltip.Content>
 				</Tooltip.Root>
 			</div>
@@ -1748,6 +1866,17 @@
 				{/key}
 			{:else if editor.floor}
 				<FloorPanel floor={editor.floor} />
+			{:else if buildingShown}
+				<BuildingPanel
+					name={scopeName}
+					kind={buildingShown.kind}
+					levels={editor.features.levelsIn(buildingShown.extent)}
+					{level}
+					surroundings={editor.scope.surroundings}
+					onshowlevel={(shown) => (level = shown)}
+					onsurroundings={(on) => (editor.scope.surroundings = on)}
+					ondone={leaveBuilding}
+				/>
 			{:else}
 				<FloorPlansPanel
 					{floorplans}
