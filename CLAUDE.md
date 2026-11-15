@@ -160,6 +160,8 @@ runs the same commands.
   scope (`BuildingScope.loose`, `&building=here`) holds indoor data no building holds, and
   e2e tests that draw or use CAD tools on empty data open with `INDOOR` from `fixtures.ts`.
   The outline entered is locked (B.4, `movesOutline`) until "Edit outline".
+  Inside, the level switcher also lists the building's floors (`scopeFloors`, `Editor.floors`:
+  its and its parts' `building:levels`), which map mode leaves out.
 - Viewer (V.1): `/view` is `ui/ViewerView.svelte` on `MapShell` (`presentation="view"`,
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`
   laid over its answers (the editor records each upload through `onupload`); a click shows

@@ -9,6 +9,7 @@ import {
 	isMapFeature,
 	scopeAt,
 	scopedIssues,
+	scopeFloors,
 	scopeFor,
 	scopeOf,
 } from "./scope.ts";
@@ -281,5 +282,54 @@ describe("scopedIssues (B.5)", () => {
 
 	it("shows all of them on the map", () => {
 		expect(scopedIssues(issues, null)).toEqual({ shown: issues, elsewhere: 0 });
+	});
+});
+
+describe("scopeFloors", () => {
+	const floorsOf = (graph: Graph, id: "w1" | "w2", members: string[] = []) => {
+		const scope = scopeOf(graph, id);
+		if (!scope) throw new Error("no scope");
+		return scopeFloors(graph, scope, members as never[]);
+	};
+
+	it("is the building's building:levels, from 0", () => {
+		const graph = street();
+		const tagged = graph.replace({
+			...(graph.entity("w1") as Entity & { type: "way" }),
+			tags: { building: "university", "building:levels": "7" },
+		});
+		// `building:levels` counts from -0 (no floors underground).
+		expect(
+			floorsOf(tagged, "w1")?.map(({ min, max }) => [min + 0, max]),
+		).toEqual([[0, 6]]);
+	});
+
+	it("adds the levels of the building parts among the members", () => {
+		const graph = street([
+			way("w3", ["n1", "n2", "n3", "n4", "n1"], {
+				"building:part": "yes",
+				"building:levels": "3",
+				"building:levels:underground": "1",
+			}),
+			way("w4", ["n1", "n2", "n3", "n4", "n1"], {
+				indoor: "room",
+				level: "9",
+			}),
+		]);
+		// w1 says nothing; w3 counts floors -1 to 2; a room's level isn't a floor of the building.
+		expect(floorsOf(graph, "w1", ["w3", "w4"])).toEqual([{ min: -1, max: 2 }]);
+	});
+
+	it("is null when nothing says, and for a level outline", () => {
+		expect(floorsOf(street(), "w1")).toBeNull();
+		const level = street([
+			way("w9", ["n1", "n2", "n3", "n4", "n1"], {
+				indoor: "level",
+				level: "0-3",
+			}),
+		]);
+		const scope = scopeOf(level, "w9");
+		expect(scope?.kind).toBe("level");
+		expect(scopeFloors(level, scope as NonNullable<typeof scope>)).toBeNull();
 	});
 });

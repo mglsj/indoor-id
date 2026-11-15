@@ -219,7 +219,7 @@
 	/** The levels of the data in view, named, for the switcher; followed after each move. */
 	const levelsInView = $derived.by(() => {
 		const extent = camera && visibleExtent(map);
-		return extent ? editor.features.levelsIn(extent) : [];
+		return extent ? editor.features.levelsIn(extent, editor.floors) : [];
 	});
 
 	// Keep the URL hash in sync with the map camera and the shown level.

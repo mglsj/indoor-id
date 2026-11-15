@@ -7,7 +7,9 @@
 
 import { createContext } from "svelte";
 import type { MapLoaderOptions } from "#lib/api/map-loader.ts";
+import { scopeFloors } from "#lib/edit/scope.ts";
 import type { UnmappedFloor } from "#lib/edit/unmapped-floor.ts";
+import type { Levels } from "#lib/levels/levels.ts";
 import { FeatureStore, type StoredFeatures } from "#lib/map/feature-store.ts";
 import { AVAILABLE_ICONS } from "#lib/map/style/icons.ts";
 import type { Entity, EntityId } from "#lib/osm/entity.ts";
@@ -57,6 +59,11 @@ export class Editor {
 	 * (B.3), those and the entrances.
 	 */
 	readonly inside: ReadonlySet<EntityId>;
+	/**
+	 * The floors of the building entered (its `building:levels` and its parts'), which the level
+	 * switcher offers even where nothing is mapped; null in map mode.
+	 */
+	readonly floors: Levels | null;
 
 	/** The map's features, built again only for what each change touched. */
 	readonly features: StoredFeatures;
@@ -102,6 +109,11 @@ export class Editor {
 				: (this.scope.unscoped(this.features.byId.values(), {
 						entrances: this.scope.loose,
 					}) as Set<EntityId>),
+		);
+		this.floors = $derived(
+			this.scope.current
+				? scopeFloors(this.graph, this.scope.current, this.inside)
+				: null,
 		);
 		this.sync = new DataSync({
 			api,

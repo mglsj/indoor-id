@@ -1414,7 +1414,7 @@
 	/** The levels of the data in view, named, for the switcher and Repeat on levels. */
 	const levelsInView = $derived.by(() => {
 		const extent = camera && visibleExtent();
-		return extent ? editor.features.levelsIn(extent) : [];
+		return extent ? editor.features.levelsIn(extent, editor.floors) : [];
 	});
 
 	/** Fits a feature in the part of the map the side panel leaves visible. */
@@ -1477,7 +1477,9 @@
 	// Not for the loose data (B.3): the header's chip says where you are, and the map stays clear.
 	const buildingShown = $derived(planMode ? null : editor.scope.current);
 	const buildingLevels = $derived(
-		buildingShown ? editor.features.levelsIn(buildingShown.extent) : [],
+		buildingShown
+			? editor.features.levelsIn(buildingShown.extent, editor.floors)
+			: [],
 	);
 	const panelOpen = $derived(
 		editor.selected !== null ||
