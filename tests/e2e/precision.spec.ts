@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import {
 	camera,
 	expect,
+	INDOOR,
 	LAT,
 	LON,
 	mapCenter,
@@ -26,7 +27,7 @@ async function metric(page: Page) {
 
 async function emptyMap(page: Page) {
 	await serveOsm(page, []);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	return mapCenter(page);
 }
@@ -281,7 +282,7 @@ test("the drawing frame follows a turned building, and can be set and kept", asy
 	page,
 }) => {
 	await serveOsm(page, turnedBuilding());
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	await page.getByRole("button", { name: "Snapping…" }).click();
 	const state = page.getByTestId("frame-state");
@@ -304,7 +305,7 @@ test("the drawing frame follows a turned building, and can be set and kept", asy
 
 test("the drawing frame aligns to a clicked side", async ({ page }) => {
 	await serveOsm(page, turnedBuilding());
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	const { x, y } = await mapCenter(page);
 	await page.getByRole("button", { name: "Snapping…" }).click();
@@ -322,7 +323,7 @@ test("the drawing frame aligns to a clicked side", async ({ page }) => {
 /** The room of `selectRoom`, not selected: its north side runs 149 px either side, 223 px up. */
 async function roomMap(page: Page) {
 	await serveOsm(page, room(100, LON, LAT, "0"));
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	await mapDrawn(page);
 	return mapCenter(page);

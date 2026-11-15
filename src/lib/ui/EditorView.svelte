@@ -117,6 +117,7 @@
 		scopeFor,
 		scopeOf,
 	} from "#lib/edit/scope.ts";
+	import { type DrawTool, toolsFor } from "#lib/edit/scope-tools.ts";
 	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 	import { tooLargeToEdit } from "#lib/edit/visibility.ts";
 	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
@@ -172,6 +173,7 @@
 	import {
 		INFERENCE_OPTIONS,
 		PrecisionSettings,
+		type SnapOption,
 		setPrecision,
 	} from "#lib/state/precision.svelte.ts";
 	import type { ScopeId } from "#lib/state/scope.svelte.ts";
@@ -289,12 +291,13 @@
 	/** The selected building or level outline, which "Edit indoor" enters (B.1). */
 	const enterable = $derived.by(() => {
 		const id = editor.selection.single;
-		if (!id || editor.scope.current || planMode) return null;
+		if (!id || editor.scope.active || planMode) return null;
 		return scopeOf(editor.graph, id) ? (id as ScopeId) : null;
 	});
 
 	/** The name of the building entered, for the header chip. */
 	const scopeName = $derived.by(() => {
+		if (editor.scope.loose) return t(msg("building_loose"));
 		const scope = editor.scope.current;
 		if (!scope) return "";
 		const tags = editor.graph.entity(scope.id)?.tags ?? {};
@@ -306,14 +309,24 @@
 	 * here" enters (B.2); null elsewhere.
 	 */
 	let here = $state.raw<ScopeId | null>(null);
-	const enterableHere = $derived(
-		here &&
-			!editor.scope.current &&
-			!planMode &&
-			editor.selection.ids.length === 0
-			? here
-			: null,
+	/** On the map with nothing selected, "Edit indoor here" is offered (B.3: the loose data). */
+	const hereOffered = $derived(
+		!editor.scope.active && !planMode && editor.selection.ids.length === 0,
 	);
+
+	/** "Edit indoor here": the building last clicked in, else the indoor data no building holds. */
+	function enterHere() {
+		if (here) enterBuilding(here);
+		else {
+			modes?.finish();
+			drawing = null;
+			editor.scope.enterLoose();
+			editor.select(null);
+		}
+	}
+
+	/** What map mode or building mode offers (B.3). */
+	const offered = $derived(toolsFor(editor.scope.active ? "building" : "map"));
 
 	/**
 	 * Enters a building or level outline (B.1): its features become the ones worked on. Asked
@@ -322,6 +335,7 @@
 	function enterBuilding(id: ScopeId, { fit = true } = {}) {
 		modes?.finish();
 		here = null;
+		drawing = null;
 		if (!editor.scope.enter(id)) return;
 		editor.select(null);
 		const scope = editor.scope.current;
@@ -373,7 +387,7 @@
 	 */
 	function enterableAt(at: MapPoint): ScopeId | null {
 		if (planMode) return null;
-		if (editor.scope.current && !editor.scope.surroundings) return null;
+		if (editor.scope.active && !editor.scope.surroundings) return null;
 		const hit = indoor?.hitTest(
 			at.point,
 			(p) => p["@kind"] === "building" && p["@id"] !== editor.scope.id,
@@ -389,6 +403,8 @@
 	function leaveBuilding() {
 		const id = editor.scope.id;
 		modes?.finish();
+		// Tools of building mode end with it (B.3).
+		drawing = null;
 		editor.scope.leave();
 		editor.select(id && editor.graph.entity(id) ? id : null);
 	}
@@ -479,7 +495,7 @@
 	});
 	/** The grid's frame: the building's, else north from a round spot near the middle. */
 	const gridFrame = $derived.by((): Frame | null => {
-		if (!camera || !precision.grid) return null;
+		if (!camera || !precision.grid || !offered.grid) return null;
 		if (viewFrame) return viewFrame.frame;
 		const round = (v: number) => Math.round(v * 1000) / 1000;
 		return northFrame([round(camera.lon), round(camera.lat)]);
@@ -583,9 +599,9 @@
 	let cut = $state.raw<readonly Loc[]>([]);
 
 	/** Turns a drawing tool on, or off when it is on already. */
-	function draw(
-		kind: "point" | "line" | "area" | "rectangle" | "split" | "measure",
-	) {
+	function draw(kind: DrawTool) {
+		// Keys of tools the scope doesn't offer do nothing (B.3).
+		if (!offered.draw.has(kind)) return;
 		drawing = drawing === kind ? null : kind;
 		rectangleVariant = "corners";
 		measureVariant = "measure";
@@ -690,7 +706,9 @@
 	const operations = $derived.by(() => {
 		if (modeKind !== "browse" || editor.history.locked) return [];
 		const context = operationContext();
-		return OPERATIONS.filter((o) => o.available(context)).map((operation) => ({
+		return OPERATIONS.filter(
+			(o) => offered.operation(o.id) && o.available(context),
+		).map((operation) => ({
 			operation,
 			disabled: operation.disabled(context),
 		}));
@@ -825,7 +843,7 @@
 		const constructionLayer = new ConstructionLayer(instance);
 		$effect(() =>
 			constructionLayer.setGuides(
-				planMode ? [] : construction.on(level),
+				planMode || !offered.guides ? [] : construction.on(level),
 				highlightedGuide,
 			),
 		);
@@ -891,6 +909,16 @@
 				: null;
 		};
 
+		/**
+		 * Whether dragging this would move the locked outline (B.4): a node of it, or a side
+		 * between two of its nodes (a new node there would reshape it).
+		 */
+		const grabMovesOutline = (grab: NodeGrab): boolean =>
+			grab.kind === "vertex"
+				? editor.scope.movesOutline([grab.id])
+				: editor.scope.movesOutline([grab.a]) &&
+					editor.scope.movesOutline([grab.b]);
+
 		/** Whether a selected feature is drawn at a screen point (a press there moves it). */
 		const selectedAt = (point: { x: number; y: number }): boolean => {
 			if (editor.history.locked) return false;
@@ -929,10 +957,10 @@
 		 * building the click then enters (`selectOrEnter`).
 		 */
 		const pick = (point: { x: number; y: number }): string | null => {
-			if (editor.scope.current) {
+			if (editor.scope.active) {
 				return indoorLayers.hitTest(point, (p) => {
 					const id = p["@id"] as EntityId;
-					return editor.inside.has(id) && !editor.scope.isOutline(id);
+					return editor.inside.has(id) && !editor.scope.isLocked(id);
 				});
 			}
 			return (
@@ -946,7 +974,7 @@
 		 */
 		const selectOrEnter = (id: EntityId | null, at?: MapPoint) => {
 			here =
-				!id && at && !editor.scope.current
+				!id && at && !editor.scope.active
 					? ((scopeAt(editor.graph, at.lngLat)?.id as ScopeId | undefined) ??
 						null)
 					: null;
@@ -954,7 +982,7 @@
 			if (
 				id &&
 				properties &&
-				!editor.scope.current &&
+				!editor.scope.active &&
 				!isMapFeature(properties)
 			) {
 				const scope = scopeFor(editor.graph, id);
@@ -1014,7 +1042,7 @@
 								hasSelection: () =>
 									editor.selection.ids.length > 0 || editor.floor !== null,
 								leave: () => {
-									if (!editor.scope.id) return false;
+									if (!editor.scope.active) return false;
 									leaveBuilding();
 									return true;
 								},
@@ -1032,6 +1060,15 @@
 										showNote(msg("operation_too_large"));
 										return null;
 									}
+									// The locked outline doesn't move with a room on it (B.4).
+									if (
+										editor.scope.movesOutline(
+											nodesOf(editor.graph, editor.selection.ids),
+										)
+									) {
+										showNote(msg("outline_locked"));
+										return null;
+									}
 									return featureDrag(editor.selection.ids, at, editor.history, {
 										onhint: (hint) => (dragHint = hint),
 									});
@@ -1044,7 +1081,7 @@
 								pointer: (at) => (lastPointer = at?.lngLat ?? null),
 								// The unmapped floor is building mode's (B.1).
 								floor: (at, hit) =>
-									editor.scope.current !== null && selectFloorAt(at, hit),
+									editor.scope.active && selectFloorAt(at, hit),
 								hover: (id) => editor.selection.setHover(id as EntityId | null),
 								draggable: (point) =>
 									grabAt(point) !== null || selectedAt(point),
@@ -1054,6 +1091,11 @@
 								},
 								drag: (at) => {
 									const grab = grabAt(at.point);
+									// A node of the locked outline, or a side of it, stays (B.4).
+									if (grab && grabMovesOutline(grab)) {
+										showNote(msg("outline_locked"));
+										return null;
+									}
 									return (
 										grab &&
 										nodeDrag(grab, {
@@ -1091,6 +1133,7 @@
 									units: () => precision.units,
 									show: showFeedback,
 									inferences,
+									typed: offered.typed,
 								},
 							}),
 						);
@@ -1302,14 +1345,17 @@
 		constraints: SnapConstraints = {},
 	): SnapTarget | null {
 		if (!map || at.altKey) return null;
-		const points = precision.snaps("points");
+		// Only the kinds the scope offers (B.3).
+		const snaps = (option: SnapOption) =>
+			offered.snap(option) && precision.snaps(option);
+		const points = snaps("points");
 		const lines = constraints.lines?.filter((line) =>
-			precision.snaps(line.kind ? INFERENCE_OPTIONS[line.kind] : "angles"),
+			snaps(line.kind ? INFERENCE_OPTIONS[line.kind] : "angles"),
 		);
 		const reach = lines?.length ? LINE_PIXELS : undefined;
 		const area = areaAround(at.point, unprojectPoint, reach);
 		const segments =
-			points || precision.snaps("midpoints") || lines?.length
+			points || snaps("midpoints") || lines?.length
 				? editor.features
 						.segmentsNear(area, level)
 						.filter(
@@ -1327,16 +1373,16 @@
 					: [],
 				// Sides for lines to cross even when points don't snap.
 				segments: points ? segments : [],
-				planVertices: precision.snaps("planVertices")
+				planVertices: snaps("planVertices")
 					? floorplans.verticesNear(area, level)
 					: [],
-				midpoints: precision.snaps("midpoints"),
+				midpoints: snaps("midpoints"),
 				lines,
 				lock: constraints.lock,
 				grid: gridSnap(),
-				from: precision.snaps("parallels") ? constraints.from : undefined,
-				guides: points ? construction.on(level) : [],
-				crossings: precision.snaps("intersections"),
+				from: snaps("parallels") ? constraints.from : undefined,
+				guides: points && offered.guides ? construction.on(level) : [],
+				crossings: snaps("intersections"),
 			},
 			projectLoc,
 			undefined,
@@ -1428,7 +1474,11 @@
 		return entities.length > 1 ? entities : null;
 	});
 	/** The building entered, shown in the side panel while nothing is selected (B.2). */
+	// Not for the loose data (B.3): the header's chip says where you are, and the map stays clear.
 	const buildingShown = $derived(planMode ? null : editor.scope.current);
+	const buildingLevels = $derived(
+		buildingShown ? editor.features.levelsIn(buildingShown.extent) : [],
+	);
 	const panelOpen = $derived(
 		editor.selected !== null ||
 			several !== null ||
@@ -1487,7 +1537,7 @@
 
 	/** The guides pane, beside the background's; not in floor plan mode, where guides aren't drawn. */
 	const guidePanes: MapPane[] = $derived(
-		planMode
+		planMode || !offered.guides
 			? []
 			: [
 					{
@@ -1509,7 +1559,12 @@
 		{ combo: "4", run: () => draw("rectangle") },
 		{ combo: "X", run: () => draw("split") },
 		{ combo: "S", run: () => precision.toggle() },
-		{ combo: "G", run: () => precision.toggleGrid() },
+		{
+			combo: "G",
+			run: () => {
+				if (offered.grid) precision.toggleGrid();
+			},
+		},
 		{ combo: "M", run: () => draw("measure") },
 		{ combo: "W", run: () => backgroundSettings?.toggleWireframe() },
 		{ combo: "Z", run: () => zoomToAll(editor.selection.ids) },
@@ -1594,7 +1649,7 @@
 {/snippet}
 
 {#snippet drawButton(
-	kind: "point" | "line" | "area" | "rectangle" | "split" | "measure",
+	kind: DrawTool,
 	label: string,
 	key: string,
 	Icon: Component,
@@ -1674,10 +1729,11 @@
 	panes={guidePanes}
 	left={panelOpen ? shownPanelWidth : 0}
 	{planTiles}
+	levelSwitcher={planMode || offered.levels}
 	onbackground={backgroundPicked}
 >
 	{#snippet controls()}
-		{#if !planMode && editor.scope.current}
+		{#if !planMode && editor.scope.active}
 			<div
 				class="flex items-center gap-2 rounded-md bg-background py-1 pr-1 pl-3 shadow-md"
 				data-testid="building-scope"
@@ -1698,14 +1754,11 @@
 					</Tooltip.Content>
 				</Tooltip.Root>
 			</div>
-		{:else if enterable || enterableHere}
+		{:else if enterable || hereOffered}
 			<div class="rounded-md bg-background shadow-md">
 				<Tooltip.Root>
 					<Tooltip.Trigger
-						onclick={() => {
-							const id = enterable ?? enterableHere;
-							if (id) enterBuilding(id);
-						}}
+						onclick={() => (enterable ? enterBuilding(enterable) : enterHere())}
 					>
 						{#snippet child({ props })}
 							<Button {...props} variant="outline">
@@ -1771,14 +1824,17 @@
 					{@render drawButton("point", "Point", "1", MapPin)}
 					{@render drawButton("line", "Line", "2", Spline)}
 					{@render drawButton("area", "Area", "3", Pentagon)}
-					{@render drawButton(
-						"rectangle",
-						"Rectangle",
-						"4",
-						RectangleHorizontal,
-					)}
-					{@render drawButton("split", "Split", "X", Scissors)}
-					{@render drawButton("measure", t(msg("measure_tool")), "M", Ruler)}
+					<!-- Building mode's tools (B.3). -->
+					{#if offered.draw.has("rectangle")}
+						{@render drawButton(
+							"rectangle",
+							"Rectangle",
+							"4",
+							RectangleHorizontal,
+						)}
+						{@render drawButton("split", "Split", "X", Scissors)}
+						{@render drawButton("measure", t(msg("measure_tool")), "M", Ruler)}
+					{/if}
 				</ButtonGroup.Root>
 			</div>
 			{#if drawing === "measure"}
@@ -1808,13 +1864,16 @@
 			<div class="rounded-md bg-background shadow-md">
 				<SnapMenu
 					{precision}
-					frame={frameControls}
-					guides={{
-						count: construction.countOn(level),
-						shown: construction.shown,
-						onshow: (shown) => (construction.shown = shown),
-						onmanage: () => (openPane = "guides"),
-					}}
+					frame={offered.frame ? frameControls : undefined}
+					{offered}
+					guides={offered.guides
+						? {
+								count: construction.countOn(level),
+								shown: construction.shown,
+								onshow: (shown) => (construction.shown = shown),
+								onmanage: () => (openPane = "guides"),
+							}
+						: undefined}
 					onopenchange={(open) => (snapMenuOpen = open)}
 				/>
 			</div>
@@ -1830,16 +1889,19 @@
 		{/if}
 	{/snippet}
 	{#snippet tools()}
-		<div class="rounded-md bg-background shadow-md">
-			<Button
-				variant={planMode ? "secondary" : "outline"}
-				aria-pressed={planMode}
-				onclick={() => (planMode ? closePlanMode() : setPlanMode(true))}
-			>
-				<FileImage data-icon="inline-start" />
-				Floor plans
-			</Button>
-		</div>
+		<!-- Floor plans are traced inside a building (B.3). -->
+		{#if planMode || offered.floorPlans}
+			<div class="rounded-md bg-background shadow-md">
+				<Button
+					variant={planMode ? "secondary" : "outline"}
+					aria-pressed={planMode}
+					onclick={() => (planMode ? closePlanMode() : setPlanMode(true))}
+				>
+					<FileImage data-icon="inline-start" />
+					Floor plans
+				</Button>
+			</div>
+		{/if}
 	{/snippet}
 
 	<!-- The side panel edits the selected feature, or the floor plans in floor plan mode. -->
@@ -1870,9 +1932,14 @@
 				<BuildingPanel
 					name={scopeName}
 					kind={buildingShown.kind}
-					levels={editor.features.levelsIn(buildingShown.extent)}
+					levels={buildingLevels}
 					{level}
 					surroundings={editor.scope.surroundings}
+					outlineLocked={editor.scope.outlineLocked}
+					onoutline={(locked) => {
+						modes?.finish();
+						editor.scope.outlineLocked = locked;
+					}}
 					onshowlevel={(shown) => (level = shown)}
 					onsurroundings={(on) => (editor.scope.surroundings = on)}
 					ondone={leaveBuilding}

@@ -189,7 +189,7 @@ test("a double-click on the open map still zooms in", async ({ page }) => {
 	await expect(page.getByTestId("building-scope")).toBeHidden();
 });
 
-test("with iD's partial fill, a click inside a building offers Edit indoor here", async ({
+test("with iD's partial fill, Edit indoor here enters the building clicked in", async ({
 	page,
 }) => {
 	await page.addInitScript(() =>
@@ -201,12 +201,82 @@ test("with iD's partial fill, a click inside a building offers Edit indoor here"
 	// In the building's empty east half, away from every band: nothing is picked.
 	await page.mouse.click(x + 2 * UNIT, y);
 	await expect(here).toBeVisible();
-	// Outside the building, nothing to enter.
-	await page.mouse.click(x + 6 * UNIT, y);
-	await expect(here).toBeHidden();
-
 	await page.mouse.click(x + 2 * UNIT, y);
 	await here.click();
 	await expect(page.getByTestId("building-scope")).toBeVisible();
 	await expect.poll(() => hash(page)).toContain("&building=w1");
+});
+
+test("outside any building, Edit indoor here opens the indoor data no building holds", async ({
+	page,
+}) => {
+	await open(page, `/#19/${LAT}/${LON}/0`);
+	const { x, y } = await mapCenter(page);
+	await page.mouse.click(x + 6 * UNIT, y);
+	await page.getByRole("button", { name: "Edit indoor here" }).click();
+	await expect(page.getByTestId("building-scope")).toContainText(
+		"Indoor data here",
+	);
+	await expect.poll(() => hash(page)).toContain("&building=here");
+	await page.keyboard.press("Escape");
+	await expect(page.getByTestId("building-scope")).toBeHidden();
+});
+
+test("the map offers iD's tools; CAD tools, floor plans and levels are building mode's", async ({
+	page,
+}) => {
+	await open(page, `/#19/${LAT}/${LON}/0`);
+	const draw = page.getByRole("group", { name: "Draw" });
+	await expect(draw.getByRole("button")).toHaveCount(3);
+	await expect(page.getByRole("button", { name: "Floor plans" })).toBeHidden();
+	await expect(page.getByTestId("level")).toBeHidden();
+	// Keys of tools not offered do nothing.
+	await page.keyboard.press("4");
+	await expect(page.getByTestId("draw-hint")).toBeHidden();
+
+	await page.goto(`/#19/${LAT}/${LON}/0&building=w1`);
+	await expect(page.getByTestId("building-scope")).toBeVisible();
+	await expect(
+		draw.getByRole("button", { name: "Draw rectangle" }),
+	).toBeVisible();
+	await expect(draw.getByRole("button")).toHaveCount(6);
+	await expect(page.getByRole("button", { name: "Floor plans" })).toBeVisible();
+	await expect(page.getByTestId("level")).toBeVisible();
+});
+
+test("inside, the outline is locked: a corner it shares with a room stays until Edit outline", async ({
+	page,
+}) => {
+	// The building's west side right of the building panel.
+	await open(page, `/#19/${LAT}/${LON - 0.0003}/0&building=w1`);
+	const panel = page.getByTestId("building-panel");
+	await expect(panel).toBeVisible();
+	// From the camera each time: a refused drag pans the map.
+	const corner = () => screenOf(page, [LON - 0.0004, LAT - 0.0002]);
+	const clickRoom = async () => {
+		const inRoom = await screenOf(page, [LON - 0.0002, LAT]);
+		await page.mouse.click(inRoom.x, inRoom.y);
+	};
+	const dragCorner = async () => {
+		const at = await corner();
+		await page.mouse.move(at.x, at.y);
+		await page.mouse.down();
+		await page.mouse.move(at.x - 40, at.y + 40, { steps: 8 });
+		await page.mouse.up();
+	};
+
+	await clickRoom();
+	await expect(await tagsBox(page)).toHaveValue("indoor=room\nlevel=0");
+	await dragCorner();
+	await expect(page.getByTestId("operation-note")).toContainText(
+		"Shared with the building outline",
+	);
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+
+	await page.keyboard.press("Escape");
+	await panel.getByRole("checkbox", { name: "Edit outline" }).click();
+	await clickRoom();
+	await expect(await tagsBox(page)).toHaveValue("indoor=room\nlevel=0");
+	await dragCorner();
+	await expect(page.getByTestId("edit-count")).toHaveText("1");
 });

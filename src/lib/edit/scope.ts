@@ -247,3 +247,28 @@ export function isMapFeature(properties: Record<string, unknown>): boolean {
 		properties["@kind"] === "building" || properties.entrance !== undefined
 	);
 }
+
+/** Issues as building mode shows them (B.5): the ones in the building, and a count of the rest. */
+export interface ScopedIssues<T> {
+	readonly shown: readonly T[];
+	/** Warnings left out: on edits outside the building, still uploaded with the rest. */
+	readonly elsewhere: number;
+}
+
+/**
+ * The issues to show inside a building (B.5): its own, and every error wherever it is (an
+ * error blocks or breaks the upload, which sends all edits together); the warnings elsewhere
+ * are only counted. Outside a building (`inScope` null), all of them.
+ */
+export function scopedIssues<
+	T extends { readonly entityId: EntityId; readonly severity: string },
+>(
+	issues: readonly T[],
+	inScope: ((id: EntityId) => boolean) | null,
+): ScopedIssues<T> {
+	if (!inScope) return { shown: issues, elsewhere: 0 };
+	const shown = issues.filter(
+		(issue) => issue.severity === "error" || inScope(issue.entityId),
+	);
+	return { shown, elsewhere: issues.length - shown.length };
+}

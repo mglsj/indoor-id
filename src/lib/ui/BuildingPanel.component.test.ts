@@ -7,6 +7,7 @@ function setup(levels = [{ level: 0 }, { level: 1, ref: "OG" }]) {
 	const calls = {
 		onshowlevel: vi.fn(),
 		onsurroundings: vi.fn(),
+		onoutline: vi.fn(),
 		ondone: vi.fn(),
 	};
 	render(BuildingPanel, {
@@ -15,6 +16,7 @@ function setup(levels = [{ level: 0 }, { level: 1, ref: "OG" }]) {
 		levels,
 		level: 0,
 		surroundings: true,
+		outlineLocked: true,
 		...calls,
 	});
 	return calls;
@@ -59,5 +61,13 @@ describe("BuildingPanel", () => {
 			page.getByRole("button", { name: "Back to the map (Escape)" }),
 		);
 		expect(ondone).toHaveBeenCalledOnce();
+	});
+
+	it("unlocks the outline for this visit (B.4)", async () => {
+		const { onoutline } = setup();
+		const edit = page.getByRole("checkbox", { name: "Edit outline" });
+		await expect.element(edit).not.toBeChecked();
+		await userEvent.click(edit);
+		expect(onoutline).toHaveBeenCalledWith(false);
 	});
 });

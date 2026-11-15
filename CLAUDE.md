@@ -155,7 +155,11 @@ runs the same commands.
   `state/scope.svelte.ts` (`BuildingScope`, held as `editor.scope`), `&building=w123` in the
   URL hash (`map/hash.ts`). Entering (B.2): a double-click (`Mode.doubleClick`), "Edit indoor"
   or "Edit indoor here" fit the camera; the building is downloaded whole (`DataSync.loadArea`);
-  with nothing selected the side panel is `ui/BuildingPanel.svelte`.
+  with nothing selected the side panel is `ui/BuildingPanel.svelte`. What each scope offers
+  (B.3) is `edit/scope-tools.ts` (`toolsFor`): check it before showing a tool or key; the loose
+  scope (`BuildingScope.loose`, `&building=here`) holds indoor data no building holds, and
+  e2e tests that draw or use CAD tools on empty data open with `INDOOR` from `fixtures.ts`.
+  The outline entered is locked (B.4, `movesOutline`) until "Edit outline".
 - Viewer (V.1): `/view` is `ui/ViewerView.svelte` on `MapShell` (`presentation="view"`,
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`
   laid over its answers (the editor records each upload through `onupload`); a click shows

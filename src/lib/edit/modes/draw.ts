@@ -73,6 +73,8 @@ export interface DrawPrecision {
 	show: ShowFeedback;
 	/** Sides and corners armed by hovering them (C.4), shared between drawings. */
 	readonly inferences?: Inferences;
+	/** Whether lengths and angles can be typed (C.2); not on the map (B.3). True when unset. */
+	readonly typed?: boolean;
 }
 
 export interface DrawOptions {
@@ -270,7 +272,7 @@ export function drawWayMode(
 		},
 		key(event) {
 			// Typed values first, from the first corner on: digits aren't tool shortcuts then.
-			if (precision && frame) {
+			if (precision && precision.typed !== false && frame) {
 				const next = typeKey(typed, event, true);
 				if (next) {
 					typed = next;

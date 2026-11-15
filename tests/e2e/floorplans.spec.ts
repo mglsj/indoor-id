@@ -9,6 +9,7 @@ import {
 	camera,
 	expect,
 	expectPixel,
+	INDOOR,
 	inspector,
 	LAT,
 	LON,
@@ -37,7 +38,7 @@ function planRows(page: Page) {
 
 /** Opens the floor plans panel and imports a file from tests/e2e/files. */
 async function importPlan(page: Page, file: string) {
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await page.getByRole("button", { name: "Floor plans" }).click();
 	await page
 		.getByLabel("Import a floor plan")
@@ -372,7 +373,8 @@ test("floor plan mode shows only building outlines, without selection", async ({
 }) => {
 	// A room inside a mall 0.0008° (~600 px at zoom 19) wide, tagged as the one in Rennes.
 	await serveOsm(page, [...room(100, LON, LAT, "0"), ...mall()]);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	// Inside the mall, where floor plans are (B.3).
+	await page.goto(`/#19/${LAT}/${LON}/0&building=w200`);
 	const box = await mapLocator(page).boundingBox();
 	if (!box) throw new Error("No map");
 	const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -661,7 +663,7 @@ test("keeps plans, where they were placed, after a reload", async ({
 test("draws a large stored plan's tiles on screen only, more as the map is panned", async ({
 	page,
 }) => {
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	// 6000 × 1500 px: three columns of 2048 px tiles, red, green and blue.
 	const png = await page.evaluate(async () => {
 		const canvas = new OffscreenCanvas(6000, 1500);
@@ -705,7 +707,7 @@ test("draws a large stored plan's tiles on screen only, more as the map is panne
 
 	// Zoomed in on the plan's middle: about a plan pixel a screen pixel, its full size drawn,
 	// only the green tile on screen.
-	await page.goto(`/#21/${centre[0]}/${centre[1]}/0`);
+	await page.goto(`/#21/${centre[0]}/${centre[1]}/0${INDOOR}`);
 	await page.reload();
 	const map = mapLocator(page);
 	await expect(map).toHaveAttribute("data-plan-tiles", "1", {

@@ -80,6 +80,8 @@
 		presentation?: Presentation;
 		/** How unnamed levels are labelled in the switcher; their numbers when unset. */
 		numbering?: FloorNumbering;
+		/** Whether the level switcher shows: the editor's only in building mode (B.5). */
+		levelSwitcher?: boolean;
 		/** The imagery shown changed (null: the map alone), and once at first. */
 		onbackground?: (imagery: Imagery | null) => void;
 		/** Controls under the place search. */
@@ -107,6 +109,7 @@
 		planTiles,
 		presentation = "edit",
 		numbering,
+		levelSwitcher = true,
 		onbackground,
 		controls,
 		tools,
@@ -116,7 +119,12 @@
 	}: Props = $props();
 
 	const editor = getEditor();
-	if (fromUrl?.building) editor.scope.enter(fromUrl.building);
+	/** Enters what a link names: a building, or `here`, the loose indoor data (B.3). */
+	function enterFromUrl(building: NonNullable<View["building"]>) {
+		if (building === "here") editor.scope.enterLoose();
+		else editor.scope.enter(building);
+	}
+	if (fromUrl?.building) enterFromUrl(fromUrl.building);
 	let lastHash = "";
 	const settings = new BackgroundSettings(browserStorage());
 	background = settings;
@@ -221,6 +229,7 @@
 				...camera,
 				level,
 				...(editor.scope.id && { building: editor.scope.id }),
+				...(editor.scope.loose && { building: "here" as const }),
 			}),
 	);
 	$effect(() => {
@@ -261,7 +270,7 @@
 		const view = parseHash(location.hash);
 		if (!view) return;
 		level = view.level;
-		if (view.building) editor.scope.enter(view.building);
+		if (view.building) enterFromUrl(view.building);
 		else editor.scope.leave();
 		map?.jumpTo({ center: [view.lon, view.lat], zoom: view.zoom });
 	}
@@ -343,7 +352,9 @@
 			</Button>
 		</div>
 	{/each}
-	<LevelControl bind:level levels={levelsInView} {numbering} />
+	{#if levelSwitcher}
+		<LevelControl bind:level levels={levelsInView} {numbering} />
+	{/if}
 </div>
 
 {#if backgroundOpen}

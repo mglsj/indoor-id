@@ -45,7 +45,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | T      | One theme, background pane                 | Done         |
 | C      | CAD-style precision (C.0–C.6)              | C.0–C.6 done |
 | I      | iD's area fill, colours and safeguards     | Done         |
-| B      | Building mode: map and building scopes     | B.0–B.2 done |
+| B      | Building mode: map and building scopes     | Done         |
 | P5.4b  | Rebase before upload, conflicts            | Not started  |
 | W2     | Wiki conformance, November research        | Not started  |
 | P6     | Parity and polish                          | Not started  |
@@ -652,11 +652,33 @@ Slices, each agreeing its test seams first:
    `MapToolbar` and `BuildingToolbar`; `SnapMenu` shows only what the scope offers; keys of
    tools not offered do nothing (the help lists them per mode). Floor plans move to building
    mode. No change to the modes themselves.
+   Done ✅ (2026-11-15): `edit/scope-tools.ts` (`toolsFor("map" | "building")`) says what each
+   scope offers; `EditorView` reads it rather than splitting into two components (the toolbar
+   is one snippet; a split is left to P6). On the map: point, line and area, operations but
+   merge, repeat on levels, move side, offset and square to frame, and node, midpoint and
+   angle snapping (`SnapMenu`'s `offered`); typed values are off (`DrawPrecision.typed`), and
+   the grid, frames, guides (drawn, snapped to, their pane), floor plans and the level
+   switcher (B.5) are hidden. Keys of tools not offered do nothing. "Edit indoor here" is
+   offered whenever nothing is selected on the map: the building clicked in, else the
+   **loose scope**, the indoor data no building or level outline holds
+   (`BuildingScope.loose`, `&building=here` in the hash; entrances are in it too), which
+   empty data opens to draw in. E2E tests on empty data open with `INDOOR` from
+   `fixtures.ts`, as `selectRoom` does.
 4. **B.4 Outline lock — S.** Refused drags of shared outline nodes with the hint; "Edit outline"
    toggles the lock for this visit; entrances inserted into the outline as today.
+   Done ✅ (2026-11-15): `BuildingScope.outlineLocked` (locked again on each entry),
+   `isLocked` (not picked) and `movesOutline(nodes)`: a press on a vertex of the outline, a
+   side between two of its nodes, or a selection with one of its nodes is refused with a note
+   (`outline_locked`), and the map pans instead. "Edit outline" is a checkbox in the building
+   panel. Not done: operations that move nodes (Square, transforms, delete of a shared node)
+   still move the outline's nodes; they could check `movesOutline` the same way.
 5. **B.5 Scoped checks and polish — S.** The issue list and the Save dialog's warnings scoped to
    the building inside (all edits are still uploaded together); the level switcher only in
    building mode; the viewer may reuse "enter a building" later (not in B).
+   Done ✅ (2026-11-15): `scopedIssues` (`edit/scope.ts`): inside a building the Save dialog
+   lists the building's warnings and every error, and counts the warnings elsewhere; the
+   upload still sends every edit. The Inspector's issues were already per feature. The level
+   switcher shows in building mode and floor plan mode only (`MapShell`'s `levelSwitcher`).
 
 Existing e2e tests that draw indoor features get an `enterBuilding()` helper in
 `tests/e2e/fixtures.ts`; tests on empty data use "Edit indoor here".

@@ -2,6 +2,7 @@ import {
 	camera,
 	clickMap,
 	expect,
+	INDOOR,
 	inspector,
 	LAT,
 	LON,
@@ -53,7 +54,7 @@ test("two rooms selected with Shift+click merge into one", async ({ page }) => {
 	const eastWay = east.at(-1) as { nodes: number[] };
 	eastWay.nodes = [102, 202, 203, 103, 102];
 	await serveOsm(page, [...west, east[1], east[2], eastWay] as never);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	await mapDrawn(page);
 	const { x, y } = await mapCenter(page);
@@ -81,7 +82,7 @@ test("the split tool cuts a room in two along the line drawn", async ({
 	page,
 }) => {
 	await serveOsm(page, room(100, LON, LAT, "0"));
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	await mapDrawn(page);
 	const { x, y } = await mapCenter(page);
@@ -106,7 +107,7 @@ test("Repeat on levels puts a copy of the room on the level checked", async ({
 		...room(100, LON, LAT, "0"),
 		...room(200, LON + 0.001, LAT, "1"),
 	]);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	await mapDrawn(page);
 	await clickMap(page);
@@ -124,7 +125,7 @@ test("a room and an area drawn inside it make a room with a hole", async ({
 	page,
 }) => {
 	await serveOsm(page, room(100, LON, LAT, "0"));
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	await mapDrawn(page);
 	const { x, y } = await mapCenter(page);

@@ -26,6 +26,10 @@
 		onshowlevel: (level: number) => void;
 		/** Draws the surroundings, or hides them. */
 		onsurroundings: (on: boolean) => void;
+		/** Whether the outline is locked (B.4). */
+		outlineLocked: boolean;
+		/** Locks the outline, or unlocks it for this visit ("Edit outline"). */
+		onoutline: (locked: boolean) => void;
 		/** Leaves the building. */
 		ondone: () => void;
 	}
@@ -38,8 +42,15 @@
 		surroundings,
 		onshowlevel,
 		onsurroundings,
+		outlineLocked,
+		onoutline,
 		ondone,
 	}: Props = $props();
+
+	const KIND_LABELS = {
+		building: "building_kind_building",
+		level: "building_kind_level",
+	} as const;
 
 	/** Top floor first, as the level switcher lists them. */
 	const descending = $derived([...levels].reverse());
@@ -54,13 +65,7 @@
 		<div class="min-w-0 flex-1">
 			<h2 class="truncate text-base font-semibold">{name}</h2>
 			<p class="text-xs text-muted-foreground">
-				{t(
-					msg(
-						kind === "building"
-							? "building_kind_building"
-							: "building_kind_level",
-					),
-				)}
+				{t(msg(KIND_LABELS[kind]))}
 			</p>
 		</div>
 		<Button
@@ -109,6 +114,21 @@
 				</Field.Label>
 				<Field.Description>
 					{t(msg("building_surroundings_hint"))}
+				</Field.Description>
+			</Field.Content>
+		</Field.Field>
+		<Field.Field orientation="horizontal">
+			<Checkbox
+				id="building-edit-outline"
+				checked={!outlineLocked}
+				onCheckedChange={(on) => onoutline(on !== true)}
+			/>
+			<Field.Content>
+				<Field.Label for="building-edit-outline" class="font-normal">
+					{t(msg("building_edit_outline"))}
+				</Field.Label>
+				<Field.Description>
+					{t(msg("building_edit_outline_hint"))}
 				</Field.Description>
 			</Field.Content>
 		</Field.Field>

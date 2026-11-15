@@ -4,6 +4,7 @@ import {
 	expect,
 	expectPixel,
 	hash,
+	INDOOR,
 	inspector,
 	LAT,
 	LON,
@@ -23,7 +24,7 @@ test("draws a room on its level only", async ({ page }) => {
 		...room(100, LON, LAT, "0"),
 		...room(200, LON + 0.001, LAT, "1"),
 	]);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	const { x, y } = await mapCenter(page);
 
 	await expectPixel(page, x, y, ROOM);
@@ -44,7 +45,7 @@ test("lists the levels found in the data", async ({ page }) => {
 			tags: { amenity: "toilets", level: "-1" },
 		},
 	]);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 
 	const levels = page.getByRole("group", { name: "Levels" }).getByRole("radio");
 	await expect(levels).toHaveText(["1", "0", "-1"]);
@@ -53,7 +54,7 @@ test("lists the levels found in the data", async ({ page }) => {
 	).toBeChecked();
 
 	await page.getByRole("button", { name: "Level down" }).click();
-	await expect.poll(() => hash(page)).toBe(`#19/${LAT}/${LON}/-1`);
+	await expect.poll(() => hash(page)).toBe(`#19/${LAT}/${LON}/-1${INDOOR}`);
 	await expect(page.getByRole("button", { name: "Level down" })).toBeDisabled();
 });
 
@@ -61,7 +62,7 @@ test("shows no level list when the data has a single level", async ({
 	page,
 }) => {
 	await serveOsm(page, room(100, LON, LAT, "0"));
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await expect(page.getByTestId("level")).toHaveText("0");
 	await expect(page.getByRole("button", { name: "Level up" })).toBeDisabled();
 	await expect(page.getByRole("group", { name: "Levels" })).toBeHidden();
@@ -79,7 +80,7 @@ test("names levels from their indoor=level outlines", async ({ page }) => {
 		...named(200, "1", { name: "Untere Verkaufsebene" }),
 		...room(300, LON, LAT, "-1"),
 	]);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 
 	const levels = page.getByRole("group", { name: "Levels" }).getByRole("radio");
 	await expect(levels).toHaveText(["Unter…", "EG", "-1"]);
@@ -90,7 +91,7 @@ test("names levels from their indoor=level outlines", async ({ page }) => {
 	await expect(page.getByText("Untere Verkaufsebene · level 1")).toBeVisible();
 	// The hash keeps the number.
 	await page.getByRole("radio", { name: /^Level 1:/ }).click();
-	await expect.poll(() => hash(page)).toBe(`#19/${LAT}/${LON}/1`);
+	await expect.poll(() => hash(page)).toBe(`#19/${LAT}/${LON}/1${INDOOR}`);
 });
 
 test("lists the levels of the data in view only, skipping non-existent ones", async ({
@@ -107,12 +108,12 @@ test("lists the levels of the data in view only, skipping non-existent ones", as
 		// Far away: not in view.
 		...room(200, LON + 0.01, LAT, "3"),
 	]);
-	await page.goto(`/#19/${LAT}/${LON}/12`);
+	await page.goto(`/#19/${LAT}/${LON}/12${INDOOR}`);
 
 	const levels = page.getByRole("group", { name: "Levels" }).getByRole("radio");
 	await expect(levels).toHaveText(["14", "12"]);
 	await page.evaluate(
-		([lon, lat]) => (location.hash = `#19/${lat}/${lon}/12`),
+		([lon, lat]) => (location.hash = `#19/${lat}/${lon}/12&building=here`),
 		[LON + 0.05, LAT],
 	);
 	// No data in view: levels step by one, with no list.
@@ -122,7 +123,7 @@ test("lists the levels of the data in view only, skipping non-existent ones", as
 
 test("downloads each area only once", async ({ page }) => {
 	const requests = await serveOsm(page, room(100, LON, LAT, "0"));
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await expect.poll(() => requests.length).toBeGreaterThan(0);
 	await expect(page.getByTestId("load-status")).toBeHidden();
 
@@ -143,7 +144,7 @@ test("asks to zoom in instead of downloading a large area", async ({
 	page,
 }) => {
 	const requests = await serveOsm(page, []);
-	await page.goto(`/#16/${LAT}/${LON}/0`);
+	await page.goto(`/#16/${LAT}/${LON}/0${INDOOR}`);
 	await expect(page.getByTestId("load-status")).toHaveText(
 		"Zoom in to load indoor data here",
 	);
@@ -154,7 +155,7 @@ test("reports areas that could not be downloaded", async ({ page }) => {
 	await page.route("**/api/0.6/map.json*", (route) =>
 		route.fulfill({ status: 509, body: "Bandwidth limit exceeded" }),
 	);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await expect(page.getByTestId("load-status")).toContainText(
 		"could not be loaded",
 	);
@@ -175,7 +176,7 @@ test("draws the preset's Maki icon for a point of interest", async ({
 	]);
 	// The Restroom preset's icon, rather than the OsmInEdit amenity_toilets.png.
 	const icon = page.waitForRequest(/\/maki-toilet\.[\w-]+\.svg$/);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await icon;
 	const { x, y } = await mapCenter(page);
 
@@ -196,7 +197,7 @@ test("edits are drawn at once: a room moved to another level leaves this one, an
 		...room(300, LON - 0.001, LAT, "0"),
 		...room(100, LON, LAT, "0"),
 	]);
-	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	const { x, y } = await mapCenter(page);
 	await expectPixel(page, x, y, ROOM);
 	const editor = inspector(page).root;
