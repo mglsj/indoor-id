@@ -9,7 +9,7 @@
 import type { ImageryDisplay } from "./backgrounds.ts";
 
 /** The size, in CSS pixels, an image is laid out at before its transform. */
-export const IMAGE_SIZE = 256;
+const IMAGE_SIZE = 256;
 
 /**
  * The CSS `matrix3d` placing a `IMAGE_SIZE` px square at `left`, `top`, `size` world pixels, for

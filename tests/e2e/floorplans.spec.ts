@@ -230,6 +230,9 @@ test("draws a PDF's text as labels where the PDF has it", async ({ page }) => {
 });
 
 test("hides a PDF's CAD layers, its text with them", async ({ page }) => {
+	// Five redraws of a vector PDF in SwiftShader: on a busy CI runner they outlast 30 s
+	// (the test timed out after "Show all" in 3 of 10 runs, retries included).
+	test.slow();
 	await importPlan(page, "layers.pdf");
 	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
 	await dialog.getByRole("radio", { name: "Vector" }).click();

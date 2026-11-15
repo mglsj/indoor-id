@@ -39,9 +39,20 @@ const snapToSide: DrawSnap = (p) => {
 		: null;
 };
 
+/** A guide along y = 5 m, at 0° from east. */
+const across: DirectionLine = { origin: fromLocal(O, [0, 5]), angle: 0 };
+/** Snaps within 0.5 m of `across`, saying it is that guide. */
+const snapToGuide: DrawSnap = (p) => {
+	const [x, y] = local(O, p.lngLat);
+	return Math.abs(y - 5) < 0.5
+		? ({ kind: "guide", loc: fromLocal(O, [x, 5]), line: across } as SnapTarget)
+		: null;
+};
+
 function setup(
 	variant: MeasureVariant = "measure",
 	snap: DrawSnap = () => null,
+	guidesShown: readonly DirectionLine[] = [],
 ) {
 	const shown: (Feedback | null)[] = [];
 	const guides: DirectionLine[] = [];
@@ -61,6 +72,7 @@ function setup(
 		onexit: () => {
 			exited = true;
 		},
+		guides: () => guidesShown,
 	});
 	return { mode, shown, guides, variants, exited: () => exited };
 }
@@ -148,6 +160,46 @@ describe("measureMode: guides", () => {
 		for (const k of ["3", "0", "Enter"]) mode.key?.(key(k));
 		expect(guides[0]?.angle).toBe(30);
 		expect(metres(guides[0]?.origin ?? O)).toEqual([1, 1]);
+	});
+
+	it("a click on a guide, then a typed distance: a guide parallel to it", () => {
+		const { mode, guides } = setup("guide", snapToGuide);
+		mode.click?.(at(3, 5.2));
+		mode.hover?.(at(4, 9));
+		for (const k of ["1", ".", "5", "Enter"])
+			expect(mode.key?.(key(k))).toBe(true);
+		expect(guides).toHaveLength(1);
+		expect(metres(guides[0]?.origin ?? O)).toEqual([0, 6.5]);
+		expect(guides[0]?.angle).toBeCloseTo(0, 6);
+	});
+
+	it("a click on a guide, then a click: a parallel guide through that point", () => {
+		const { mode, guides } = setup("guide", snapToGuide);
+		mode.click?.(at(3, 5.2));
+		mode.click?.(at(8, 2));
+		expect(metres(guides[0]?.origin ?? O)).toEqual([0, 2]);
+		expect(guides[0]?.angle).toBeCloseTo(0, 6);
+	});
+
+	it("from a point, offers the directions parallel and square to the guides shown", () => {
+		const tilted: DirectionLine = { origin: fromLocal(O, [20, 20]), angle: 30 };
+		const asked: (readonly DirectionLine[] | undefined)[] = [];
+		const { mode } = setup(
+			"guide",
+			(_p, _ex, _keep, constraints) => {
+				asked.push(constraints?.lines);
+				return null;
+			},
+			[tilted],
+		);
+		mode.click?.(at(1, 1));
+		mode.hover?.(at(4, 3));
+		const lines = asked.at(-1) ?? [];
+		expect(lines.map((l) => [l.angle, l.kind])).toEqual([
+			[30, "parallel"],
+			[120, "perpendicular"],
+		]);
+		expect(metres(lines[0]?.origin ?? O)).toEqual([1, 1]);
 	});
 
 	it("leaves digits to the shortcuts before the first click", () => {

@@ -646,7 +646,7 @@ Slices, each agreeing its test seams first:
    double-click no longer enters a neighbour) and a close button that leaves, as Done does.
    E2E: `building-mode.spec.ts`. Not done: "Edit indoor here" on indoor data that no building
    or level outline holds, or on empty data (a scope with no outline: B.3 needs it before tools
-   leave map mode); hidden surroundings are still snapped to; a click on a neighbour inside a
+   leave map mode); a click on a neighbour inside a
    building doesn't yet show its tags read-only.
 3. **B.3 Two toolbars — M.** `EditorView.svelte` (1,657 lines) splits its controls into
    `MapToolbar` and `BuildingToolbar`; `SnapMenu` shows only what the scope offers; keys of
@@ -670,8 +670,10 @@ Slices, each agreeing its test seams first:
    `isLocked` (not picked) and `movesOutline(nodes)`: a press on a vertex of the outline, a
    side between two of its nodes, or a selection with one of its nodes is refused with a note
    (`outline_locked`), and the map pans instead. "Edit outline" is a checkbox in the building
-   panel. Not done: operations that move nodes (Square, transforms, delete of a shared node)
-   still move the outline's nodes; they could check `movesOutline` the same way.
+   panel. Operations that move the outline's nodes (Square, move, rotate, scale, move side,
+   square to frame, straighten, symmetric, deleting one of its nodes) are refused the same way
+   (`OperationContext.locksNodes`, 2026-11-15 audit). With the surroundings hidden, what is
+   outside is no longer snapped to either.
 5. **B.5 Scoped checks and polish — S.** The issue list and the Save dialog's warnings scoped to
    the building inside (all edits are still uploaded together); the level switcher only in
    building mode; the viewer may reuse "enter a building" later (not in B).

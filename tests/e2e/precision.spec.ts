@@ -429,6 +429,54 @@ test("a guide at a typed distance from a side is snapped to, and kept", async ({
 	await expect.poll(() => storedGuides(page)).toBe(0);
 });
 
+test("guides line up with each other: parallel at a typed distance, or square through a point", async ({
+	page,
+}) => {
+	await metric(page);
+	const { x, y } = await emptyMap(page);
+	await page.keyboard.press("m");
+	await page
+		.getByTestId("measure-mode")
+		.getByRole("radio", { name: "Guide" })
+		.click();
+	// Guide 1 through the centre, 37° from east (north up: the frame's angle is 0).
+	await page.mouse.click(x, y);
+	await page.mouse.move(x + 100, y);
+	await page.keyboard.type("37");
+	await page.keyboard.press("Enter");
+
+	// Guide 2: a click on guide 1, then 3 m from it.
+	const rad = (37 * Math.PI) / 180;
+	const on1 = { x: x + 100 * Math.cos(rad), y: y - 100 * Math.sin(rad) };
+	await page.mouse.click(on1.x, on1.y);
+	await page.mouse.move(on1.x - 50 * Math.sin(rad), on1.y - 50 * Math.cos(rad));
+	await page.keyboard.type("3");
+	await page.keyboard.press("Enter");
+
+	// Guide 3: from a point clear of both, aimed 2° off square to them: it snaps square.
+	const from = { x: x - 150, y: y - 150 };
+	await page.mouse.click(from.x, from.y);
+	const aim = (129 * Math.PI) / 180;
+	const to = {
+		x: from.x + 200 * Math.cos(aim),
+		y: from.y - 200 * Math.sin(aim),
+	};
+	await page.mouse.move(to.x, to.y);
+	await page.mouse.click(to.x, to.y);
+	await page.keyboard.press("Escape");
+
+	await page.getByRole("button", { name: "Snapping…" }).click();
+	await page.getByRole("button", { name: "Manage guides…" }).click();
+	const items = page
+		.getByTestId("guides-pane")
+		.getByTestId("guides-list")
+		.getByRole("listitem");
+	await expect(items).toHaveCount(3);
+	await expect(items.nth(0)).toContainText("37° from east");
+	await expect(items.nth(1)).toContainText("37° from east");
+	await expect(items.nth(2)).toContainText("127° from east");
+});
+
 /** How many construction guides IndexedDB holds. */
 function storedGuides(page: Page): Promise<number> {
 	return page.evaluate(

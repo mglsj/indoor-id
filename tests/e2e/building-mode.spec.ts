@@ -272,6 +272,16 @@ test("inside, the outline is locked: a corner it shares with a room stays until 
 		"Shared with the building outline",
 	);
 	await expect(page.getByTestId("edit-count")).toHaveText("0");
+	// Operations that move the room's corners are refused the same way.
+	await clickRoom();
+	await expect(
+		page.getByRole("button", { name: "Move by a distance" }),
+	).toHaveAttribute("aria-disabled", "true");
+	await page.keyboard.press("Shift+M");
+	await expect(page.getByTestId("operation-note")).toContainText(
+		"Shared with the building outline",
+	);
+	await expect(page.getByTestId("transform-hint")).toHaveCount(0);
 
 	await page.keyboard.press("Escape");
 	await panel.getByRole("checkbox", { name: "Edit outline" }).click();

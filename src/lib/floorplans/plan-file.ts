@@ -16,7 +16,7 @@ import {
 } from "./georef.ts";
 
 /** Where a plan sits: a fitted transform, or (OsmInEdit files) the map positions of its corners. */
-export type PlanPlacement =
+type PlanPlacement =
 	| { readonly transform: Transform }
 	| { readonly corners: readonly [LngLat, LngLat, LngLat, LngLat] };
 
@@ -148,7 +148,7 @@ export interface ArchiveLimits {
 }
 
 const MB = 1024 * 1024;
-export const ARCHIVE_LIMITS: ArchiveLimits = {
+const ARCHIVE_LIMITS: ArchiveLimits = {
 	manifest: 16 * MB,
 	file: 256 * MB,
 	total: 512 * MB,

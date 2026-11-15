@@ -327,6 +327,11 @@ describe("snapAt with construction guides (C.5)", () => {
 		expect(target?.loc[1]).toBeCloseTo(0.4, 6);
 	});
 
+	it("says which guide it snapped onto, so a guide can be placed from it", () => {
+		const target = snapAt({ x: 53, y: -40 }, { guides: [guide] }, project);
+		expect(target?.kind === "guide" && target.line).toEqual(guide);
+	});
+
 	it("snaps to where a guide crosses a side, as a point on the side", () => {
 		const target = snapAt(
 			{ x: 54, y: 3 },

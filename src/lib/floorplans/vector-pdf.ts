@@ -71,7 +71,7 @@ export type PdfOps = Record<
 export type PageMode = "vector" | "image";
 
 /** Images covering this share of a page or more make Auto render it as an image. */
-export const IMAGE_SHARE = 0.5;
+const IMAGE_SHARE = 0.5;
 
 /**
  * How Auto draws a page: from its paths, unless it has none or images cover at least half of
