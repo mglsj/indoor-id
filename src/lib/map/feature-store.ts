@@ -24,8 +24,9 @@ import type {
 	Way,
 	WayId,
 } from "#lib/osm/entity.ts";
-import { type Extent, extentOf, type Point } from "#lib/osm/geometry.ts";
+import type { Extent } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
+import { extentOfGeometry } from "#lib/view/geometry.ts";
 import {
 	type BuildOptions,
 	draftOf,
@@ -342,7 +343,7 @@ function levelItemOf(draft: FeatureDraft): LevelItem | null {
 	const refs = buildingLevelRefs(tags);
 	const nonExistent = nonExistentLevels(tags) ?? undefined;
 	if (!levels && !outline && refs.size === 0 && !nonExistent) return null;
-	const extent = extentOf(positions(draft.geometry));
+	const extent = extentOfGeometry(draft.geometry);
 	if (!extent) return null;
 	return {
 		minX: extent.west,
@@ -397,24 +398,6 @@ function levelsOf(
 		names,
 		nonExistent: items.flatMap((i) => (i.nonExistent ? [i.nonExistent] : [])),
 	});
-}
-
-/** Every position of a geometry. */
-function positions(geometry: Geometry): Point[] {
-	switch (geometry.type) {
-		case "Point":
-			return [geometry.coordinates];
-		case "MultiPoint":
-		case "LineString":
-			return geometry.coordinates;
-		case "MultiLineString":
-		case "Polygon":
-			return geometry.coordinates.flat();
-		case "MultiPolygon":
-			return geometry.coordinates.flat(2);
-		case "GeometryCollection":
-			return geometry.geometries.flatMap(positions);
-	}
 }
 
 /** The nodes a feature is drawn through: its own, its way's, its multipolygon's ways'. */

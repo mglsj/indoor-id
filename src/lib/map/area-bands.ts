@@ -113,7 +113,7 @@ function groupRings(paths: Paths64): Path64[][] {
 }
 
 /** Half the width iD's partial fill strokes (`css/70_fills.css`), in pixels at zoom 19+. */
-export function bandPixels(kind: unknown): number {
+function bandPixels(kind: unknown): number {
 	return kind === "building" ? 30 : 10;
 }
 

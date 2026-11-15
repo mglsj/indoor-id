@@ -157,6 +157,34 @@ describe("indoorLayers: presentation", () => {
 		expect(bands).not.toContain("rgba(255, 255, 255, 0.3)");
 	});
 
+	it("draws building parts in their own colour, apart from buildings", () => {
+		const colour = (
+			presentation: "edit" | "view",
+			layer: string,
+			property: string,
+			properties: Record<string, string>,
+		) => {
+			const value = paint(indoorLayers(0, { presentation }), layer)[property];
+			const parsed = expression.createExpression(value, "colour");
+			if (parsed.result !== "success") throw new Error("bad expression");
+			return String(
+				parsed.value.evaluate({ zoom: 19 }, { type: 3, properties }),
+			);
+		};
+		const building = { "@kind": "building", "@building": "yes" };
+		const part = { "@kind": "building", "@part": "yes" };
+		for (const [presentation, layer, property] of [
+			["edit", "indoor-outline", "line-color"],
+			["edit", "indoor-fill-band", "fill-color"],
+			["view", "indoor-fill", "fill-color"],
+		] as const) {
+			expect(
+				colour(presentation, layer, property, part),
+				`${presentation} ${layer}`,
+			).not.toBe(colour(presentation, layer, property, building));
+		}
+	});
+
 	it("fills areas with a band inside their outline unless asked otherwise (iD)", () => {
 		const shown = (fill: "wireframe" | "partial" | "full") => {
 			const layers = indoorLayers(0, { fill });

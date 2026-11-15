@@ -230,3 +230,48 @@ describe("straightening an outline", () => {
 		expect(offered(context(["r1"], { graph: g }))).not.toContain("straighten");
 	});
 });
+
+describe("OPERATIONS and the locked outline (B.4)", () => {
+	/** The outline locked: n1 and n2, the side w1 shares with it. */
+	const locksNodes = (nodes: Iterable<string>) =>
+		[...nodes].some((n) => n === "n1" || n === "n2");
+
+	it("refuses what would move a node of the locked outline", () => {
+		const c = context(["w1"], { locksNodes });
+		for (const id of [
+			"square",
+			"move",
+			"rotate",
+			"scale",
+			"side",
+			"square-frame",
+			"straighten",
+			"symmetric",
+		] as const) {
+			expect(operation(id).disabled(c), id).toEqual(msg("outline_locked"));
+		}
+	});
+
+	it("still runs on what keeps clear of it", () => {
+		const c = context(["w2"], {
+			locksNodes: (nodes) => [...nodes].includes("n1"),
+		});
+		expect(operation("move").disabled(c)).toBeNull();
+		expect(operation("scale").disabled(c)).toBeNull();
+	});
+
+	it("deletes a room on the outline, but not a node of the outline", () => {
+		expect(
+			operation("delete").disabled(context(["w1"], { locksNodes })),
+		).toBeNull();
+		expect(
+			operation("delete").disabled(context(["n1"], { locksNodes })),
+		).toEqual(msg("outline_locked"));
+	});
+
+	it("copies, disconnects and offsets as before", () => {
+		const c = context(["w1"], { locksNodes });
+		expect(operation("copy").disabled(c)).toBeNull();
+		expect(operation("offset").disabled(c)).toBeNull();
+	});
+});

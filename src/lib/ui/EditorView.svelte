@@ -691,6 +691,8 @@
 			frameAngle: selectionFrameAngle(),
 			// Read with the camera: the toolbar follows the map's moves.
 			view: camera && extentOfView(map),
+			// The locked outline doesn't move with a room on it (B.4).
+			locksNodes: (nodes) => editor.scope.movesOutline(nodes),
 		};
 	}
 
@@ -1175,6 +1177,8 @@
 							onvariant: (variant) => (measureVariant = variant),
 							onguide: guidePlaced,
 							onexit: () => (drawing = null),
+							// Directions along or square to the guides shown (C.5).
+							guides: () => (offered.guides ? construction.on(level) : []),
 							precision: {
 								frameAt,
 								step: () => precision.step,
@@ -1357,13 +1361,17 @@
 		);
 		const reach = lines?.length ? LINE_PIXELS : undefined;
 		const area = areaAround(at.point, unprojectPoint, reach);
+		const shown = shownForSnapping();
 		const segments =
 			points || snaps("midpoints") || lines?.length
 				? editor.features
 						.segmentsNear(area, level)
 						.filter(
 							(s) =>
-								!exclude.has(s.a.id) && !exclude.has(s.b.id) && keepSide(s),
+								!exclude.has(s.a.id) &&
+								!exclude.has(s.b.id) &&
+								keepSide(s) &&
+								shown.way(s.way),
 						)
 				: [];
 		return snapAt(
@@ -1372,7 +1380,7 @@
 				nodes: points
 					? editor.features
 							.nodesNear(area, level)
-							.filter((n) => !exclude.has(n.id))
+							.filter((n) => !exclude.has(n.id) && shown.node(n.id))
 					: [],
 				// Sides for lines to cross even when points don't snap.
 				segments: points ? segments : [],
@@ -1391,6 +1399,27 @@
 			undefined,
 			at.lngLat,
 		);
+	}
+
+	/**
+	 * What can be snapped to: everything drawn, except, inside a building with its surroundings
+	 * hidden (B.2), what is outside it; its outline stays a snap target.
+	 */
+	function shownForSnapping(): {
+		way: (id: WayId) => boolean;
+		node: (id: NodeId) => boolean;
+	} {
+		if (!editor.scope.active || editor.scope.surroundings) {
+			return { way: () => true, node: () => true };
+		}
+		const way = (id: WayId) =>
+			editor.inside.has(id) || editor.scope.isOutline(id);
+		return {
+			way,
+			node: (id) =>
+				editor.inside.has(id) ||
+				editor.graph.parentWays(id).some((w) => way(w.id)),
+		};
 	}
 
 	/** The side under the pointer, for aligning the frame to it. */
@@ -1710,6 +1739,17 @@
 	</Tooltip.Root>
 {/snippet}
 
+<!-- A note under the toolbar's tools: what a tool asks for, why an operation was refused. -->
+{#snippet statusNote(testid: string, text: string)}
+	<p
+		role="status"
+		data-testid={testid}
+		class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+	>
+		{text}
+	</p>
+{/snippet}
+
 {#snippet guidesPane(close: () => void)}
 	<GuidesPane
 		guides={construction}
@@ -1985,59 +2025,35 @@
 	{/if}
 
 	{#if transformTool}
-		<p
-			role="status"
-			data-testid="transform-hint"
-			class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
-		>
-			{t(TRANSFORM_HINTS[transformTool])}
-		</p>
+		{@render statusNote("transform-hint", t(TRANSFORM_HINTS[transformTool]))}
 	{:else if framePick}
-		<p
-			role="status"
-			data-testid="frame-hint"
-			class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
-		>
-			{t(
+		{@render statusNote(
+			"frame-hint",
+			t(
 				framePick === "align"
 					? msg("frame_pick_align")
 					: msg("frame_pick_origin"),
-			)}
-		</p>
+			),
+		)}
 	{:else if drawing && !dragHint && !operationNote}
-		<p
-			role="status"
-			data-testid="draw-hint"
-			class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
-		>
-			{t(
+		{@render statusNote(
+			"draw-hint",
+			t(
 				drawing === "rectangle" && rectangleVariant === "side"
 					? msg("draw_rectangle_side_hint")
 					: drawing === "measure" && measureVariant === "guide"
 						? msg("guide_hint")
 						: DRAW_HINTS[drawing],
-			)}
-		</p>
+			),
+		)}
 	{/if}
 
 	{#if operationNote && !dragHint}
-		<p
-			role="status"
-			data-testid="operation-note"
-			class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
-		>
-			{t(operationNote)}
-		</p>
+		{@render statusNote("operation-note", t(operationNote))}
 	{/if}
 
 	{#if dragHint}
-		<p
-			role="status"
-			data-testid="drag-hint"
-			class="absolute bottom-20 left-1/2 z-10 -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
-		>
-			{t(dragHint)}
-		</p>
+		{@render statusNote("drag-hint", t(dragHint))}
 	{/if}
 
 	{#if saving}

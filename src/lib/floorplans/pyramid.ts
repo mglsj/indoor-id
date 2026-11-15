@@ -16,11 +16,11 @@ export const MAX_IMAGE_SIZE = 8192;
  * Largest image decoded, in pixels (400 MB once decoded): its size is read from the header
  * first, as a file of a few KB can say 40,000 × 40,000.
  */
-export const MAX_DECODED_PIXELS = 100_000_000;
+const MAX_DECODED_PIXELS = 100_000_000;
 /** The pyramid stops once a level fits in this many pixels. */
 const SMALLEST_LEVEL = 256;
 /** Longest side of a plan's thumbnail, in pixels. */
-export const THUMBNAIL_SIZE = 128;
+const THUMBNAIL_SIZE = 128;
 
 export type EncodeTile = (bitmap: ImageBitmap) => Promise<Blob>;
 

@@ -42,7 +42,7 @@ const MAX_USE_DEPTH = 8;
  * How much drawing an SVG may expand to (elements drawn, counting each `<use>` copy, plus path
  * commands): a small file can refer to the same group thousands of times over.
  */
-export const SVG_BUDGET = 2_000_000;
+const SVG_BUDGET = 2_000_000;
 /** The size browsers give an SVG without one. */
 const DEFAULT_SIZE = { width: 300, height: 150 };
 

@@ -75,8 +75,12 @@ export type SnapTarget =
 	| { readonly kind: "plan"; readonly loc: Loc }
 	/** A crossing of the grid (C.3). */
 	| { readonly kind: "grid"; readonly loc: Loc }
-	/** A point on a construction guide (C.5). */
-	| { readonly kind: "guide"; readonly loc: Loc }
+	/** A point on a construction guide (C.5), and the guide, to place another from it. */
+	| {
+			readonly kind: "guide";
+			readonly loc: Loc;
+			readonly line: DirectionLine;
+	  }
 	/** On a direction line, nothing else there. */
 	| {
 			readonly kind: "angle";
@@ -291,7 +295,7 @@ function pointCandidates(
 		const d = screenDistance(foot);
 		if (d < distance) {
 			scored.push({
-				target: { kind: "guide", loc: foot },
+				target: { kind: "guide", loc: foot, line: guide },
 				score: d + PRIORITY.segment * PRIORITY_STEP,
 			});
 		}

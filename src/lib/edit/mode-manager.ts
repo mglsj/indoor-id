@@ -3,8 +3,10 @@
  * hover (the cursor), or a drag the mode takes from a press. Pointer events: a mouse, a finger
  * or a pen, one pointer at a time (a second finger is the map's). A drag starts once the
  * pointer has moved 3 px, moves at most once per frame, ends on release (even off the map, the
- * pointer being captured) and swallows the click that follows; Escape cancels it. The only
- * listener on the map's pointer events.
+ * pointer being captured) and swallows the click that follows; Escape cancels it. A press of
+ * the middle button pans the map in every mode, the mode seeing none of it (MapLibre pans with
+ * the primary button only, which drawing tools take). The only listener on the map's pointer
+ * events.
  */
 import type { Map as MapLibreMap, MapMouseEvent } from "#lib/map/maplibre.ts";
 import type { Drag, MapGestures, MapPoint, Mode } from "./mode.ts";
@@ -47,6 +49,9 @@ export class ModeManager {
 	readonly #onpointer?: (point: { x: number; y: number } | null) => void;
 	#mode: Mode = IDLE;
 	#press: Press | null = null;
+	/** A pan with the middle button: the pointer and where it last was. */
+	#pan: { readonly pointerId: number; last: { x: number; y: number } } | null =
+		null;
 	/** The click following a drag's release is the release itself. */
 	#swallowClick = false;
 
@@ -61,6 +66,7 @@ export class ModeManager {
 		map.on("dblclick", this.#onDoubleClick);
 		const target = this.#target;
 		target.addEventListener("pointerdown", this.#onDown);
+		target.addEventListener("mousedown", this.#onMouseDown);
 		target.addEventListener("pointermove", this.#onMove);
 		target.addEventListener("pointerup", this.#onUp);
 		target.addEventListener("pointercancel", this.#onCancel);
@@ -76,6 +82,7 @@ export class ModeManager {
 	/** Leaves the mode in force for `mode` (a drag still going is cancelled). */
 	setMode(mode: Mode): void {
 		this.#cancelDrag();
+		this.#endPan();
 		this.#mode.exit?.();
 		this.#mode = mode;
 		this.#applyGestures(mode.gestures ?? {});
@@ -104,6 +111,7 @@ export class ModeManager {
 		this.#map.off("dblclick", this.#onDoubleClick);
 		const target = this.#target;
 		target.removeEventListener("pointerdown", this.#onDown);
+		target.removeEventListener("mousedown", this.#onMouseDown);
 		target.removeEventListener("pointermove", this.#onMove);
 		target.removeEventListener("pointerup", this.#onUp);
 		target.removeEventListener("pointercancel", this.#onCancel);
@@ -125,7 +133,16 @@ export class ModeManager {
 		if (this.#mode.doubleClick?.(clickPoint(event))) event.preventDefault();
 	};
 
+	/** No autoscroll (Windows) on a middle press: it pans the map. */
+	readonly #onMouseDown = (event: MouseEvent) => {
+		if (event.button === 1) event.preventDefault();
+	};
+
 	readonly #onDown = (event: PointerEvent) => {
+		if (event.button === 1 && event.pointerType === "mouse") {
+			this.#startPan(event);
+			return;
+		}
 		// One pointer at a time; the primary button only (a pen's tip, a finger).
 		if (this.#press || !event.isPrimary || event.button !== 0) return;
 		this.#swallowClick = false;
@@ -150,7 +167,39 @@ export class ModeManager {
 		};
 	};
 
+	#startPan(event: PointerEvent): void {
+		event.preventDefault();
+		if (this.#press || this.#pan) return;
+		const { point } = this.#toPoint(event);
+		this.#pan = { pointerId: event.pointerId, last: point };
+		this.#target.setPointerCapture?.(event.pointerId);
+		this.#map.getCanvas().style.cursor = "grabbing";
+	}
+
+	/** Moves the map with a middle-button pan; true when the event was the pan's. */
+	#movePan(event: PointerEvent): boolean {
+		const pan = this.#pan;
+		if (!pan || event.pointerId !== pan.pointerId) return false;
+		const { point } = this.#toPoint(event);
+		const dx = pan.last.x - point.x;
+		const dy = pan.last.y - point.y;
+		pan.last = point;
+		if (dx !== 0 || dy !== 0) this.#map.panBy([dx, dy], { duration: 0 });
+		return true;
+	}
+
+	#endPan(): void {
+		const pan = this.#pan;
+		if (!pan) return;
+		this.#pan = null;
+		if (this.#target.hasPointerCapture?.(pan.pointerId)) {
+			this.#target.releasePointerCapture(pan.pointerId);
+		}
+		this.#map.getCanvas().style.cursor = "";
+	}
+
 	readonly #onMove = (event: PointerEvent) => {
+		if (this.#movePan(event)) return;
 		if (event.pointerType !== "touch")
 			this.#onpointer?.(this.#toPoint(event).point);
 		const press = this.#press;
@@ -185,6 +234,10 @@ export class ModeManager {
 	};
 
 	readonly #onUp = (event: PointerEvent) => {
+		if (this.#pan?.pointerId === event.pointerId) {
+			this.#endPan();
+			return;
+		}
 		const press = this.#press;
 		if (!press || event.pointerId !== press.pointerId) return;
 		// Off the map (the window's listener), the last position on it.
@@ -195,6 +248,7 @@ export class ModeManager {
 
 	/** The browser took the pointer (a scroll, a system gesture): nothing should change. */
 	readonly #onCancel = (event: PointerEvent) => {
+		if (this.#pan?.pointerId === event.pointerId) this.#endPan();
 		if (this.#press?.pointerId === event.pointerId) this.#cancelDrag();
 	};
 
@@ -212,6 +266,8 @@ export class ModeManager {
 	}
 
 	readonly #onLeave = (event: PointerEvent) => {
+		// The pointer is captured while panning: it comes back.
+		if (this.#pan) return;
 		if (!this.#press) this.#onpointer?.(null);
 		if (this.#press || event.pointerType === "touch") return;
 		// What the pointer hovered may change before it comes back (a plan locked with Done).

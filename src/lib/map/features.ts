@@ -158,7 +158,8 @@ const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6378137;
 
 /**
  * Properties the style uses: `@kind`, and when relevant `@icon`, `@label`, `@restricted`,
- * `@building` for the building outlines floor plans are placed against, `@arrow` for lines
+ * `@building` for the building outlines floor plans are placed against, `@part` for building
+ * parts (drawn as buildings, in a colour of their own), `@arrow` for lines
  * with a direction (P5.3.8), `@door-r17`, a door's half width in pixels at zoom 17, and
  * `@rail-r17`, half a railway track's gauge in pixels at zoom 17 (its rails, V.3).
  */
@@ -177,6 +178,9 @@ function drawingProperties(
 	if (label) props["@label"] = label;
 	if (isRestricted(tags)) props["@restricted"] = "yes";
 	if (isBuildingOutline(tags, type)) props["@building"] = "yes";
+	else if (kind === "building" && tags["building:part"] !== undefined) {
+		props["@part"] = "yes";
+	}
 	if (type === "LineString") {
 		const arrow = arrowOf(tags);
 		if (arrow) props["@arrow"] = arrow;

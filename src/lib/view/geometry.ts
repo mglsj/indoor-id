@@ -12,7 +12,7 @@ export function levelsOf(lv: string): number[] | null {
 }
 
 /** Every position of a geometry. */
-export function* positions(geometry: Geometry): Generator<Position> {
+function* positions(geometry: Geometry): Generator<Position> {
 	switch (geometry.type) {
 		case "Point":
 			yield geometry.coordinates;

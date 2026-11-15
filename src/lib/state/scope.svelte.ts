@@ -6,9 +6,9 @@
 import { inScope, isMapFeature, type Scope, scopeOf } from "#lib/edit/scope.ts";
 import type { IndoorFeature } from "#lib/map/features.ts";
 import type { EntityId, NodeId, RelationId, WayId } from "#lib/osm/entity.ts";
-import { extentOf } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import { Outlines } from "#lib/validation/outlines.ts";
+import { extentOfGeometry } from "#lib/view/geometry.ts";
 
 export type ScopeId = WayId | RelationId;
 
@@ -114,7 +114,7 @@ export class BuildingScope {
 					: isMapFeature(properties)
 			)
 				continue;
-			const extent = extentOf(coordinates(feature.geometry));
+			const extent = extentOfGeometry(feature.geometry);
 			if (!extent) continue;
 			const middle: [number, number] = [
 				(extent.west + extent.east) / 2,
@@ -162,23 +162,5 @@ export class BuildingScope {
 	contains(id: EntityId): boolean {
 		const scope = this.current;
 		return scope ? inScope(this.#graph(), scope, id) : false;
-	}
-}
-
-/** Every position of a GeoJSON geometry. */
-function coordinates(geometry: IndoorFeature["geometry"]): [number, number][] {
-	switch (geometry.type) {
-		case "Point":
-			return [geometry.coordinates as [number, number]];
-		case "LineString":
-		case "MultiPoint":
-			return geometry.coordinates as [number, number][];
-		case "Polygon":
-		case "MultiLineString":
-			return geometry.coordinates.flat() as [number, number][];
-		case "MultiPolygon":
-			return geometry.coordinates.flat(2) as [number, number][];
-		default:
-			return [];
 	}
 }

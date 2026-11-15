@@ -269,6 +269,22 @@ describe("buildFeatures", () => {
 		expect(props("w2")).not.toHaveProperty("@building");
 	});
 
+	it("marks building parts, drawn as buildings in a colour of their own", () => {
+		const graph = Graph.fromEntities([
+			...square(1, 0, 0),
+			way("w1", ring(1), { building: "yes" }),
+			...square(2, 5, 5),
+			way("w2", ring(2), { "building:part": "yes" }),
+		]);
+		const props = (id: string) =>
+			buildFeatures(graph).collection.features.find(
+				(f) => f.properties["@id"] === id,
+			)?.properties;
+
+		expect(props("w2")).toMatchObject({ "@kind": "building", "@part": "yes" });
+		expect(props("w1")).not.toHaveProperty("@part");
+	});
+
 	it("skips ways whose nodes were not downloaded", () => {
 		const entities = [
 			node("n1"),

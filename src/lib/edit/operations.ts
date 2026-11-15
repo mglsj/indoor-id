@@ -28,6 +28,7 @@ import { type Message, msg } from "#lib/i18n/messages.ts";
 import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
 import type { Extent } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
+import { nodesOf } from "./feature-drag.ts";
 import type { TransformTool } from "./modes/transform.ts";
 import { tooLargeToEdit } from "./visibility.ts";
 
@@ -44,6 +45,11 @@ export interface OperationContext {
 	readonly frameAngle?: number;
 	/** The map in view: operations that change the selection's shape or place need it seen. */
 	readonly view?: Extent;
+	/**
+	 * Whether moving these nodes would move the building outline locked in building mode (B.4):
+	 * what moves or reshapes them is refused, as a drag is. Nothing is locked when unset.
+	 */
+	readonly locksNodes?: (nodes: Iterable<NodeId>) => boolean;
 }
 
 export type OperationResult =
@@ -439,24 +445,58 @@ function inView(operation: Operation): Operation {
 	};
 }
 
+/**
+ * The operation, refused while it would move the locked building outline (B.4): `nodes` are the
+ * nodes it moves or removes (by default every node of the selection).
+ */
+function keepsOutline(
+	operation: Operation,
+	nodes: (context: OperationContext) => Iterable<NodeId> = ({
+		graph,
+		selected,
+	}) => nodesOf(graph, selected),
+): Operation {
+	return {
+		...operation,
+		disabled: (context) =>
+			context.locksNodes?.(nodes(context))
+				? msg("outline_locked")
+				: operation.disabled(context),
+	};
+}
+
+/** Deleting removes the selected nodes from the ways they are on; a way's own nodes stay used. */
+const selectedNodes = ({ selected }: OperationContext) =>
+	selected.filter((id): id is NodeId => id.startsWith("n"));
+
 /** In the toolbar's order. */
 export const OPERATIONS: readonly Operation[] = [
 	copyOperation,
 	pasteOperation,
 	inView(disconnectOperation),
-	inView(squareOperation),
+	keepsOutline(inView(squareOperation)),
 	mergeOperation,
 	multipolygonOperation,
 	repeatOperation,
-	inView(toolOperation("move", msg("operation_move"), "Shift+M", anything)),
-	inView(toolOperation("rotate", msg("operation_rotate"), "Shift+R", anything)),
-	inView(toolOperation("scale", msg("operation_scale"), "Shift+S", anything)),
-	inView(
-		toolOperation(
-			"side",
-			msg("operation_move_side"),
-			"E",
-			(graph, selected) => singleWay(graph, selected) !== null,
+	keepsOutline(
+		inView(toolOperation("move", msg("operation_move"), "Shift+M", anything)),
+	),
+	keepsOutline(
+		inView(
+			toolOperation("rotate", msg("operation_rotate"), "Shift+R", anything),
+		),
+	),
+	keepsOutline(
+		inView(toolOperation("scale", msg("operation_scale"), "Shift+S", anything)),
+	),
+	keepsOutline(
+		inView(
+			toolOperation(
+				"side",
+				msg("operation_move_side"),
+				"E",
+				(graph, selected) => singleWay(graph, selected) !== null,
+			),
 		),
 	),
 	inView(
@@ -467,8 +507,8 @@ export const OPERATIONS: readonly Operation[] = [
 			(graph, selected) => singleWay(graph, selected) !== null,
 		),
 	),
-	inView(squareFrameOperation),
-	inView(straightenOperation),
-	inView(symmetricOperation),
-	inView(deleteOperation),
+	keepsOutline(inView(squareFrameOperation)),
+	keepsOutline(inView(straightenOperation)),
+	keepsOutline(inView(symmetricOperation)),
+	keepsOutline(inView(deleteOperation), selectedNodes),
 ];

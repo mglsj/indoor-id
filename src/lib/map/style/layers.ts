@@ -127,13 +127,16 @@ export function selectableLayers(fill: AreaFill): string[] {
 	return fill === "partial" ? [FILL_BAND_LAYER, ...layers] : layers;
 }
 
+/** A `building:part` (`@part`), drawn as a building in a colour of its own. */
+const isPart: ExpressionSpecification = ["==", ["get", "@part"], "yes"];
+
 /** An area's paint in the editor's colours, by kind. */
 function byKind(E: EditColors, part: keyof AreaPaint): ExpressionSpecification {
 	return [
 		"match",
 		kind,
 		"building",
-		E.building[part],
+		["case", isPart, E.buildingPart[part], E.building[part]],
 		"space",
 		E.space[part],
 		"room",
@@ -319,7 +322,7 @@ export function indoorLayers(
 							"match",
 							kind,
 							"building",
-							C.building,
+							["case", isPart, C.buildingPart, C.building],
 							"space",
 							C.space,
 							"room",

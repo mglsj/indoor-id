@@ -5,6 +5,8 @@
  */
 export const INDOOR_COLORS = {
 	building: "#ffffff",
+	/** A `building:part`: warmer than the building around it. */
+	buildingPart: "#f3eee2",
 	area: "#e6e6e6",
 	space: "#eeeeee",
 	room: "#d6d1c7",
@@ -66,6 +68,8 @@ export interface AreaPaint {
 /** The editor's colours, after iD's stylesheet (`css/25_areas.css`, `30_highways.css`…). */
 export interface EditColors {
 	readonly building: AreaPaint;
+	/** `building:part`: blue, so parts stand apart from iD's red buildings around them. */
+	readonly buildingPart: AreaPaint;
 	readonly room: AreaPaint;
 	readonly restricted: AreaPaint;
 	readonly space: AreaPaint;
@@ -90,6 +94,10 @@ export interface EditColors {
  */
 export const EDIT_COLORS: EditColors = {
 	building: { stroke: "rgb(205, 85, 70)", fill: "rgba(224, 110, 95, 0.3)" },
+	buildingPart: {
+		stroke: "rgb(70, 110, 190)",
+		fill: "rgba(90, 135, 215, 0.3)",
+	},
 	room: { stroke: "rgb(125, 125, 125)", fill: "rgba(120, 120, 120, 0.22)" },
 	restricted: {
 		stroke: "rgb(110, 110, 110)",
