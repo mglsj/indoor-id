@@ -56,9 +56,10 @@ export interface StoredFeatures {
 	segmentsNear(extent: Extent, level: number): Segment[];
 	/**
 	 * The levels of the features inside `extent`, named, for the level switcher; none when no
-	 * feature there is on a level.
+	 * feature there is on a level. `floors` adds levels the features don't list (the floors of
+	 * the building entered, `scopeFloors`).
 	 */
-	levelsIn(extent: Extent): LevelEntry[];
+	levelsIn(extent: Extent, floors?: Levels | null): LevelEntry[];
 }
 
 /** A side of a drawn way, between two nodes that follow each other in it. */
@@ -169,8 +170,8 @@ export class FeatureStore {
 				}
 				return [...found.values()];
 			},
-			levelsIn(extent) {
-				return levelsOf(levelIndex.search(extent), extent);
+			levelsIn(extent, floors = null) {
+				return levelsOf(levelIndex.search(extent), extent, floors);
 			},
 			byId: features,
 			levels: this.#levels,
@@ -360,9 +361,13 @@ function levelItemOf(draft: FeatureDraft): LevelItem | null {
  * The switcher's levels from the items in `extent`. Names of the features nearest its centre
  * win; an `indoor=level` outline's over a building's.
  */
-function levelsOf(items: LevelItem[], extent: Extent): LevelEntry[] {
+function levelsOf(
+	items: LevelItem[],
+	extent: Extent,
+	floors: Levels | null,
+): LevelEntry[] {
 	const levelled = items.filter((i) => i.levels);
-	if (levelled.length === 0) return [];
+	if (levelled.length === 0 && !floors) return [];
 	const x = (extent.west + extent.east) / 2;
 	const y = (extent.south + extent.north) / 2;
 	const distance = (i: LevelItem) =>
@@ -387,7 +392,7 @@ function levelsOf(items: LevelItem[], extent: Extent): LevelEntry[] {
 		}
 	}
 	return levelList({
-		levels: knownLevels(levelled.map((i) => i.levels)),
+		levels: knownLevels([...levelled.map((i) => i.levels), floors]),
 		explicit: new Set(levelled.flatMap((i) => i.explicit)),
 		names,
 		nonExistent: items.flatMap((i) => (i.nonExistent ? [i.nonExistent] : [])),

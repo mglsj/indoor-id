@@ -5,6 +5,9 @@
  * where they are and their `level` (Simple Indoor Tagging; the osm-simple3d-editor forum
  * thread, t/148767). Pure.
  */
+
+import { featureLevels, unionOfLevels } from "#lib/levels/feature-levels.ts";
+import type { Levels } from "#lib/levels/levels.ts";
 import {
 	type Entity,
 	type EntityId,
@@ -235,6 +238,34 @@ export function scopeFor(graph: Graph, id: EntityId): Scope | null {
 		if (scope && inScope(graph, scope, id)) return scope;
 	}
 	return null;
+}
+
+const isPart = (tags: Tags) =>
+	tags["building:part"] !== undefined && tags["building:part"] !== "no";
+
+/**
+ * The floors of the building entered: the levels its outline and the building parts among
+ * `members` say it has (`building:levels`, `min_level`/`max_level`), so that the level
+ * switcher offers every floor, mapped or not. Map mode leaves `building:levels` out of the
+ * switcher (a building may count 25 floors with no room mapped); once inside, those floors
+ * are where the work is. Null for a level outline, or when nothing says.
+ */
+export function scopeFloors(
+	graph: Graph,
+	scope: Scope,
+	members: Iterable<EntityId> = [],
+): Levels | null {
+	if (scope.kind !== "building") return null;
+	const all: (Levels | null)[] = [];
+	const own = graph.entity(scope.id);
+	if (own) all.push(featureLevels(own.tags));
+	for (const id of members) {
+		if (id === scope.id) continue;
+		const entity = graph.entity(id);
+		if (entity && entity.type !== "node" && isPart(entity.tags))
+			all.push(featureLevels(entity.tags));
+	}
+	return unionOfLevels(all);
 }
 
 /**

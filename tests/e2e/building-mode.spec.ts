@@ -280,3 +280,29 @@ test("inside, the outline is locked: a corner it shares with a room stays until 
 	await dragCorner();
 	await expect(page.getByTestId("edit-count")).toHaveText("1");
 });
+
+test("inside, the level switcher offers every floor building:levels counts, mapped or not", async ({
+	page,
+}) => {
+	// Only level 0 has a room; the building counts three floors.
+	const elements = buildingWithRoom().map((e) =>
+		e.type === "way" && e.id === 1
+			? { ...e, tags: { building: "yes", "building:levels": "3" } }
+			: e,
+	);
+	await serveOsm(page, elements);
+	await page.goto(`/#19/${LAT}/${LON}/0&building=w1`);
+	await camera(page);
+	await mapDrawn(page);
+	const levels = page.getByRole("group", { name: "Levels" });
+	await expect(levels.getByRole("radio")).toHaveText(["2", "1", "0"]);
+	await levels.getByRole("radio", { name: "2" }).click();
+	await expect(page.getByTestId("level")).toHaveAttribute("data-level", "2");
+	await expect(page.getByRole("button", { name: "Level 2" })).toBeVisible();
+
+	// Back on the map, which has no switcher, the ground floor shows again.
+	await page.getByRole("button", { name: "Done" }).click();
+	await expect(page.getByTestId("building-scope")).toBeHidden();
+	await expect(page.getByTestId("level")).toBeHidden();
+	await expect.poll(() => hash(page)).toMatch(/\/0$/);
+});

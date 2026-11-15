@@ -292,6 +292,28 @@ describe("FeatureStore: the levels in view", () => {
 		expect(levels(graph)).toEqual([]);
 	});
 
+	it("adds the floors given (a building entered) to the levels in view", () => {
+		// Himalaya D Block (w1578309122): 7 floors, points mapped on levels 4 and 6 only.
+		const graph = Graph.fromEntities([
+			...square(1, 0, 0),
+			way("w1", ring(1), { building: "yes", "building:levels": "7" }),
+			node("n9", { office: "research", level: "4" }, [0.5, 0.5]),
+			node("n10", { amenity: "university", level: "6" }, [0.5, 0.6]),
+		]);
+		const store = new FeatureStore().update(graph);
+		expect(store.levelsIn(everywhere).map((e) => e.level)).toEqual([4, 5, 6]);
+		expect(
+			store.levelsIn(everywhere, [{ min: 0, max: 6 }]).map((e) => e.level),
+		).toEqual([0, 1, 2, 3, 4, 5, 6]);
+		// A building with nothing mapped in it still lists its floors.
+		expect(
+			new FeatureStore()
+				.update(Graph.fromEntities([...square(1, 0, 0)]))
+				.levelsIn(everywhere, [{ min: 0, max: 2 }])
+				.map((e) => e.level),
+		).toEqual([0, 1, 2]);
+	});
+
 	it("names levels from indoor=level outlines, then building:levels:ref", () => {
 		const graph = Graph.fromEntities([
 			...square(1, 0, 0),
