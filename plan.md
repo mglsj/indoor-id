@@ -48,6 +48,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | B      | Building mode: map and building scopes     | Done         |
 | P5.4b  | Rebase before upload, conflicts            | Done         |
 | W2     | Wiki conformance, November research        | Done         |
+| W3     | Checks from the 2026-11-24 recheck         | Not started  |
 | P6     | Parity and polish                          | Not started  |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
@@ -712,6 +713,34 @@ differ") with the port of `stairs-pair.ts`. Not done on purpose: a check for fea
 different levels sharing a node (the plan allowed a hint at most; bridges and skybridges do it
 on purpose, and nothing in IndoorID writes such joins).
 
+### W3: Checks from the 2026-11-24 recheck — S–M
+
+Next. Added 2026-11-24 from research addendum C (forum t/148767 posts 170–215, t/149818,
+t/149433, osm-simple3d-editor `02c2bfd` → `a547bee`). Pure validation and upload checks, so it
+can run beside P6:
+
+- **Wall drawn twice** (osm-simple3d-editor `ea67cb1`): a linear `indoor=wall` way on the
+  outline of a wall area (`area=yes`, or a wall multipolygon) on the same levels; the fix
+  removes the linear wall's keys.
+- **Jitter vertices**: a vertex of an indoor outline standing off the straight line of its
+  neighbours by a few centimetres; the fix drops it (when no other way or tag needs it).
+- **A door on a side without being its node** (`fe416c4`): an entrance or `indoor=door` lying
+  on a side of a room, level or building outline but not one of its nodes; the fix puts it in
+  that side, as `almost-joined` does for corners.
+- **Map mode (B) building checks** (`0c7f032`, `3a65872`, forum #192–194): buildings whose
+  outlines overlap (at least 2 m² and 0.6 m thick, so shared walls drawn loosely don't count);
+  a building inside another (suggest `building:part`); a corner within 15 cm of another
+  building's wall without being joined.
+- **Pre-upload batch check** (`89b17a3`, a P5.4b follow-up): before a changeset is opened,
+  refuse an element twice, a way or relation referring to a deleted or never-created element,
+  a way with fewer than two nodes, or a node twice in a row, so a failure leaves no empty
+  changeset. Add a test that no untagged new way outside any relation is ever uploaded
+  (`43c1025`), and one for a node of a deleted way that a neighbour edited only in its tags
+  still uses (its issues #86, #87).
+- Not to copy: osm-simple3d-editor's `indoor-door` check that asks outdoor entrances for
+  `indoor=door` + `level=0` (mappers complained in #204: an entrance needs no indoor tags);
+  `wall=counter` (its own invention, not on the wiki); guessing level counts.
+
 ### P6: Parity and polish — M
 
 - Translations with Paraglide (one module per locale), starting from OsmInEdit's (en, fr, de,
@@ -730,6 +759,12 @@ on purpose, and nothing in IndoorID writes such joins).
   outlines; removing a way's last vertices deletes the way.
 - ~~Floor plan import: the permission note~~ moved to B (the import dialog moves into building
   mode there).
+- From the 2026-11-24 recheck: Repeat on levels defaults to one object (`level=0;1;2`) for
+  walls and columns, copies for rooms (osm-simple3d-editor `27d4a4d`); indoor fences
+  (`barrier=fence` with `level` or `indoor=yes`) drawn as railings, with turnstiles and gates
+  on them as openings (`094fc0a`); in the viewer, entrance labels from `ref` and `addr:flats`
+  (`a58c319`); which building indoor data belongs to by most of its vertices, not its centre
+  (`1d64ad6`: a platform touching a station isn't the station's).
 - "Cut out of the level outline" (osm-simple3d-editor `6e898c1`): a quick way to draw the
   atrium holes 3D.3 reads. Offset with its inner-ring mode (`76eadf2`) moved to C.6.
 - Release 0.1 alpha: an e2e checklist of the features it ships with, and an announcement as a
@@ -808,6 +843,10 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
      underground even when its ceiling is above ground; leave `building:part=steps` out of a
      basement's outline; `building:levels:underground` must be a whole number of 0 or more.
      Entrances with a `level` sit at that level's floor.
+   - Confirmed 2026-11-24 (t/149818, t/149433): renderer authors agree on 3 m per level when
+     nothing is tagged (OSM2World moves from 2.5 m), and the `height` of an indoor or rooftop
+     object is measured from the floor it stands on, not from the ground. Read `height` on
+     rooms, walls, doors and counters that way.
 
    Building shell for 3D.2: when `building:part`s cover the outline, the outline isn't drawn
    (Simple 3D Buildings; Zkir in t/148767 #155).
@@ -838,6 +877,7 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
 - 2026-11-12: all 3D (3D.1, 3D.2, 3D.3) moves to "Later: 3D". The near-term roadmap is 2D
   editing and viewing: P5.4b, W2, P6 and the 0.1 alpha release.
 - 2026-11-12: building mode (B) before P5.4b, W2 and P6, with the defaults in its section.
+- 2026-11-24: W3 takes in the checks from research addendum C (asked by the user).
 - 2026-11-11: before V, the plan takes in the forum recheck and osm-simple3d-editor's commits
   to `02c2bfd` (research addendum B), and the license notices are completed (LN below).
 
