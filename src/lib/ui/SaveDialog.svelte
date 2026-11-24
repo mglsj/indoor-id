@@ -167,10 +167,10 @@
 			case "both-edited": {
 				const keys = conflict.keys.join(", ");
 				if (keys && conflict.geometry)
-					return msg("conflict_both_edited_all", { keys });
+					return msg("conflict_both_edited_all", { keys, user });
 				return keys
-					? msg("conflict_both_edited_tags", { keys })
-					: msg("conflict_both_edited_geometry");
+					? msg("conflict_both_edited_tags", { keys, user })
+					: msg("conflict_both_edited_geometry", { user });
 			}
 		}
 	}

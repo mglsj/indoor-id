@@ -165,7 +165,7 @@ test("lists edits that clash with someone else's, and uploads the version kept",
 		name: "Someone else changed the same features",
 	});
 	await expect(conflicts).toContainText("(w100)");
-	await expect(conflicts).toContainText("You both changed ref.");
+	await expect(conflicts).toContainText("You and Ana both changed ref.");
 	await expect(dialog.getByRole("button", { name: "Upload" })).toBeDisabled();
 	expect(requests).toEqual([]);
 
