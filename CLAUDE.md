@@ -126,12 +126,15 @@ runs the same commands.
   `history.preview(action)` and ends with one `commit` (or `cancelPreview`): never `perform`
   on every move. Undo and redo are refused while a preview is shown (a drawing takes Mod+Z
   itself), and a level change calls `ModeManager.finish()`. Drawing: `edit/modes/draw.ts` (`drawWayMode` on `edit/draw-way.ts`,
-  `drawPointMode` on `edit/place-point.ts`: door, entrance or point from where it snaps).
+  `drawPointMode` on `edit/place-point.ts`: door, entrance, gate or point from where it snaps;
+  tracing along ways with `T`, `edit/trace.ts`). Issues for the toolbar are checked in idle
+  time (`state/idle-issues.svelte.ts`), not at each edit.
   Operations on the selection (P5.3.5): `edit/operations.ts` (`OPERATIONS`: `available`,
   `disabled` reason, `keys`, `run` giving an edit and what to select, run with `performEdit`)
   on `actions/copy.ts`, `disconnect.ts`, `orthogonalize.ts`, `merge-areas.ts`, `delete.ts`,
   `split-areas.ts` (with `edit/modes/split.ts`), `repeat-levels.ts` (`ui/RepeatDialog.svelte`),
-  `multipolygon.ts`; add a new one to that list, not as a button of its own. Several features
+  `multipolygon.ts`; add a new one to that list, not as a button of its own (the toolbar and
+  the right-click menu, `Mode.contextMenu`, both list it). Several features
   (P5.3.6): Shift+click and `edit/lasso.ts`, edited in `ui/MultiInspector.svelte`; a press on
   a selected feature moves the selection (`edit/feature-drag.ts`). Spatial checks (P5.3.9) are
   `validation/spatial.ts`; `BLOCKING_RULES` stop the upload; `Editor.editIssues` leaves out

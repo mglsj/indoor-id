@@ -49,6 +49,11 @@ export interface Mode {
 	 * map then doesn't zoom (B.2: a double-click on a building enters it).
 	 */
 	doubleClick?(at: MapPoint): boolean;
+	/**
+	 * A right-click (or a long press on a touch screen, as the browser's `contextmenu`): true
+	 * when the mode opened a menu of its own (P6: the operations on the selection).
+	 */
+	contextMenu?(at: MapPoint): boolean;
 	/** A press: a drag to take it (the map then stays still), or null to let the map pan. */
 	press?(at: MapPoint): Drag | null;
 	/** The pointer left the map. */

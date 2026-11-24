@@ -73,6 +73,14 @@ describe("PrecisionSettings", () => {
 		]);
 	});
 
+	it("keeps tracing (P6), off by default", () => {
+		const saved = storage();
+		const settings = new PrecisionSettings(saved);
+		expect(settings.tracing).toBe(false);
+		settings.toggleTracing();
+		expect(new PrecisionSettings(saved).tracing).toBe(true);
+	});
+
 	it("ignores what it can't read", () => {
 		const settings = new PrecisionSettings(
 			storage({

@@ -101,3 +101,41 @@ describe("WayDrawing: an area", () => {
 		});
 	});
 });
+
+describe("WayDrawing: tracing (P6)", () => {
+	/** n1 → n3 runs through n2; n2 → n1 is a neighbour. */
+	const trace = (from: string, to: string) =>
+		from === "n1" && to === "n3"
+			? (["n2"] as const)
+			: from === "n3" && to === "n1"
+				? (["n2"] as const)
+				: null;
+
+	it("puts in the nodes between two clicked nodes, and takes them back with the click", () => {
+		const g = graph();
+		const drawing = new WayDrawing(g, "line", 0);
+		drawing.click(g, [0, 0], onNode("n1"), trace);
+		drawing.click(g, [5, 5], onNode("n3"), trace);
+		expect(drawing.nodes).toEqual(["n1", "n2", "n3"]);
+		drawing.undoLast();
+		expect(drawing.nodes).toEqual(["n1"]);
+	});
+
+	it("traces back to the first corner when it closes an area", () => {
+		const g = graph();
+		const drawing = new WayDrawing(g, "area", 0);
+		drawing.click(g, [0, 0], onNode("n1"), trace);
+		drawing.click(g, [0, 3], null, trace);
+		drawing.click(g, [5, 5], onNode("n3"), trace);
+		expect(drawing.click(g, [0, 0], onNode("n1"), trace)).toBe("finish");
+		expect(drawing.nodes.slice(-2)).toEqual(["n3", "n2"]);
+	});
+
+	it("traces nothing from a new corner", () => {
+		const g = graph();
+		const drawing = new WayDrawing(g, "line", 0);
+		drawing.click(g, [9, 9], null, trace);
+		drawing.click(g, [5, 5], onNode("n3"), trace);
+		expect(drawing.nodes).toHaveLength(2);
+	});
+});

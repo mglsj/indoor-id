@@ -157,9 +157,14 @@ export async function mapDrawn(page: Page, atLeast = 1) {
 }
 
 /** Clicks the map `dx`, `dy` screen pixels from its centre. */
-export async function clickMap(page: Page, dx = 0, dy = 0) {
+export async function clickMap(
+	page: Page,
+	dx = 0,
+	dy = 0,
+	options: { button?: "left" | "right" } = {},
+) {
 	const { x, y } = await mapCenter(page);
-	await page.mouse.click(x + dx, y + dy);
+	await page.mouse.click(x + dx, y + dy, options);
 }
 
 /** Size of the world at zoom 19, in screen pixels (MapLibre tiles are 512 px). */

@@ -3,10 +3,12 @@ import { isClosed } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
 import { hasInterestingTags } from "#lib/osm/tags.ts";
+import { unwrapLoneOuter } from "./multipolygon.ts";
 
 /**
  * Deletes entities and cleans up after them, like iD:
- * - a deleted entity is removed from its relations; relations left empty are deleted;
+ * - a deleted entity is removed from its relations; relations left empty are deleted, and a
+ *   multipolygon left with one outer way and no hole becomes that way (`unwrapLoneOuter`);
  * - a deleted node is removed from its ways; lines left with one node and areas left with
  *   fewer than three corners are deleted;
  * - a deleted way takes its nodes with it, unless they are tagged (POIs, doors), used by
@@ -72,7 +74,7 @@ function removeMember(
 	const members = relation.members.filter((m) => m.ref !== memberId);
 	return members.length === 0
 		? deleteEntity(graph, relation.id)
-		: graph.replace({ ...relation, members });
+		: unwrapLoneOuter(graph.replace({ ...relation, members }), relation.id);
 }
 
 function removeNodeFromWay(

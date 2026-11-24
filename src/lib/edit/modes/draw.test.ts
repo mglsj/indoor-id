@@ -56,6 +56,35 @@ function setup(snapTo: (p: MapPoint) => SnapTarget | null = () => null) {
 	return { history, finished, options };
 }
 
+describe("drawWayMode: tracing (P6)", () => {
+	it("follows the room's outline between two of its corners once T turns tracing on", () => {
+		const onNode = (p: MapPoint): SnapTarget | null =>
+			p.lngLat[0] === 0 && p.lngLat[1] === 0
+				? { kind: "node", id: "n1", loc: [0, 0] }
+				: p.lngLat[0] === 2 && p.lngLat[1] === 2
+					? { kind: "node", id: "n3", loc: [2, 2] }
+					: null;
+		const { history, options } = setup(onNode);
+		let on = false;
+		const mode = drawWayMode("line", {
+			...options,
+			tracing: {
+				on: () => on,
+				toggle: () => (on = !on),
+				path: (from, to) => (from === "n1" && to === "n3" ? ["n2"] : null),
+			},
+		});
+		expect(mode.key?.(key("t"))).toBe(true);
+		mode.click?.(at(0, 0));
+		mode.click?.(at(2, 2));
+		mode.key?.(key("Enter"));
+		const drawn = [...history.graph.changes().created].find(
+			(e) => e.type === "way",
+		);
+		expect(drawn).toMatchObject({ nodes: ["n1", "n2", "n3"] });
+	});
+});
+
 describe("drawWayMode", () => {
 	it("draws a line click by click, finished with Enter in one undo step", () => {
 		const { history, finished, options } = setup();

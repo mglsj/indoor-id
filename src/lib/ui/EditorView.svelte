@@ -24,6 +24,7 @@
 	import SquareSquare from "@lucide/svelte/icons/square-square";
 	import SquaresSubtract from "@lucide/svelte/icons/squares-subtract";
 	import Trash from "@lucide/svelte/icons/trash";
+	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 	import Undo2 from "@lucide/svelte/icons/undo-2";
 	import Unlink from "@lucide/svelte/icons/unlink";
 	import Upload from "@lucide/svelte/icons/upload";
@@ -40,6 +41,7 @@
 	import { Badge } from "#lib/components/shadcn/badge/index.ts";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
+	import * as DropdownMenu from "#lib/components/shadcn/dropdown-menu/index.ts";
 	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
@@ -118,6 +120,7 @@
 		scopeOf,
 	} from "#lib/edit/scope.ts";
 	import { type DrawTool, toolsFor } from "#lib/edit/scope-tools.ts";
+	import { tracePath } from "#lib/edit/trace.ts";
 	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 	import { tooLargeToEdit } from "#lib/edit/visibility.ts";
 	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
@@ -130,6 +133,8 @@
 	} from "#lib/floorplans/georef.ts";
 	import { planDecoders } from "#lib/floorplans/import.ts";
 	import { type Message, msg, t } from "#lib/i18n/messages.ts";
+	import { featureLevels } from "#lib/levels/feature-levels.ts";
+	import { isOnLevel } from "#lib/levels/levels.ts";
 	import type { Imagery } from "#lib/map/backgrounds.ts";
 	import { ConstructionLayer } from "#lib/map/construction-layer.ts";
 	import { EditOverlay } from "#lib/map/edit-overlay.ts";
@@ -154,7 +159,7 @@
 		projectLoc as project_,
 		unprojectPoint as unproject_,
 	} from "#lib/map/view.ts";
-	import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
+	import type { EntityId, Loc, NodeId, Way, WayId } from "#lib/osm/entity.ts";
 	import { extentOf, extentsIntersect, fromLocal } from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
 	import { Autosave } from "#lib/persist/autosave.ts";
@@ -170,6 +175,7 @@
 	} from "#lib/state/floorplans.svelte.ts";
 	import { type BuildingFrame, Frames } from "#lib/state/frames.svelte.ts";
 	import { Guides } from "#lib/state/guides.svelte.ts";
+	import { IdleIssues } from "#lib/state/idle-issues.svelte.ts";
 	import {
 		INFERENCE_OPTIONS,
 		PrecisionSettings,
@@ -281,6 +287,18 @@
 		autosave.changed();
 	});
 	let saving = $state(false);
+
+	/** The issues of the edits, checked in idle time after each change (P6). */
+	const idleIssues = new IdleIssues();
+	$effect(() => {
+		// Each change of the graph schedules a check; a drawing's preview too.
+		void editor.graph;
+		untrack(() => idleIssues.schedule(() => editor.editIssues));
+		return () => idleIssues.stop();
+	});
+	const issueCount = $derived(
+		editor.history.editCount === 0 ? 0 : (idleIssues.issues?.length ?? 0),
+	);
 	// Plans saved in earlier visits come back once their images are decoded.
 	/**
 	 * Floor plan mode: the map only shows building outlines to place plans against, and OSM
@@ -617,6 +635,17 @@
 		if (id) editor.select(id);
 	}
 
+	/**
+	 * Whether tracing may follow a way on this level (P6): one drawn on it, or one with no
+	 * level of its own (a building's outline, a multipolygon's member).
+	 */
+	function tracesOn(way: Way, on: number): boolean {
+		const levels = featureLevels(way.tags, () =>
+			editor.graph.parentRelations(way.id).map((r) => r.tags),
+		);
+		return levels === null || isOnLevel(levels, on);
+	}
+
 	const DRAW_HINTS = {
 		point: msg("draw_point_hint"),
 		line: msg("draw_line_hint"),
@@ -746,6 +775,33 @@
 			);
 		} else performEdit(editor, result);
 	}
+
+	/** Where the right-click operations menu is open (P6), in map pixels; null when closed. */
+	let menuAt = $state.raw<{ x: number; y: number } | null>(null);
+
+	/** Opens the operations menu at a map point, once the selection there is set. */
+	function openMenu(point: { x: number; y: number }): boolean {
+		menuAt = point;
+		return true;
+	}
+
+	/** The menu's anchor: a point on the page where the right-click was. */
+	const menuAnchor = $derived.by(() => {
+		const at = menuAt;
+		const canvas = map?.getCanvas();
+		if (!at || !canvas) return null;
+		return {
+			getBoundingClientRect: () => {
+				const box = canvas.getBoundingClientRect();
+				return DOMRect.fromRect({
+					x: box.left + at.x,
+					y: box.top + at.y,
+					width: 0,
+					height: 0,
+				});
+			},
+		};
+	});
 
 	const OPERATION_ICONS: Record<Operation["id"], Component> = {
 		copy: Copy,
@@ -1090,6 +1146,9 @@
 								hover: (id) => editor.selection.setHover(id as EntityId | null),
 								draggable: (point) =>
 									grabAt(point) !== null || selectedAt(point),
+								isSelected: (id) =>
+									editor.selection.ids.includes(id as EntityId),
+								menu: (at) => openMenu(at.point),
 								vertexAt: (point) => {
 									const grab = overlay.grabAt(point);
 									return grab?.kind === "vertex" ? grab.id : null;
@@ -1139,6 +1198,14 @@
 									show: showFeedback,
 									inferences,
 									typed: offered.typed,
+								},
+								tracing: {
+									on: () => precision.tracing,
+									toggle: () => precision.toggleTracing(),
+									path: (from, to) =>
+										tracePath(editor.graph, from, to, (way) =>
+											tracesOn(way, level),
+										),
 								},
 							}),
 						);
@@ -1862,6 +1929,23 @@
 						>
 						<span class="sr-only">edits</span>
 					</Button>
+					{#if issueCount > 0}
+						<!-- Checked in idle time; the save dialog lists them (P6). -->
+						<Button
+							variant="outline"
+							aria-label={t(
+								issueCount === 1
+									? msg("issue_count_one")
+									: msg("issue_count", { count: issueCount }),
+							)}
+							data-testid="issue-count"
+							disabled={editor.history.previewing}
+							onclick={() => (saving = true)}
+						>
+							<TriangleAlert class="text-destructive" />
+							<span class="tabular-nums">{issueCount}</span>
+						</Button>
+					{/if}
 				</ButtonGroup.Root>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
@@ -2043,7 +2127,9 @@
 					? msg("draw_rectangle_side_hint")
 					: drawing === "measure" && measureVariant === "guide"
 						? msg("guide_hint")
-						: DRAW_HINTS[drawing],
+						: (drawing === "line" || drawing === "area") && precision.tracing
+							? msg("draw_tracing_hint", { hint: t(DRAW_HINTS[drawing]) })
+							: DRAW_HINTS[drawing],
 			),
 		)}
 	{/if}
@@ -2073,6 +2159,38 @@
 		onrestore={() => void autosave.restore()}
 		ondiscard={() => void autosave.discard()}
 	/>
+
+	<!-- The operations on the selection, at a right-click (P6). -->
+	<DropdownMenu.Root
+		open={menuAt !== null && operations.length > 0}
+		onOpenChange={(open) => {
+			if (!open) menuAt = null;
+		}}
+	>
+		<DropdownMenu.Content
+			customAnchor={menuAnchor}
+			side="bottom"
+			align="start"
+			class="w-56"
+			aria-label="Operations"
+		>
+			{#each operations as { operation, disabled } (operation.id)}
+				{@const Icon = OPERATION_ICONS[operation.id]}
+				<DropdownMenu.Item
+					aria-disabled={disabled !== null}
+					class={disabled ? "opacity-50" : ""}
+					title={disabled ? t(disabled) : undefined}
+					onSelect={() => runOperation(operation)}
+				>
+					<Icon />
+					{t(operation.label)}
+					<DropdownMenu.Shortcut>
+						{formatCombo(operation.keys[0] ?? "", mac)}
+					</DropdownMenu.Shortcut>
+				</DropdownMenu.Item>
+			{/each}
+		</DropdownMenu.Content>
+	</DropdownMenu.Root>
 
 	{#if repeating}
 		<RepeatDialog

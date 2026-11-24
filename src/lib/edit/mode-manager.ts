@@ -64,6 +64,7 @@ export class ModeManager {
 		this.#onpointer = options.onpointer;
 		map.on("click", this.#onClick);
 		map.on("dblclick", this.#onDoubleClick);
+		map.on("contextmenu", this.#onContextMenu);
 		const target = this.#target;
 		target.addEventListener("pointerdown", this.#onDown);
 		target.addEventListener("mousedown", this.#onMouseDown);
@@ -109,6 +110,7 @@ export class ModeManager {
 		this.setMode(IDLE);
 		this.#map.off("click", this.#onClick);
 		this.#map.off("dblclick", this.#onDoubleClick);
+		this.#map.off("contextmenu", this.#onContextMenu);
 		const target = this.#target;
 		target.removeEventListener("pointerdown", this.#onDown);
 		target.removeEventListener("mousedown", this.#onMouseDown);
@@ -131,6 +133,12 @@ export class ModeManager {
 		// The second click of a drag's release isn't a double-click on anything.
 		if (this.#press) return;
 		if (this.#mode.doubleClick?.(clickPoint(event))) event.preventDefault();
+	};
+
+	readonly #onContextMenu = (event: MapMouseEvent) => {
+		// Not at the end of a drag (MapLibre rotates the map with the right button).
+		if (this.#press?.dragging) return;
+		this.#mode.contextMenu?.(clickPoint(event));
 	};
 
 	/** No autoscroll (Windows) on a middle press: it pans the map. */

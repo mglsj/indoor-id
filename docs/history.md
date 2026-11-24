@@ -2003,6 +2003,35 @@ t/148767 #176, #198). Done ✅ 2026-11-24:
   corners strictly inside, then the smallest; buildings before level outlines. It scans the
   loaded ways once instead of once per corner.
 
+### P6.2: Editing left over from P5.3 — S–M — done
+
+Done ✅ 2026-11-24:
+
+- **Right-click menu**: `Mode.contextMenu`, handed MapLibre's `contextmenu` by `ModeManager`
+  (not at the end of a right-drag); browse mode selects the feature under the pointer unless
+  it is already selected (a vertex first) and opens the operations of the toolbar in a
+  `DropdownMenu` anchored at the click (`EditorView`, `openMenu`). On the empty map, no menu.
+- **Validation in idle time**: `state/idle-issues.svelte.ts` (`IdleIssues`) runs
+  `Editor.editIssues` in `requestIdleCallback` (1 s timeout; a 200 ms timer where there is
+  none) after each change of the graph, a newer change replacing a check still waiting; the
+  last issues stay shown until the next check. A button beside Save shows their count
+  ("1 issue in your edits") and opens the save dialog that lists them.
+- **A multipolygon left with one outer way** (osm-simple3d-editor does it before upload): done
+  at the edit instead, so the upload stays exactly what was edited. `unwrapLoneOuter` after
+  `deleteEntities` and `removeMembers`: a multipolygon left with one closed outer way and no
+  hole gives that way its tags (but `type`) and is deleted, unless the way has tags of its own,
+  belongs to another relation, or the relation is a member of one.
+- **Removing a way's last vertices deletes the way**: already so since P5.3 (`deleteEntities`:
+  a line left with one node, an area with fewer than three corners, goes with its untagged
+  nodes; a drawing stops once its last corner is taken back).
+- **Tracing along outlines** (osm-simple3d-editor's deferred "tracing along existing edges", as
+  QGIS): `T` while drawing a line or area (`PrecisionSettings.tracing`, saved, off by
+  default: a dividing wall from corner to corner of a room would otherwise run round it). A
+  click on a node after a corner on a node puts in the nodes between them along the ways on
+  the shown level or with no level (`edit/trace.ts`, `tracePath`: Dijkstra in metres, nodes
+  visited as reached, at most 5,000); closing an area on its first corner traces too.
+  Backspace takes the traced nodes back with the click.
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept

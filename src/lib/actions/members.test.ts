@@ -93,6 +93,34 @@ describe("removeMembers", () => {
 	});
 });
 
+describe("removeMembers: a multipolygon left with one outer way (P6)", () => {
+	it("becomes that way, tagged", () => {
+		const graph = Graph.fromEntities([
+			node("n1", {}, [0, 0]),
+			node("n2", {}, [4, 0]),
+			node("n3", {}, [4, 4]),
+			node("n5", {}, [1, 1]),
+			node("n6", {}, [2, 1]),
+			node("n7", {}, [2, 2]),
+			way("w1", ["n1", "n2", "n3", "n1"]),
+			way("w2", ["n5", "n6", "n7", "n5"]),
+			relation(
+				"r9",
+				[
+					{ ref: "w1", role: "outer" },
+					{ ref: "w2", role: "inner" },
+				],
+				{ type: "multipolygon", indoor: "area", level: "1" },
+			),
+		]);
+		const after = removeMembers("r9", [1])(graph);
+		expect(after.entity("r9")).toBeUndefined();
+		expect(after.entity("w1")?.tags).toEqual({ indoor: "area", level: "1" });
+		// The hole stays, untagged, as the user took it out without deleting it.
+		expect(after.entity("w2")).toBeDefined();
+	});
+});
+
 describe("moveMember", () => {
 	it("moves a member to another place", () => {
 		const graph = moveMember("r1", 2, 0)(base());

@@ -277,4 +277,28 @@ describe("browseMode with unmapped floor", () => {
 		mode.click?.({ ...at(60), shiftKey: true });
 		expect(asked).toEqual([]);
 	});
+
+	it("opens the operations menu on a right-click, selecting what it is on (P6)", () => {
+		const selected: (string | null)[] = [];
+		const menus: number[] = [];
+		const mode = browseMode({
+			hitTest: (point) => (point.x > 50 ? "w1" : null),
+			select: (id) => selected.push(id),
+			hover: () => {},
+			isSelected: (id) => id === "w2",
+			vertexAt: (point) => (point.x > 90 ? "w2" : null),
+			menu: (where) => {
+				menus.push(where.point.x);
+				return true;
+			},
+		});
+		// On a feature not selected: it is selected first.
+		expect(mode.contextMenu?.(at(60))).toBe(true);
+		// On one already selected (a vertex here): the selection stays.
+		expect(mode.contextMenu?.(at(95))).toBe(true);
+		// On the empty map: no menu, the browser's own stays away too.
+		expect(mode.contextMenu?.(at(10))).toBe(false);
+		expect(selected).toEqual(["w1"]);
+		expect(menus).toEqual([60, 95]);
+	});
 });

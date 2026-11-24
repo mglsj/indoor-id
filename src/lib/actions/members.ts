@@ -5,6 +5,7 @@
  * (for routes) isn't ported.
  */
 import { deleteEntities } from "#lib/actions/delete.ts";
+import { unwrapLoneOuter } from "#lib/actions/multipolygon.ts";
 import type { Member, Relation, RelationId } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
@@ -47,7 +48,10 @@ export function changeMemberRoles(
 	};
 }
 
-/** Removes members; a relation left empty is deleted, as iD's `actionDeleteMember`. */
+/**
+ * Removes members; a relation left empty is deleted, as iD's `actionDeleteMember`, and a
+ * multipolygon left with one outer way becomes that way (P6, `unwrapLoneOuter`).
+ */
 export function removeMembers(
 	id: RelationId,
 	indexes: readonly number[],
@@ -57,7 +61,7 @@ export function removeMembers(
 		const members = relation.members.filter((_, i) => !indexes.includes(i));
 		return members.length === 0
 			? deleteEntities([id])(graph)
-			: graph.replace({ ...relation, members });
+			: unwrapLoneOuter(graph.replace({ ...relation, members }), id);
 	};
 }
 
