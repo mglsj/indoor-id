@@ -47,7 +47,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | I      | iD's area fill, colours and safeguards     | Done         |
 | B      | Building mode: map and building scopes     | Done         |
 | P5.4b  | Rebase before upload, conflicts            | Done         |
-| W2     | Wiki conformance, November research        | Not started  |
+| W2     | Wiki conformance, November research        | Done         |
 | P6     | Parity and polish                          | Not started  |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
@@ -703,40 +703,14 @@ warning right after a restore when the edits are based on versions older than th
 (the upload now merges or lists them anyway), and re-downloading the area after a merge
 (`MapLoader.invalidate`: the merge puts the server's versions in the history itself).
 
-### W2: Wiki conformance from the November research — S–M
+### W2: Wiki conformance from the November research — S–M — done
 
-Next (P5.4b is done). Proposed 2026-11-05 (from the osm-simple3d-editor research addendum). Checks that
-only matter in 3D (escalator slopes against level heights) wait for 3D.3:
-
-- Escalators: both end levels in `level`, `incline=up|down`, two-point lines only, slope 15–38°
-  on the inclined part (stairs 20–45°), each end inside a room, corridor or level outline of
-  its level; say when level heights are estimates.
-- Stairs and escalators with `level` over three or more levels: warn, with a fix that splits
-  them into pairs of adjacent levels.
-- `room=reception` wants `amenity=reception_desk`, `room=dressing` wants
-  `amenity=dressing_room`. Check the wiki before treating `room=service|technical` as
-  outdated (osm-simple3d-editor maps them to `room=utility`; iD doesn't).
-- Doors on an `indoor=wall` area: the approved
-  [proposal](https://wiki.openstreetmap.org/wiki/Proposal:Allow_area%3Dyes_for_indoor%3Dwall)
-  allows them when the door is also on a room's outline. Reword `issue_door_on_wall_area` to
-  say so; still flag, don't cut the wall. Add a test that a closed `indoor=wall` without
-  `area=yes` stays a line.
-- Keep the `building:part` + `indoor` warning (the forum agrees), but draw such a feature on its
-  level as indoor.
-- Degenerate rings: also require the ring to be narrow for its size, so small posts aren't
-  flagged.
-
-Added 2026-11-11 (research addendum B, the forum and osm-simple3d-editor up to `02c2bfd`):
-
-- An `indoor=level` outline much smaller than the building at that level: warn, since 3D shows
-  the rest as a hole (forum #114).
-- `indoor=room|area` + `room=column`: fix to `indoor=column`.
-- `railway=platform` inside a building without `level`: warn, fix `level=0`.
-- An `entrance=*` inside the building, not on its level's outer wall: warn.
-- Duplicate nodes (same spot, not joined): warn with a merge fix, so no tool regresses the
-  way osm-simple3d-editor's "Merge into building" did (forum #139).
-- Features on different levels sharing a node: a hint at most, never an error (bridges and
-  skybridges do it on purpose; iD wishlist thread t/148649).
+Done ✅ (2026-11-24); see "W2" in [docs/history.md](docs/history.md). Left for 3D.3: an
+escalator's slope (15–38°, stairs 20–45°) and the note that level heights are estimates, both
+needing level heights; pairing a stairs line with its polygon ("line and polygon levels
+differ") with the port of `stairs-pair.ts`. Not done on purpose: a check for features on
+different levels sharing a node (the plan allowed a hint at most; bridges and skybridges do it
+on purpose, and nothing in IndoorID writes such joins).
 
 ### P6: Parity and polish — M
 
@@ -816,7 +790,7 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
      (perimeter), both with the same `level=lower;upper`. They pair without a relation: tags,
      equal `level`, the line crossing the polygon from side to side (0.4 m tolerance), no other
      flight of those levels inside. Width comes from the polygon, else `width`. Port as a pure
-     function; W2 can use it for "line and polygon levels differ".
+     function, and add "line and polygon levels differ" to the validator with it (left by W2).
    - Ranges stay ranges (`levels.ts`); don't port its parser, which expands ranges to integers.
    - Revised 2026-10-28 (its `src/osm/levels.ts` and real-data survey): `height` on
      `indoor=level` is that level's own height, not its floor elevation; a floor's elevation is

@@ -64,7 +64,8 @@ runs the same commands.
   `changePreset`; `RecentPresets`; `field-list.ts`: shown and addable fields, remove, revert; `combo.ts`, `choice.ts`, `text.ts`, `localized.ts`, `address.ts`, `access.ts`, `wiki.ts`: field values and references),
   `validation/` (`validate()` rules with one-click fixes, or `levelFix(level)` taking the
   shown level; tag upgrades; `outlines.ts`, building and indoor outlines by position for the
-  rules that depend on where a feature is), `api/changeset.ts`,
+  rules that depend on where a feature is, building parts included; `conformance.ts`, W2's
+  escalator, flight, sliver, level outline, platform and duplicate node rules), `api/changeset.ts`,
   `api/taginfo.ts` (value suggestions; e2e tests serve it with `serveTaginfo()`),
   `api/wikidata.ts` (Wikidata, Wikipedia search), `api/osm-wikibase.ts` (ⓘ documentation; e2e
   `serveWiki()`),

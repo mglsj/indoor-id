@@ -1325,6 +1325,52 @@ After B (decided ✔ 2026-11-12). Done ✅ 2026-11-24:
   deletions are `if-unused` (the server keeps it and says so); a warning after a restore of
   edits based on older versions, and `MapLoader.invalidate`, left for later (see the plan).
 
+### W2: Wiki conformance from the November research — S–M — done
+
+From the osm-simple3d-editor research addenda (2026-11-05 and B, 2026-11-11). Done ✅ 2026-11-24:
+
+- New rules in `validation/conformance.ts`, run by `validate()`:
+  - **Escalators** (`highway=steps` + `conveying=*`, lines; osm-simple3d-editor's
+    `validateEscalators`): both end levels in `level` (`escalator-levels`); `incline=up|down`
+    (`flight-incline`, also for stairs whose `level` lists two levels or more, not for steps
+    on one level or outdoors); two points only (`escalator-shape`); each end, by the incline,
+    inside a room, area, corridor or level outline of its level (`escalator-end`, skipped where
+    no indoor space is mapped at all). No fixes: which way is up isn't known.
+  - **Flights over three or more levels** (`flight-over-levels`, `602503d`): `highway=steps`
+    or an escalator, not a stairwell (`stairs=yes`, `room=stairs`), which spans every floor.
+    An area is fixed by `actions/split-levels.ts` `onePerLevelPair` (copies sharing its
+    nodes, `0;1`, `1;2`…); a line gets no fix, as each flight has to be drawn.
+  - `room=reception` without `amenity=reception_desk`, `room=dressing` without
+    `amenity=dressing_room` (`room-amenity`, fix adds it). `room=service|technical` left
+    alone: on 2026-11-24 Key:room neither lists them nor marks them deprecated, and doesn't
+    say to use `room=utility` instead.
+  - **Slivers** (`sliver`): a room, area, corridor, level outline, column or wall area whose
+    mean width (2 · area / perimeter) is under 5 cm and under a tenth of its half perimeter
+    (`bc06c32`): a 6 × 6 cm post or a 50 m × 15 cm wall isn't one. No fix.
+  - **Small level outlines** (`small-level-outline`, forum #114): an `indoor=level` way under
+    half the area of the smallest building around its centre, or, when the building has
+    parts, of the parts whose `building:levels` (from `building:min_level`) reach its levels.
+    `Outlines` now indexes building parts (`Outline.part`; `almost-joined` leaves them out,
+    as before).
+  - `railway=platform` inside a building without a level (`platform-no-level`, fix `level=0`;
+    an `indoor=*` platform is left to `missing-level`).
+  - **Duplicate nodes** (`duplicate-node`, forum #139): a corner of an indoor outline, building
+    or part within 1 cm of a corner of another on an overlapping level (a building or part
+    counts as level 0), not joined; reported once per pair, fix "Merge them". Copies of a room
+    on other levels keep their own nodes.
+- Upgrades: `indoor=room|area` + `room=column` → `indoor=column` (`831fc28`).
+- `entrance-inside` now covers any `entrance=*` other than `no`, and an entrance on the
+  `indoor=level` outline of its own level (a skybridge's) or on a building's own ring (also a
+  courtyard's inner ring, tags on the relation or on the outer way) is on an outer wall.
+- `issue_door_on_wall_area` says what the approved
+  [Proposal:Allow area=yes for indoor=wall](https://wiki.openstreetmap.org/wiki/Proposal:Allow_area%3Dyes_for_indoor%3Dwall)
+  asks: a door in a wall area must also be on a room's outline. Still flagged, never cut. Tests
+  that a closed `indoor=wall` without `area=yes` stays a line (no door issue) and that a door
+  also on a room's outline passes.
+- `building:part` + `indoor=*` (other than `no`) is drawn as indoor on its level, not as a
+  building part (`classify.ts`); `building-part-indoor` still warns.
+- `listLevels` moved to `levels/levels.ts`.
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept

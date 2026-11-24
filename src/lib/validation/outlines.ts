@@ -32,6 +32,8 @@ export interface Outline {
 	readonly id: WayId;
 	/** Whether the way outlines a building (`building=*` other than `no`). */
 	readonly building: boolean;
+	/** Whether it outlines a building part (`building:part=*` other than `no`), W2. */
+	readonly part?: boolean;
 	/** Its `indoor=room|area|corridor|level`, if any. */
 	readonly indoor?: string;
 	readonly ring: readonly Loc[];
@@ -167,11 +169,15 @@ export class Outlines {
 function itemOf(graph: Graph, way: Way): Item | null {
 	const { tags } = way;
 	const building = tags.building !== undefined && tags.building !== "no";
+	const part =
+		!building &&
+		tags["building:part"] !== undefined &&
+		tags["building:part"] !== "no";
 	const indoor =
 		tags.indoor !== undefined && INDOOR_SPACES.has(tags.indoor)
 			? tags.indoor
 			: undefined;
-	if ((!building && !indoor) || !isClosedRing(way)) return null;
+	if ((!building && !part && !indoor) || !isClosedRing(way)) return null;
 	const ring = wayLocs(graph, way);
 	const extent = extentOf(ring);
 	if (!extent || ring.length < 4) return null;
@@ -184,6 +190,7 @@ function itemOf(graph: Graph, way: Way): Item | null {
 	const outline: Outline = {
 		id: way.id,
 		building,
+		...(part && { part }),
 		indoor,
 		ring,
 		extent,

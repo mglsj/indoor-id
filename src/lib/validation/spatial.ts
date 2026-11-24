@@ -218,7 +218,7 @@ function almostJoined(
 		if (node?.type !== "node") continue;
 		const target = outlines
 			.near(node.loc, ALMOST_JOINED)
-			.filter((o) => o.id !== entity.id)
+			.filter((o) => o.id !== entity.id && !o.part)
 			.filter((o) => {
 				const other = outlineLevels(o);
 				return !levels || !other || overlap(levels, other);

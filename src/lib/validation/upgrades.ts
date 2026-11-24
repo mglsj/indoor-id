@@ -40,6 +40,9 @@ export const LOCAL_UPGRADES: readonly UpgradeRule[] = [
 		old: { room: "elevator" },
 		replace: { indoor: "room", elevator: "yes", highway: "elevator" },
 	},
+	// osm-simple3d-editor `831fc28`: a column is indoor=column, not a room (W2).
+	{ old: { indoor: "room", room: "column" }, replace: { indoor: "column" } },
+	{ old: { indoor: "area", room: "column" }, replace: { indoor: "column" } },
 	{ old: { indoor: "highway" }, replace: { indoor: "yes" } },
 	{ old: { indoor: "stairs" }, replace: { indoor: "yes" } },
 	{
