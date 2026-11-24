@@ -65,7 +65,10 @@ runs the same commands.
   `validation/` (`validate()` rules with one-click fixes, or `levelFix(level)` taking the
   shown level; tag upgrades; `outlines.ts`, building and indoor outlines by position for the
   rules that depend on where a feature is, building parts included; `conformance.ts`, W2's
-  escalator, flight, sliver, level outline, platform and duplicate node rules), `api/changeset.ts`,
+  escalator, flight, sliver, level outline, platform and duplicate node rules; `recheck.ts`,
+  W3's wall drawn twice, jitter and door on a side; `buildings.ts`, map mode's building
+  overlap, inside and unglued wall rules), `osm/upload-check.ts` (what an upload is refused
+  for before its changeset opens), `api/changeset.ts`,
   `api/taginfo.ts` (value suggestions; e2e tests serve it with `serveTaginfo()`),
   `api/wikidata.ts` (Wikidata, Wikipedia search), `api/osm-wikibase.ts` (ⓘ documentation; e2e
   `serveWiki()`),

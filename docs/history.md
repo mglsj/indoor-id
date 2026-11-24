@@ -1371,6 +1371,51 @@ From the osm-simple3d-editor research addenda (2026-11-05 and B, 2026-11-11). Do
   building part (`classify.ts`); `building-part-indoor` still warns.
 - `listLevels` moved to `levels/levels.ts`.
 
+### W3: Checks from the 2026-11-24 recheck — S–M — done
+
+From research addendum C (forum t/148767 posts 170–215, osm-simple3d-editor `02c2bfd` →
+`a547bee`). Done ✅ 2026-11-24:
+
+- Indoor rules in `validation/recheck.ts`:
+  - **Wall drawn twice** (`wall-twice`, `ea67cb1`): an `indoor=wall` line (no `area=yes`) whose
+    points and side midpoints all lie within 5 cm of a wall area's outline (`area=yes` way or
+    `indoor=wall` multipolygon) on overlapping levels. The area is found through a shared
+    node, as drawing along a wall snaps to it; a copy drawn with no shared node isn't found.
+    The fix removes the line's wall keys (`indoor`, `level`, `repeat_on`, `wall`, `height`,
+    `min_height`, `material`, `colour`), deleting it when nothing else is left.
+  - **Jitter** (`jitter`, osm-simple3d-editor's `jitterVertices`): corners of a room, area,
+    corridor, level, column or wall area standing off a straight side by under 3 cm, next to a
+    side under 12 cm; greedy, smallest deviation first, three corners kept. Corners that are
+    tagged, shared or in a relation are never candidates, so the fix ("Remove them") only
+    deletes nodes nothing else uses.
+  - **Door on a side** (`door-on-side`, `fe416c4`): a door, `indoor=door` or entrance within
+    20 cm of a side of a room, corridor, area or level outline on its level, or of a building's
+    outline (as level 0), without being in it; the fix is `almost-joined`'s (`joinFix`, now
+    exported from `spatial.ts`). Only entrances and doors on no way are checked against a
+    building's outline: an indoor door on a room drawn just inside the outer wall isn't meant
+    to be in it.
+- Building rules for map mode in `validation/buildings.ts` (`findOverlaps`, forum #192–194),
+  on building ways (not roofs, buildings under construction, underground or raised ones, nor
+  pairs on different `layer`s); intersections by `polyclip-ts` in local metres:
+  - `building-overlap`: an intersection of at least 2 m² and 0.6 m mean thickness, on both.
+  - `building-inside`: 90% of the smaller building inside the larger, on the smaller only;
+    fix `building=*` → `building:part=*`.
+  - `unglued-wall`: when they don't overlap that much, corners within 15 cm of the other's
+    wall that aren't on one of its corners; one issue per neighbour, fix joins them all.
+- The `Validator` now also forgets the ways joined to a changed way, since `wall-twice` and
+  `jitter` depend on them.
+- **Pre-upload check** (`osm/upload-check.ts`, `89b17a3`), run by `DataSync` after the rebase and
+  before `OsmApi.upload` opens a changeset: an element twice, a way or relation using an
+  element deleted in the upload or a new one never created, a way under two nodes, a node
+  twice in a row, a new untagged way no relation holds (`43c1025`), and a deleted element an
+  unedited way or relation still uses. Refused with `upload_check_failed` naming the first
+  three. Tests: a deleted way's nodes shared with a neighbour edited only in its tags stay and
+  aren't in the osmChange (osm-simple3d-editor #86, #87).
+- Not copied, with a test for the first: the `indoor-door` check asking outdoor entrances for
+  `indoor=door` + `level=0` (forum #204); `wall=counter`; guessing level counts.
+- Not done: the background run of the upload check every 10 edits (`9ed266f`): the check is
+  cheap at upload time, and the validator already shows what it can fix.
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept

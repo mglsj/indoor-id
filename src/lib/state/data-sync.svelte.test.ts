@@ -157,6 +157,32 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 		expect(retries).toEqual([undefined, 41]);
 	});
 
+	it("refuses broken edits before a changeset is opened (W3)", async () => {
+		let uploads = 0;
+		const { history, sync } = setup({
+			upload: async () => {
+				uploads++;
+				throw new Error("should not upload");
+			},
+		});
+		history.perform(
+			(graph) =>
+				graph
+					.replace(node("n-1", {}, [0, 0]))
+					.replace(node("n-2", {}, [0, 0.0001]))
+					.replace(way("w-1", ["n-1", "n-2"], { level: "0" })),
+			msg("undo_add_point"),
+		);
+
+		const refused = sync.upload({ comment: "Leftover" });
+
+		await expect(refused).rejects.toThrow(
+			"no changeset was opened, because OpenStreetMap would refuse or keep broken data: w-1 is a new line or area with no tags.",
+		);
+		expect(uploads).toBe(0);
+		expect(sync.failedChangeset).toBeUndefined();
+	});
+
 	it("forgets the failed changeset once an upload goes through", async () => {
 		const { history, sync } = setup({
 			upload: async () => ({

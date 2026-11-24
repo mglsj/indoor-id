@@ -19,9 +19,10 @@ import {
 	type UploadedChanges,
 	uploadedChanges,
 } from "#lib/api/recent-uploads.ts";
-import { MessageError, msg } from "#lib/i18n/messages.ts";
+import { MessageError, msg, t } from "#lib/i18n/messages.ts";
 import type { Entity, EntityId, RelationId } from "#lib/osm/entity.ts";
 import type { Tags } from "#lib/osm/tags.ts";
+import { type UploadProblem, uploadProblems } from "#lib/osm/upload-check.ts";
 import type { EditHistory } from "./edit-history.svelte.ts";
 import type { Selection } from "./selection.svelte.ts";
 
@@ -217,6 +218,13 @@ export class DataSync {
 		}
 
 		const graph = this.#history.graph;
+		// Checked before a changeset is opened: a refusal then leaves none behind (W3).
+		const problems = uploadProblems(graph);
+		if (problems.length > 0) {
+			throw new MessageError(
+				msg("upload_check_failed", { problems: describeProblems(problems) }),
+			);
+		}
 		const result = await this.#api
 			.upload(graph, changesetTags, { retryOf: this.failedChangeset, user })
 			.catch((error: unknown) => {
@@ -274,4 +282,31 @@ export class DataSync {
 	#receive(entities: Entity[]): void {
 		this.#history.merge(entities);
 	}
+}
+
+/** The first few problems of an upload, in words. */
+function describeProblems(problems: readonly UploadProblem[]): string {
+	const shown = problems.slice(0, 3).map((p) => {
+		const other = p.other ?? "";
+		switch (p.kind) {
+			case "twice":
+				return t(msg("upload_problem_twice", { id: p.id }));
+			case "refers-to-deleted":
+				return t(msg("upload_problem_refers_to_deleted", { id: p.id, other }));
+			case "refers-to-missing":
+				return t(msg("upload_problem_refers_to_missing", { id: p.id, other }));
+			case "short-way":
+				return t(msg("upload_problem_short_way", { id: p.id }));
+			case "repeated-node":
+				return t(msg("upload_problem_repeated_node", { id: p.id, other }));
+			case "untagged-way":
+				return t(msg("upload_problem_untagged_way", { id: p.id }));
+			case "still-used":
+				return t(msg("upload_problem_still_used", { id: p.id, other }));
+			default:
+				return p.kind satisfies never;
+		}
+	});
+	const more = problems.length - shown.length;
+	return [...shown, ...(more > 0 ? [`+${more}`] : [])].join("; ");
 }

@@ -27,8 +27,10 @@ import { isClosed, pointInRing, wayLocs } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
 import type { Tags } from "#lib/osm/tags.ts";
+import { buildingIssues } from "./buildings.ts";
 import { conformanceIssues } from "./conformance.ts";
 import { Outlines } from "./outlines.ts";
+import { recheckIssues } from "./recheck.ts";
 import { spatialIssues } from "./spatial.ts";
 import { describeTags, type UpgradeRule, upgradeTags } from "./upgrades.ts";
 
@@ -67,7 +69,13 @@ export type IssueRule =
 	| "sliver"
 	| "small-level-outline"
 	| "platform-no-level"
-	| "duplicate-node";
+	| "duplicate-node"
+	| "wall-twice"
+	| "jitter"
+	| "door-on-side"
+	| "building-overlap"
+	| "building-inside"
+	| "unglued-wall";
 
 /** Rules whose issues the upload refuses: the server would take broken data. */
 export const BLOCKING_RULES: ReadonlySet<IssueRule> = new Set([
@@ -117,6 +125,8 @@ export function validate(
 			...nonExistentLevel(graph, entity, outlines),
 			...spatialIssues(graph, entity, outlines),
 			...conformanceIssues(graph, entity, outlines),
+			...recheckIssues(graph, entity, outlines),
+			...buildingIssues(graph, entity, outlines),
 			...openMultipolygon(graph, entity),
 		);
 	}

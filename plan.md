@@ -48,7 +48,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | B      | Building mode: map and building scopes     | Done         |
 | P5.4b  | Rebase before upload, conflicts            | Done         |
 | W2     | Wiki conformance, November research        | Done         |
-| W3     | Checks from the 2026-11-24 recheck         | Not started  |
+| W3     | Checks from the 2026-11-24 recheck         | Done         |
 | P6     | Parity and polish                          | Not started  |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
@@ -713,33 +713,11 @@ differ") with the port of `stairs-pair.ts`. Not done on purpose: a check for fea
 different levels sharing a node (the plan allowed a hint at most; bridges and skybridges do it
 on purpose, and nothing in IndoorID writes such joins).
 
-### W3: Checks from the 2026-11-24 recheck — S–M
+### W3: Checks from the 2026-11-24 recheck — S–M — done
 
-Next. Added 2026-11-24 from research addendum C (forum t/148767 posts 170–215, t/149818,
-t/149433, osm-simple3d-editor `02c2bfd` → `a547bee`). Pure validation and upload checks, so it
-can run beside P6:
-
-- **Wall drawn twice** (osm-simple3d-editor `ea67cb1`): a linear `indoor=wall` way on the
-  outline of a wall area (`area=yes`, or a wall multipolygon) on the same levels; the fix
-  removes the linear wall's keys.
-- **Jitter vertices**: a vertex of an indoor outline standing off the straight line of its
-  neighbours by a few centimetres; the fix drops it (when no other way or tag needs it).
-- **A door on a side without being its node** (`fe416c4`): an entrance or `indoor=door` lying
-  on a side of a room, level or building outline but not one of its nodes; the fix puts it in
-  that side, as `almost-joined` does for corners.
-- **Map mode (B) building checks** (`0c7f032`, `3a65872`, forum #192–194): buildings whose
-  outlines overlap (at least 2 m² and 0.6 m thick, so shared walls drawn loosely don't count);
-  a building inside another (suggest `building:part`); a corner within 15 cm of another
-  building's wall without being joined.
-- **Pre-upload batch check** (`89b17a3`, a P5.4b follow-up): before a changeset is opened,
-  refuse an element twice, a way or relation referring to a deleted or never-created element,
-  a way with fewer than two nodes, or a node twice in a row, so a failure leaves no empty
-  changeset. Add a test that no untagged new way outside any relation is ever uploaded
-  (`43c1025`), and one for a node of a deleted way that a neighbour edited only in its tags
-  still uses (its issues #86, #87).
-- Not to copy: osm-simple3d-editor's `indoor-door` check that asks outdoor entrances for
-  `indoor=door` + `level=0` (mappers complained in #204: an entrance needs no indoor tags);
-  `wall=counter` (its own invention, not on the wiki); guessing level counts.
+Done ✅ (2026-11-24); see "W3" in [docs/history.md](docs/history.md). Left for later: finding a
+wall line drawn over a wall area without sharing a node with it, and running the pre-upload
+check in the background every few edits (osm-simple3d-editor `9ed266f`).
 
 ### P6: Parity and polish — M
 
