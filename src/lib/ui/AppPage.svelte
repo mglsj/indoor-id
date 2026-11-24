@@ -19,7 +19,7 @@
 
 	interface Props {
 		/** Which page this is: its link in the header is shown as current. */
-		page: "edit" | "view";
+		page: "edit" | "view" | "help";
 		children: Snippet<[EditorConfig]>;
 	}
 
@@ -31,14 +31,14 @@
 	const label = $derived(t(msg(dark ? "theme_to_light" : "theme_to_dark")));
 
 	/** The other page, at the same place and level (the URL hash). */
-	function open(event: MouseEvent, target: "/" | "/view") {
+	function open(event: MouseEvent, target: "/" | "/view" | "/help") {
 		event.preventDefault();
 		void goto(`${resolve(target)}${location.hash}`);
 	}
 </script>
 
 {#snippet link(
-	target: "/" | "/view",
+	target: "/" | "/view" | "/help",
 	current: boolean,
 	label: string,
 	title: string,
@@ -75,6 +75,12 @@
 				page === "view",
 				t(msg("nav_view")),
 				t(msg("nav_view_title")),
+			)}
+			{@render link(
+				"/help",
+				page === "help",
+				t(msg("nav_help")),
+				t(msg("nav_help_title")),
 			)}
 		</nav>
 		<!-- The licenses of IndoorID and of what it ships, written by the build (vite.config.ts);

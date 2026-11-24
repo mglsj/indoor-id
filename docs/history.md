@@ -2042,6 +2042,27 @@ outline becomes a multipolygon with the way as its hole, or gets one more hole, 
 outline's multipolygon is selected after. `actions/cut-out.ts` (`levelOutlineAround`,
 `cutOutOfLevel`). It is the quick way to draw the atriums and voids 3D.3 reads.
 
+### P6.4: Shortcuts help, help page, indoor= preview — S–M — done
+
+Done ✅ 2026-11-24:
+
+- **Keymap** (`edit/keymap.ts`): the map's keys (`MAP_KEYS`, run by `EditorView` through
+  `MAP_ACTIONS`), a drawing's (`DRAWING_KEYS`) and the selection's (from `OPERATIONS`) in one
+  place; a test checks every operation and map key is listed and no map key takes an
+  operation's combo. `ui/ShortcutsDialog.svelte` lists them, opened by `?` or the keyboard
+  button in the toolbar.
+- **Help page** (`/help`, `ui/HelpPage.svelte`, "Help" in the header): getting started, the
+  viewer, building mode, drawing, precision, floor plans, tagging, checking and uploading.
+  English only; the UI strings around it go through `msg()`.
+- **Preview in indoor=** (`view/indoor-equal.ts`): the building panel's button opens
+  indoorequal.org and, once that tab says `{ event: "ready" }`, sends the building's features
+  (their tags and `id`, edits included, from `draftOf`) as `{ command: "preview", file }`, then
+  the level and the building's extent, per indoor='s README ("Remote Command API"). Unlike the
+  README's example, only messages from that tab at `https://indoorequal.org` are taken, and
+  messages are sent to that origin only. A blocked pop-up shows a note. The GeoJSON format
+  indoor= expects isn't documented: OSM tags as properties is what its own files carry.
+- **README**: a "Using IndoorID" section pointing to the editor, the viewer and `/help`.
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept

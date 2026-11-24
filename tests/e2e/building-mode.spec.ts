@@ -316,3 +316,43 @@ test("inside, the level switcher offers every floor building:levels counts, mapp
 	await expect(page.getByTestId("level")).toBeHidden();
 	await expect.poll(() => hash(page)).toMatch(/\/0$/);
 });
+
+test("Preview in indoor= sends the building, edits included, to indoor= once it is ready (P6)", async ({
+	page,
+	context,
+}) => {
+	// indoor= stands in: it says it is ready to its opener, and keeps what it is sent.
+	await context.route("https://indoorequal.org/**", (route) =>
+		route.fulfill({
+			contentType: "text/html",
+			body: `<script>
+				window.received = [];
+				addEventListener("message", (e) => window.received.push({
+					origin: e.origin,
+					command: e.data.command,
+					name: e.data.file ? e.data.file.name : null,
+				}));
+				window.opener.postMessage({ event: "ready" }, "*");
+			</script>`,
+		}),
+	);
+	await open(page, `/#19/${LAT}/${LON}/0&building=w1`);
+	const panel = page.getByTestId("building-panel");
+	const [tab] = await Promise.all([
+		context.waitForEvent("page"),
+		panel.getByRole("button", { name: "Preview in indoor=" }).click(),
+	]);
+	await expect
+		.poll(() =>
+			tab.evaluate(() =>
+				(window as never as { received: { command: string }[] }).received.map(
+					(r) => r.command,
+				),
+			),
+		)
+		.toEqual(["preview", "level", "coordinates"]);
+	const [preview] = await tab.evaluate(
+		() => (window as never as { received: { name: string }[] }).received,
+	);
+	expect(preview?.name).toBe("indoorid.geojson");
+});

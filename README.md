@@ -10,6 +10,16 @@ If you are looking for an indoor data viewer (a map for browsing existing data),
 
 > **Alpha (0.1).** IndoorID is a new editor, built with Svelte, MapLibre GL JS and an OpenStreetMap-native data model. It is early: expect missing features and rough edges, and see the [plan](plan.md) for progress.
 
+## Using IndoorID
+
+- **Editor** (`/`): move to a building and double-click it to edit its indoor data level by
+  level. Draw rooms, walls and doors with snapping, typed lengths, a grid and guides; trace
+  floor plans (images, PDF, SVG); pick each feature's type from presets that follow the wiki;
+  upload all edits in one changeset, merged with others' changes first.
+- **Viewer** (`/view`): browse indoor maps without an account, find places by name or number.
+- **Help** (`/help`): how to do each of these, step by step. In the editor, press `?` for the
+  keyboard shortcuts.
+
 ## Contributing
 
 This project is an open source tool, meaning it is made by volunteers. If you **want to help us**, there are several ways (technical or non-technical ones). Issues and pull requests are welcome on [GitHub](https://github.com/mglsj/indoor-id).

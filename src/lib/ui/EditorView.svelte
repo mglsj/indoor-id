@@ -7,6 +7,7 @@
 	import DoorOpen from "@lucide/svelte/icons/door-open";
 	import FileImage from "@lucide/svelte/icons/file-image";
 	import Grid2x2Check from "@lucide/svelte/icons/grid-2x2-check";
+	import Keyboard from "@lucide/svelte/icons/keyboard";
 	import Layers2 from "@lucide/svelte/icons/layers-2";
 	import MapPin from "@lucide/svelte/icons/map-pin";
 	import Move from "@lucide/svelte/icons/move";
@@ -47,6 +48,7 @@
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
 	import { featureDrag, nodesOf } from "#lib/edit/feature-drag.ts";
+	import { type MapAction, mapKeyFor } from "#lib/edit/keymap.ts";
 	import {
 		formatCombo,
 		isForMap,
@@ -163,6 +165,7 @@
 	import type { EntityId, Loc, NodeId, Way, WayId } from "#lib/osm/entity.ts";
 	import { extentOf, extentsIntersect, fromLocal } from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
+	import { hasInterestingTags } from "#lib/osm/tags.ts";
 	import { Autosave } from "#lib/persist/autosave.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
 	import { EditAutosave } from "#lib/state/autosave.svelte.ts";
@@ -203,8 +206,13 @@
 	import RepeatDialog from "#lib/ui/RepeatDialog.svelte";
 	import RestoreDialog from "#lib/ui/RestoreDialog.svelte";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
+	import ShortcutsDialog from "#lib/ui/ShortcutsDialog.svelte";
 	import SnapMenu, { type FrameControls } from "#lib/ui/SnapMenu.svelte";
 	import UnsavedPlanDialog from "#lib/ui/UnsavedPlanDialog.svelte";
+	import {
+		previewFeatures,
+		previewInIndoorEqual,
+	} from "#lib/view/indoor-equal.ts";
 	import { resolve } from "$app/paths";
 
 	interface Props {
@@ -775,6 +783,21 @@
 					: msg("operation_copied", { paste }),
 			);
 		} else performEdit(editor, result);
+	}
+
+	/** Shows the building entered, edits included, in indoor= (P6). */
+	function previewBuilding() {
+		const scope = editor.scope.current;
+		if (!scope) return;
+		const tagged: EntityId[] = [];
+		for (const entity of editor.graph.entities())
+			if (hasInterestingTags(entity.tags)) tagged.push(entity.id);
+		const ids = editor.scope.members(tagged);
+		const opened = previewInIndoorEqual(previewFeatures(editor.graph, ids), {
+			level,
+			bbox: scope.extent,
+		});
+		if (!opened) showNote(msg("preview_blocked"));
 	}
 
 	/** Where the right-click operations menu is open (P6), in map pixels; null when closed. */
@@ -1654,35 +1677,35 @@
 				],
 	);
 
-	/** Shortcuts that apply in every mode but floor plan mode (OSM edits can't be seen there). */
-	const SHORTCUTS = [
-		{ combo: "1", run: () => draw("point") },
-		{ combo: "2", run: () => draw("line") },
-		{ combo: "3", run: () => draw("area") },
-		{ combo: "4", run: () => draw("rectangle") },
-		{ combo: "X", run: () => draw("split") },
-		{ combo: "S", run: () => precision.toggle() },
-		{
-			combo: "G",
-			run: () => {
-				if (offered.grid) precision.toggleGrid();
-			},
+	/** What the map keys do (`edit/keymap.ts`), in every mode but floor plan mode. */
+	const MAP_ACTIONS: Record<MapAction, () => void> = {
+		"draw-point": () => draw("point"),
+		"draw-line": () => draw("line"),
+		"draw-area": () => draw("area"),
+		"draw-rectangle": () => draw("rectangle"),
+		"draw-split": () => draw("split"),
+		"draw-measure": () => draw("measure"),
+		"toggle-snapping": () => precision.toggle(),
+		"toggle-grid": () => {
+			if (offered.grid) precision.toggleGrid();
 		},
-		{ combo: "M", run: () => draw("measure") },
-		{ combo: "W", run: () => backgroundSettings?.toggleWireframe() },
-		{ combo: "Z", run: () => zoomToAll(editor.selection.ids) },
-		{ combo: "Mod+B", run: () => backgroundSettings?.swapPrevious() },
-		{ combo: "Mod+Z", run: () => editor.history.undo() },
-		{ combo: "Mod+Shift+Z", run: () => editor.history.redo() },
-		{ combo: "Mod+Y", run: () => editor.history.redo() },
-	];
+		"toggle-wireframe": () => backgroundSettings?.toggleWireframe(),
+		"zoom-to-selection": () => zoomToAll(editor.selection.ids),
+		"swap-background": () => backgroundSettings?.swapPrevious(),
+		undo: () => editor.history.undo(),
+		redo: () => editor.history.redo(),
+		help: () => (shortcutsOpen = true),
+	};
+
+	/** The shortcuts help (`?`, P6). */
+	let shortcutsOpen = $state(false);
 
 	/** The map's keys: the mode's first (Escape…), then undo and redo; none while typing. */
 	function onKeydown(event: KeyboardEvent) {
 		// Popovers and dialogs handle their own keys (Escape closes them); fields have their own
 		// undo.
 		if (floorplans.confirming) return;
-		const shortcut = SHORTCUTS.find((s) => matches(event, s.combo, mac));
+		const shortcut = mapKeyFor((combo) => matches(event, combo, mac));
 		if (!isForMap(event)) {
 			// Behind a dialog, the browser's own undo would still undo typing in a field.
 			if (shortcut && !event.defaultPrevented && !isTyping(event.target))
@@ -1709,7 +1732,7 @@
 		}
 		if (!shortcut) return;
 		event.preventDefault();
-		shortcut.run();
+		MAP_ACTIONS[shortcut.action]();
 	}
 
 	/** Leaving the page loses the edits not uploaded yet: the browser asks first. */
@@ -1900,55 +1923,67 @@
 			</div>
 		{/if}
 		{#if !planMode}
-			<!-- Map controls sit on an opaque surface: shadcn's dark outline styles are translucent. -->
-			<div class="rounded-md bg-background shadow-md">
-				<ButtonGroup.Root aria-label="Edit history">
-					{@render iconButton(
-						"Undo",
-						`Undo (${formatCombo("Mod+Z", mac)})`,
-						Undo2,
-						!editor.history.canUndo,
-						() => editor.history.undo(),
-					)}
-					{@render iconButton(
-						"Redo",
-						`Redo (${formatCombo("Mod+Shift+Z", mac)})`,
-						Redo2,
-						!editor.history.canRedo,
-						() => editor.history.redo(),
-					)}
-					<!-- Not while a drawing or drag is shown: the upload sends finished steps only. -->
-					<Button
-						variant="outline"
-						disabled={editor.history.editCount === 0 ||
-							editor.history.previewing}
-						onclick={() => (saving = true)}
-					>
-						<Upload data-icon="inline-start" />
-						Save
-						<Badge class="tabular-nums" data-testid="edit-count"
-							>{editor.history.editCount}</Badge
-						>
-						<span class="sr-only">edits</span>
-					</Button>
-					{#if issueCount > 0}
-						<!-- Checked in idle time; the save dialog lists them (P6). -->
+			<!-- Map controls sit on an opaque surface: shadcn's dark outline styles are translucent.
+			     The shortcuts button shares the row: a row more would push the toolbar over the map. -->
+			<div class="flex gap-2">
+				<div class="rounded-md bg-background shadow-md">
+					<ButtonGroup.Root aria-label="Edit history">
+						{@render iconButton(
+							"Undo",
+							`Undo (${formatCombo("Mod+Z", mac)})`,
+							Undo2,
+							!editor.history.canUndo,
+							() => editor.history.undo(),
+						)}
+						{@render iconButton(
+							"Redo",
+							`Redo (${formatCombo("Mod+Shift+Z", mac)})`,
+							Redo2,
+							!editor.history.canRedo,
+							() => editor.history.redo(),
+						)}
+						<!-- Not while a drawing or drag is shown: the upload sends finished steps only. -->
 						<Button
 							variant="outline"
-							aria-label={t(
-								issueCount === 1
-									? msg("issue_count_one")
-									: msg("issue_count", { count: issueCount }),
-							)}
-							data-testid="issue-count"
-							disabled={editor.history.previewing}
+							disabled={editor.history.editCount === 0 ||
+								editor.history.previewing}
 							onclick={() => (saving = true)}
 						>
-							<TriangleAlert class="text-destructive" />
-							<span class="tabular-nums">{issueCount}</span>
+							<Upload data-icon="inline-start" />
+							Save
+							<Badge class="tabular-nums" data-testid="edit-count"
+								>{editor.history.editCount}</Badge
+							>
+							<span class="sr-only">edits</span>
 						</Button>
-					{/if}
-				</ButtonGroup.Root>
+						{#if issueCount > 0}
+							<!-- Checked in idle time; the save dialog lists them (P6). -->
+							<Button
+								variant="outline"
+								aria-label={t(
+									issueCount === 1
+										? msg("issue_count_one")
+										: msg("issue_count", { count: issueCount }),
+								)}
+								data-testid="issue-count"
+								disabled={editor.history.previewing}
+								onclick={() => (saving = true)}
+							>
+								<TriangleAlert class="text-destructive" />
+								<span class="tabular-nums">{issueCount}</span>
+							</Button>
+						{/if}
+					</ButtonGroup.Root>
+				</div>
+				<div class="rounded-md bg-background shadow-md">
+					{@render iconButton(
+						t(msg("shortcuts_title")),
+						t(msg("shortcuts_button")),
+						Keyboard,
+						false,
+						() => (shortcutsOpen = true),
+					)}
+				</div>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
 				<ButtonGroup.Root aria-label="Draw">
@@ -2074,6 +2109,7 @@
 					onshowlevel={(shown) => (level = shown)}
 					onsurroundings={(on) => (editor.scope.surroundings = on)}
 					ondone={leaveBuilding}
+					onpreview={previewBuilding}
 				/>
 			{:else}
 				<FloorPlansPanel
@@ -2193,6 +2229,8 @@
 			{/each}
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
+
+	<ShortcutsDialog bind:open={shortcutsOpen} {mac} />
 
 	{#if repeating}
 		<RepeatDialog

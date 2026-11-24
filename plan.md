@@ -49,7 +49,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | P5.4b  | Rebase before upload, conflicts            | Done         |
 | W2     | Wiki conformance, November research        | Done         |
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
-| P6     | Parity and polish                          | P6.1–3 done  |
+| P6     | Parity and polish                          | P6.1–4 done  |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -189,8 +189,8 @@ check in the background every few edits (osm-simple3d-editor `9ed266f`).
 
 - Translations with Paraglide (one module per locale), starting from OsmInEdit's (en, fr, de,
   it, hu, cs, es); preset and field names from the schema; plurals and dates from `Intl`.
-- Shortcuts help (from the keymap), help pages, indoor= preview (origin-checked
-  `postMessage`), README and usage docs.
+- ~~Shortcuts help, help pages, indoor= preview, README and usage docs~~: done ✅ (P6.4,
+  2026-11-24); see "P6.4" in [docs/history.md](docs/history.md).
 - Reach: userscripts adding "Open in IndoorID" to openstreetmap.org, OSMCha and indoor= (as
   osm-simple3d-editor does); a read-only `?source=josm` that reads JOSM's active layer,
   unsaved edits included, from Remote Control `GET http://127.0.0.1:8111/export` (JOSM
