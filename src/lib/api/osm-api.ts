@@ -2,13 +2,16 @@
  * Client for the OSM API 0.6. It only uses `fetch`, which callers can replace (tests, retries,
  * instrumentation). Uploads go in one request, so the server applies all edits or none.
  */
+
+import type { Current } from "#lib/actions/rebase.ts";
 import type {
 	Entity,
+	EntityId,
 	EntityType,
 	Member,
 	RelationId,
 } from "#lib/osm/entity.ts";
-import { makeId, osmId } from "#lib/osm/entity.ts";
+import { entityType, makeId, osmId } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import {
 	applyDiffResult,
@@ -24,6 +27,8 @@ export type OsmApiErrorKind =
 	| "bad-request"
 	| "conflict"
 	| "precondition"
+	/** 410: something edited was deleted on the server. */
+	| "gone"
 	| "rate-limit"
 	| "server"
 	/** A retry found the earlier upload in its changeset: its answer was lost, not the data. */
@@ -37,6 +42,8 @@ export class OsmApiError extends Error {
 		readonly status?: number,
 		/** The changeset that was open when the error happened, if any. */
 		readonly changesetId?: number,
+		/** The entities the server named in its answer (a conflict, a deletion, a missing node). */
+		readonly entities: readonly EntityId[] = [],
 	) {
 		super(message);
 		this.name = "OsmApiError";
@@ -87,9 +94,39 @@ export class OsmApi {
 	}
 
 	/**
-	 * Uploads the local edits of `graph` in a new changeset, and returns the graph as it is on
-	 * the server afterwards. The changeset is always closed, even when the upload fails.
+	 * The current versions of entities, deleted ones included (`entity: null`): what an upload
+	 * checks its edits against (P5.4b). Asked for in batches (the API's multi-fetch), a few at a
+	 * time.
 	 */
+	async loadEntities(ids: readonly EntityId[]): Promise<Current[]> {
+		const batches: string[] = [];
+		for (const type of ["node", "way", "relation"] as const) {
+			const numbers = ids
+				.filter((id) => entityType(id) === type)
+				.map((id) => osmId(id));
+			for (let i = 0; i < numbers.length; i += MULTI_FETCH) {
+				const list = numbers.slice(i, i + MULTI_FETCH).join(",");
+				batches.push(`/${type}s.json?${type}s=${list}`);
+			}
+		}
+		const results: Current[] = [];
+		let next = 0;
+		const worker = async () => {
+			while (next < batches.length) {
+				const path = batches[next++] as string;
+				const body = JSON.parse(await this.#request("GET", path));
+				results.push(...parseCurrent(body));
+			}
+		};
+		await Promise.all(
+			Array.from(
+				{ length: Math.min(FETCH_CONCURRENCY, batches.length) },
+				worker,
+			),
+		);
+		return results;
+	}
+
 	/**
 	 * Uploads the graph's changes in a new changeset. `retryOf` is the changeset of an upload
 	 * that failed: when it holds changes, that upload went through and only its answer was lost,
@@ -98,7 +135,7 @@ export class OsmApi {
 	async upload(
 		graph: Graph,
 		changesetTags: Tags,
-		{ retryOf }: { retryOf?: number } = {},
+		{ retryOf, user }: { retryOf?: number; user?: string } = {},
 	): Promise<UploadResult & { changesetId: number }> {
 		if (!graph.hasChanges()) throw new Error("Nothing to upload");
 		const token = this.#getToken();
@@ -135,7 +172,11 @@ export class OsmApi {
 				buildOsmChange(graph, changesetId),
 				token,
 			);
-			return { ...applyDiffResult(graph, diffResult), changesetId };
+			const timestamp = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+			return {
+				...applyDiffResult(graph, diffResult, { user, timestamp }),
+				changesetId,
+			};
 		} catch (error) {
 			if (error instanceof OsmApiError) {
 				throw new OsmApiError(
@@ -143,6 +184,7 @@ export class OsmApi {
 					error.kind,
 					error.status,
 					changesetId,
+					error.entities,
 				);
 			}
 			throw error;
@@ -183,6 +225,8 @@ export class OsmApi {
 				method,
 				headers,
 				body,
+				// Never an older version from the browser's cache (osm-simple3d-editor #47).
+				cache: "no-store",
 			});
 		} catch (error) {
 			throw new OsmApiError(
@@ -197,6 +241,8 @@ export class OsmApi {
 				`${method} ${path} failed (HTTP ${response.status}): ${text}`,
 				errorKind(response.status),
 				response.status,
+				undefined,
+				namedEntities(text),
 			);
 		}
 		return text;
@@ -208,9 +254,51 @@ function errorKind(status: number): OsmApiErrorKind {
 	if (status === 400) return "bad-request";
 	if (status === 409) return "conflict";
 	if (status === 412) return "precondition";
+	if (status === 410) return "gone";
 	if (status === 429 || status === 509) return "rate-limit";
 	if (status >= 500) return "server";
 	return "other";
+}
+
+/** Ids per multi-fetch request: well under URL length limits (iD asks for 150). */
+const MULTI_FETCH = 150;
+const FETCH_CONCURRENCY = 4;
+
+/**
+ * The entities an error answer names. The API's 409, 410 and 412 bodies read like
+ * "Version mismatch: Provided 1, server had: 2 of Way 100", "The node with the id 5 has
+ * already been deleted", "Precondition failed: Node 5 is still used by ways 7,8." or
+ * "Way 12 requires the nodes with id in 1,2, which either do not exist, or are not visible."
+ */
+export function namedEntities(body: string): EntityId[] {
+	const ids = new Set<EntityId>();
+	const add = (type: string, list: string) => {
+		const t = type.toLowerCase().replace(/s$/, "") as EntityType;
+		if (t !== "node" && t !== "way" && t !== "relation") return;
+		for (const n of list.match(/\d+/g) ?? []) ids.add(makeId(t, Number(n)));
+	};
+	for (const [, type = "", list = ""] of body.matchAll(
+		/\b(nodes?|ways?|relations?)(?: with (?:the )?id(?: in)?)?\s*\(?((?:\d+\s*,\s*)*\d+)/gi,
+	)) {
+		add(type, list);
+	}
+	return [...ids];
+}
+
+/** Current versions from a multi-fetch answer: deleted ones come with `visible: false`. */
+function parseCurrent(json: {
+	elements?: (JsonElement & { visible?: boolean })[];
+}): Current[] {
+	return (json.elements ?? []).flatMap((e): Current[] => {
+		if (e.type !== "node" && e.type !== "way" && e.type !== "relation")
+			return [];
+		const id = makeId(e.type, e.id);
+		const version = e.version ?? 0;
+		const who = e.user === undefined ? {} : { user: e.user };
+		if (e.visible === false) return [{ id, version, entity: null, ...who }];
+		const [entity] = parseElements({ elements: [e] });
+		return entity ? [{ id, version, entity, ...who }] : [];
+	});
 }
 
 interface JsonElement {

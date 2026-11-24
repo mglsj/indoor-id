@@ -56,6 +56,7 @@
 				loadMap: async (bbox) => recent.patch(await overpass.loadMap(bbox)),
 				loadRelation: async (id) =>
 					recent.patch(await overpass.loadRelation(id)),
+				loadEntities: () => overpass.upload(),
 				upload: () => overpass.upload(),
 			},
 			minZoom: dataZoom,

@@ -1290,6 +1290,41 @@ Before V and 3D (decided ✔). From P5.4's first step:
   `area=yes`. A floor with holes is a multipolygon; a hole that is exactly one room's ring is
   that room's way, not a copy.
 
+### P5.4b: Rebase before upload, conflicts — M–L — done
+
+After B (decided ✔ 2026-11-12). Done ✅ 2026-11-24:
+
+- **Rebase before every upload** (`actions/rebase.ts`, run by `DataSync.upload`): the current
+  versions of what the upload touches are fetched first (`idsToCheck`: modified and deleted
+  entities, and the downloaded nodes and members that uploaded ways and relations use) with
+  `OsmApi.loadEntities` (the API's multi-fetch, `/nodes.json?nodes=…`, 150 ids a request, four
+  at a time; deleted ones come back with `visible: false`). `rebase` merges three ways from the
+  version downloaded: tags key by key, a node's position and a way's nodes from the side that
+  changed them, relation members added and removed on both sides (a reorder clashes). The
+  server's versions go under the edits (`History.rebase`) and the merge is one undo step,
+  "Merge changes from OpenStreetMap". Nodes their version of a way uses that weren't
+  downloaded are fetched with it (`missingChildren`). When their changes were all the user's
+  too, nothing is sent ("up-to-date").
+- **Conflicts** (iD's `actionMergeRemoteChanges` as the model): a tag or shape both changed
+  differently, a feature they deleted and the user edited (or the reverse), or a node they
+  deleted that an edited way still uses. Nothing is uploaded while one is left: the Save dialog
+  lists them with who made the server's version, and "Keep mine" or "Take theirs" each (or all).
+  The side chosen wins only what clashes, the other's other changes are kept (iD's
+  `force_local`/`force_remote`). Keeping a feature they deleted sends it at the deleted
+  version, which restores it; taking their deletion removes it from the ways using it. The
+  upload is then made again, and checks again.
+- `Graph`: `revert(id)` drops a local edit; a local copy with another version than the server
+  data is a change even with the same content (that's how a restore is sent);
+  `withBaseEntities(entities, removed)`.
+- 409, 410 and 412 answers name their entities (`namedEntities`, `OsmApiError.entities`) and
+  the dialog says which; 410 is its own kind (`gone`). Every API read is `cache: "no-store"`
+  (osm-simple3d-editor issue #47).
+- After an upload, what it wrote is last edited by the uploader, now (`applyDiffResult`'s
+  `Uploader`), so the viewer's card and the Inspector say so before the next download.
+- Not done: never deleting a way still in a relation outside the edit needs nothing more, since
+  deletions are `if-unused` (the server keeps it and says so); a warning after a restore of
+  edits based on older versions, and `MapLoader.invalidate`, left for later (see the plan).
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept

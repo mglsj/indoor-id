@@ -64,10 +64,18 @@ export interface UploadResult {
 	readonly notDeleted: readonly EntityId[];
 }
 
+/** Who uploaded, and when: what the uploaded entities show as their last edit. */
+export interface Uploader {
+	readonly user?: string;
+	/** ISO 8601. */
+	readonly timestamp: string;
+}
+
 /** Applies the server's diffResult to the uploaded graph. */
 export function applyDiffResult(
 	graph: Graph,
 	diffResult: string,
+	uploader?: Uploader,
 ): UploadResult {
 	const results = parseDiffResult(diffResult);
 	const { created, modified, deleted } = graph.changes();
@@ -92,13 +100,23 @@ export function applyDiffResult(
 
 	const entities: Entity[] = [];
 	const withVersion = (entity: Entity): Entity => {
-		const version = results.get(entity.id)?.newVersion ?? entity.version;
+		const result = results.get(entity.id);
+		const version = result?.newVersion ?? entity.version;
+		// Written by the upload: last edited by the uploader, now.
+		const edit =
+			uploader && result?.newVersion !== undefined
+				? {
+						timestamp: uploader.timestamp,
+						...(uploader.user ? { user: uploader.user } : {}),
+					}
+				: {};
 		switch (entity.type) {
 			case "node":
-				return { ...entity, id: remap(entity.id), version };
+				return { ...entity, ...edit, id: remap(entity.id), version };
 			case "way":
 				return {
 					...entity,
+					...edit,
 					id: remap(entity.id),
 					version,
 					nodes: entity.nodes.map(remap),
@@ -106,6 +124,7 @@ export function applyDiffResult(
 			case "relation":
 				return {
 					...entity,
+					...edit,
 					id: remap(entity.id),
 					version,
 					members: entity.members.map((m) => ({ ...m, ref: remap(m.ref) })),

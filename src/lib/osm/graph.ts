@@ -151,6 +151,17 @@ export class Graph {
 		return child;
 	}
 
+	/** Drops the local edit of an entity: it is as the server data has it again. */
+	revert(id: EntityId): Graph {
+		if (!this.#local.has(id)) return this;
+		if (!this.#frozen) {
+			this.#local = this.#local.delete(id);
+			this.#touched?.add(id);
+			return this;
+		}
+		return this.#child(this.#local.delete(id), this.#nextId, new Set([id]));
+	}
+
 	remove(id: EntityId): Graph {
 		if (!this.#frozen) {
 			this.#local = this.#local.set(id, null);
@@ -203,9 +214,16 @@ export class Graph {
 		return this.#local.has(id);
 	}
 
-	/** This graph's server data with `entities` added or replaced, without local edits. */
-	withBaseEntities(entities: Iterable<Entity>): Graph {
+	/**
+	 * This graph's server data with `entities` added or replaced and `removed` (deleted on the
+	 * server) taken out, without local edits.
+	 */
+	withBaseEntities(
+		entities: Iterable<Entity>,
+		removed: Iterable<EntityId> = [],
+	): Graph {
 		const map = new Map(this.#base.entities);
+		for (const id of removed) map.delete(id);
 		let nextId = this.#nextId;
 		for (const entity of entities) {
 			map.set(entity.id, entity);
@@ -286,7 +304,7 @@ export class Graph {
 		for (const [id, entity] of this.#local) {
 			const base = this.#base.entities.get(id);
 			if (entity && !base) created.push(entity);
-			else if (entity && base && !sameContent(entity, base))
+			else if (entity && base && !sameVersion(entity, base))
 				modified.push(entity);
 			else if (!entity && base) deleted.push(base);
 		}
@@ -324,7 +342,7 @@ export class Graph {
 		if (local === undefined) return 0;
 		const base = this.#base.entities.get(id);
 		if (local === null) return base ? 1 : 0;
-		return !base || !sameContent(local, base) ? 1 : 0;
+		return !base || !sameVersion(local, base) ? 1 : 0;
 	}
 
 	/**
@@ -367,6 +385,15 @@ export class Graph {
 			relations: this.#localParentRelations,
 		};
 	}
+}
+
+/**
+ * Whether a local entity is the server's: same content and version. A copy with the version
+ * the server has now (a conflict resolved by keeping one's own, a deleted entity restored) is
+ * a change even with the same content: it is sent so that the server takes it.
+ */
+function sameVersion(local: Entity, base: Entity): boolean {
+	return local.version === base.version && sameContent(local, base);
 }
 
 type LocalEdits = PersistentMap<EntityId, Entity | null>;

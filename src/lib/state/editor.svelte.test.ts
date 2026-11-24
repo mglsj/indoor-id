@@ -24,6 +24,7 @@ function editorWith(entities: Entity[]) {
 		api: {
 			loadMap: async () => [],
 			loadRelation: async () => [],
+			loadEntities: async () => [],
 			upload: async () => {
 				throw new Error("no upload");
 			},
