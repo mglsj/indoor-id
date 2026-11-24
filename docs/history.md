@@ -2124,6 +2124,18 @@ Done ✅ 2026-11-24:
   meant the feature type (fr "Zone"), not the measure, so it was left out. The rest is for
   translators.
 
+### P6.7: Release checklist and announcement — S — done
+
+Done ✅ 2026-11-24:
+
+- **Checklist** ([release-0.1.md](release-0.1.md)): the features 0.1 alpha ships with, each
+  next to the e2e test that shows it, and the manual checks tests can't reach (a real OSM
+  login and upload, a real JOSM, a userscript manager, indoor=, Firefox and Safari).
+  `src/lib/release-checklist.test.ts` fails when a named test no longer exists.
+- **Announcement draft** ([announcement-0.1.md](announcement-0.1.md)) for the community forum,
+  as a new editor (OsmInEdit named as its origin and in the credits). Not posted: the hosted
+  address and screenshots are still to fill in, and posting is the maintainer's call.
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept
