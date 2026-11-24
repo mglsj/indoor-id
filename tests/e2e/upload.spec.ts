@@ -120,11 +120,65 @@ test("keeps the edits when the upload is refused", async ({ page }) => {
 	await dialog.getByRole("button", { name: "Upload" }).click();
 
 	await expect(dialog.getByRole("alert")).toContainText(
-		"Someone else changed the same data",
+		"Someone else changed w100 while you were uploading",
 	);
 	expect(requests.at(-1)?.path).toBe("/api/0.6/changeset/42/close");
 	await dialog.getByRole("button", { name: "Cancel" }).click();
 	await expect(page.getByTestId("edit-count")).toHaveText("1");
+});
+
+test("lists edits that clash with someone else's, and uploads the version kept", async ({
+	page,
+}) => {
+	await loggedIn(page);
+	const requests = await changesetApi(page, (route) =>
+		route.fulfill({
+			body: '<diffResult version="0.6"><way old_id="100" new_id="100" new_version="3"/></diffResult>',
+		}),
+	);
+	await editRoomNumber(page);
+	// Meanwhile Ana numbered the room too, and named it.
+	await page.route("**/api/0.6/ways.json?*", (route) =>
+		route.fulfill({
+			json: {
+				version: "0.6",
+				elements: [
+					{
+						type: "way",
+						id: 100,
+						version: 2,
+						user: "Ana",
+						nodes: [101, 102, 103, 104, 101],
+						tags: { indoor: "room", level: "0", ref: "B11", name: "Lab" },
+					},
+				],
+			},
+		}),
+	);
+
+	await page.getByRole("button", { name: /Save/ }).click();
+	const dialog = page.getByRole("dialog", { name: "Upload your edits" });
+	await dialog.getByRole("textbox", { name: "Comment" }).fill("Room number");
+	await dialog.getByRole("button", { name: "Upload" }).click();
+
+	const conflicts = dialog.getByRole("note", {
+		name: "Someone else changed the same features",
+	});
+	await expect(conflicts).toContainText("(w100)");
+	await expect(conflicts).toContainText("You and Ana both changed ref.");
+	await expect(dialog.getByRole("button", { name: "Upload" })).toBeDisabled();
+	expect(requests).toEqual([]);
+
+	await conflicts.getByRole("button", { name: "Keep mine" }).click();
+	await expect(conflicts).toBeHidden();
+	await dialog.getByRole("button", { name: "Upload" }).click();
+	await expect(dialog.getByRole("status")).toContainText("changeset 42");
+	// Their name is kept with my number, sent over their version.
+	expect(requests[1]?.body).toContain(
+		'<way id="100" changeset="42" version="2">',
+	);
+	expect(requests[1]?.body).toContain('<tag k="name" v="Lab"/>');
+	expect(requests[1]?.body).toContain('<tag k="ref" v="B12"/>');
 });
 
 test("explains that login is not set up on this instance", async ({ page }) => {

@@ -190,6 +190,12 @@ runs the same commands.
   `EditHistory` takes the `Selection`: steps record it, undo and redo select it again. A failed
   upload's changeset (`DataSync.failedChangeset`) is checked by the next upload (`retryOf`).
   E2E tests open a second tab with `context.newPage()` and `blockExternal()`.
+- Rebase and conflicts (P5.4b): `actions/rebase.ts` (`idsToCheck`, `rebase`, `resolveConflict`:
+  three-way merges from the downloaded version), run by `DataSync.upload` before sending, over
+  `OsmApi.loadEntities` (current versions, deleted ones as `entity: null`) and applied with
+  `History.rebase` as one undo step. Conflicts wait in `DataSync.conflicts`, listed by
+  `ui/SaveDialog.svelte`. E2E `serveOsm()` also answers the multi-fetch from its elements;
+  route `**/api/0.6/ways.json?*` again to serve someone else's edit.
 - Unmapped floor (P5.4a): `edit/unmapped-floor.ts` (`unmappedFloorAt`: a level outline or
   building minus the spaces on the level, with `polyclip-ts`; `mapFloor`: draws it through the
   neighbours' nodes), held in `Editor.floor` (not a selection, not in the history), shown by

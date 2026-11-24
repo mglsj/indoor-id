@@ -4,7 +4,7 @@ import { type Bbox, OsmApiError } from "#lib/api/osm-api.ts";
 import type { UploadedChanges } from "#lib/api/recent-uploads.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import type { Entity } from "#lib/osm/entity.ts";
-import { node } from "#lib/osm/fixtures.ts";
+import { node, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { DataSync, type SyncApi } from "./data-sync.svelte.ts";
 import { EditHistory } from "./edit-history.svelte.ts";
@@ -19,6 +19,7 @@ function setup(api: Partial<SyncApi> = {}) {
 		api: {
 			loadMap: async () => [node("n1", { amenity: "bench" }, [2.35, 48.85])],
 			loadRelation: async () => [],
+			loadEntities: async () => [],
 			upload: async () => {
 				throw new Error("no upload");
 			},
@@ -97,6 +98,7 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 		);
 		selection.select("n-1");
 		expect(await sync.upload({ comment: "Benches" })).toEqual({
+			kind: "uploaded",
 			changesetId: 42,
 			notDeleted: [],
 		});
@@ -112,6 +114,7 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 			api: {
 				loadMap: async () => [],
 				loadRelation: async () => [],
+				loadEntities: async () => [],
 				upload: async () => ({
 					graph: Graph.fromEntities([node("n100", { amenity: "bench" })]),
 					idMap: new Map([["n-1", "n100"]]),
@@ -230,12 +233,14 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 		expect(history.locked).toBe(true);
 		history.undo();
 		expect(history.graph.entity("n-1")).toBeDefined();
+		// The upload is sent once the edits are checked against the server.
+		await new Promise((r) => setTimeout(r, 0));
 
 		// The server deleted n1 in the meantime: the answer asked for before is dropped.
 		for (const answer of answers.splice(0))
 			answer([node("n1", {}, [2.35, 48.85])]);
 		finish(7);
-		expect((await uploading).changesetId).toBe(7);
+		expect(await uploading).toMatchObject({ kind: "uploaded", changesetId: 7 });
 		expect(history.locked).toBe(false);
 		await new Promise((r) => setTimeout(r, 0));
 		expect(history.graph.entity("n1")).toBeUndefined();
@@ -288,5 +293,140 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 		);
 		expect(uploads).toBe(0);
 		expect(history.locked).toBe(false);
+	});
+
+	it("merges their changes before uploading, as an undo step", async () => {
+		const sent: Graph[] = [];
+		const { history, sync } = setup({
+			loadEntities: async () => [
+				{
+					id: "n1",
+					version: 2,
+					entity: {
+						...node("n1", { amenity: "bench", colour: "red" }, [2.35, 48.85]),
+						version: 2,
+					},
+				},
+			],
+			upload: async (graph) => {
+				sent.push(graph);
+				throw new Error("offline");
+			},
+		});
+		history.merge([node("n1", { amenity: "bench" }, [2.35, 48.85])]);
+		history.perform(
+			changeTags("n1", { amenity: "bench", backrest: "yes" }),
+			msg("undo_change_tags"),
+		);
+		await expect(sync.upload({ comment: "Bench" })).rejects.toThrow("offline");
+		expect(sent[0]?.entity("n1")).toMatchObject({
+			version: 2,
+			tags: { amenity: "bench", backrest: "yes", colour: "red" },
+		});
+		// The merge is a step: undone, the edit is as made.
+		history.undo();
+		expect(history.graph.entity("n1")?.tags).toEqual({
+			amenity: "bench",
+			backrest: "yes",
+		});
+	});
+
+	it("uploads nothing while edits clash, until each is resolved", async () => {
+		let uploads = 0;
+		const { history, sync } = setup({
+			loadEntities: async () => [
+				{
+					id: "n1",
+					version: 2,
+					user: "Ana",
+					entity: {
+						...node("n1", { amenity: "chair" }, [2.35, 48.85]),
+						version: 2,
+					},
+				},
+			],
+			upload: async (graph) => {
+				uploads++;
+				return {
+					graph: graph.base(),
+					idMap: new Map(),
+					notDeleted: [],
+					changesetId: 9,
+				};
+			},
+		});
+		history.merge([node("n1", { amenity: "bench" }, [2.35, 48.85])]);
+		history.perform(
+			changeTags("n1", { amenity: "table" }),
+			msg("undo_change_tags"),
+		);
+
+		const outcome = await sync.upload({ comment: "Bench" });
+		expect(outcome.kind).toBe("conflicts");
+		expect(sync.conflicts.map((c) => [c.id, c.kind, c.keys])).toEqual([
+			["n1", "both-edited", ["amenity"]],
+		]);
+		expect(uploads).toBe(0);
+		expect(history.locked).toBe(false);
+
+		await sync.resolve("n1", "mine");
+		expect(sync.conflicts).toEqual([]);
+		expect(history.graph.entity("n1")).toMatchObject({
+			version: 2,
+			tags: { amenity: "table" },
+		});
+		expect(await sync.upload({ comment: "Bench" })).toMatchObject({
+			kind: "uploaded",
+			changesetId: 9,
+		});
+		expect(uploads).toBe(1);
+	});
+
+	it("says when their changes leave nothing to upload", async () => {
+		const { history, sync } = setup({
+			loadEntities: async () => [{ id: "n1", version: 2, entity: null }],
+		});
+		history.merge([node("n1", { amenity: "bench" }, [2.35, 48.85])]);
+		history.perform((g) => g.remove("n1"), msg("undo_change_tags"));
+		expect(await sync.upload({ comment: "Bench" })).toEqual({
+			kind: "up-to-date",
+		});
+		expect(history.editCount).toBe(0);
+	});
+
+	it("downloads the nodes their version of a way uses", async () => {
+		const asked: string[][] = [];
+		const { history, sync } = setup({
+			loadEntities: async (ids) => {
+				asked.push([...ids]);
+				if (ids.includes("w1")) {
+					return [
+						{
+							id: "w1",
+							version: 2,
+							entity: {
+								...way("w1", ["n1", "n2"], { highway: "corridor" }),
+								version: 2,
+							},
+						},
+					];
+				}
+				return [
+					{ id: "n2", version: 1, entity: node("n2", {}, [2.351, 48.85]) },
+				];
+			},
+		});
+		history.merge([
+			node("n1", {}, [2.35, 48.85]),
+			way("w1", ["n1"], { highway: "corridor" }),
+		]);
+		history.perform(
+			changeTags("w1", { highway: "corridor", level: "0" }),
+			msg("undo_change_tags"),
+		);
+		await sync.upload({ comment: "Level" }).catch(() => undefined);
+		expect(asked).toEqual([["w1", "n1"], ["n2"]]);
+		expect(history.graph.entity("w1")).toMatchObject({ nodes: ["n1", "n2"] });
+		expect(history.graph.entity("n2")).toBeDefined();
 	});
 });

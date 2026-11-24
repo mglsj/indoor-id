@@ -46,7 +46,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | C      | CAD-style precision (C.0–C.6)              | C.0–C.6 done |
 | I      | iD's area fill, colours and safeguards     | Done         |
 | B      | Building mode: map and building scopes     | Done         |
-| P5.4b  | Rebase before upload, conflicts            | Not started  |
+| P5.4b  | Rebase before upload, conflicts            | Done         |
 | W2     | Wiki conformance, November research        | Not started  |
 | P6     | Parity and polish                          | Not started  |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
@@ -696,29 +696,16 @@ angle snapping, the readout and Square kept in map mode, the rest of C only insi
 locked inside until "Edit outline"; map mode edits buildings, parts and entrances, not a general
 outdoor editor; a URL naming a building opens inside it.
 
-### P5.4b: Rebase before upload, conflicts — M–L
+### P5.4b: Rebase before upload, conflicts — M–L — done
 
-Next, after B (3D moved later on 2026-11-12). Autosave, P5.4's first step, moved to P5.4a; steps 2 to 4 stay here.
-
-2. Rebase before upload, first (osm-simple3d-editor does only this, and conflicts become
-   rare): fetch the current versions of edited entities, reapply tag edits where the server
-   changed other keys, merge relation members; a real clash falls through to step 3.
-3. Conflicts (iD's `actions/merge_remote_changes` as the model): the server's newer versions kept next to the base; `OsmApi.loadEntities(ids)`;
-   `MapLoader.invalidate(area)`; 409, 410 and 412 bodies parsed into entity ids; versions
-   taken from the base when uploading; a conflict dialog (keep mine, take theirs, per entity).
-4. After upload, uploaded entities take the uploader and the time.
-
-Also: never delete a way that is still a member of a relation outside the edit (a split left a
-footway multipolygon unclosed in osm-simple3d-editor, `541cbc4`, `12ac4fd`); `delete.ts`
-checks loaded parents, and the rebase should check the relations it fetches too.
-
-Also: read the OSM API with `cache: "no-store"`, so the browser can't hand back an older
-version of an entity (osm-simple3d-editor issue #47), and warn when restored edits are based on
-versions older than the server's.
+Done ✅ (2026-11-24); see "P5.4b" in [docs/history.md](docs/history.md). Left for later: a
+warning right after a restore when the edits are based on versions older than the server's
+(the upload now merges or lists them anyway), and re-downloading the area after a merge
+(`MapLoader.invalidate`: the merge puts the server's versions in the history itself).
 
 ### W2: Wiki conformance from the November research — S–M
 
-Proposed 2026-11-05 (from the osm-simple3d-editor research addendum); after P5.4b. Checks that
+Next (P5.4b is done). Proposed 2026-11-05 (from the osm-simple3d-editor research addendum). Checks that
 only matter in 3D (escalator slopes against level heights) wait for 3D.3:
 
 - Escalators: both end levels in `level`, `incline=up|down`, two-point lines only, slope 15–38°

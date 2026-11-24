@@ -265,6 +265,22 @@ export class EditHistory {
 		this.#made.set(this.graph, this.#edits);
 	}
 
+	/**
+	 * Takes the server's current versions and applies what the edits become over them, as one
+	 * step (`History.rebase`). Made while locked too: the upload rebases before sending.
+	 */
+	rebase(
+		server: readonly Entity[],
+		gone: readonly EntityId[],
+		action: Action,
+		annotation: Message,
+	): void {
+		this.#typing = null;
+		this.#preview = null;
+		this.#recordSelection();
+		this.#edited(this.#history.rebase(server, gone, action, annotation));
+	}
+
 	/** The steps, for autosave (see `history-json.ts`), with the selection shown now. */
 	save(): SavedHistory<Message> {
 		this.#recordSelection();

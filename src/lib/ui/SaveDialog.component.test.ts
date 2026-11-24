@@ -18,7 +18,12 @@ async function editedBench(upload: SyncApi["upload"]) {
 	});
 	await catalog.loaded;
 	const editor = new Editor({
-		api: { loadMap: async () => [], loadRelation: async () => [], upload },
+		api: {
+			loadMap: async () => [],
+			loadRelation: async () => [],
+			loadEntities: async () => [],
+			upload,
+		},
 		minZoom: 16,
 		catalog,
 	});

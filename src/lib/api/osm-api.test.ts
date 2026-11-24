@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { node } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { buildOsmChange } from "#lib/osm/osmchange.ts";
-import { OsmApi, OsmApiError } from "./osm-api.ts";
+import { namedEntities, OsmApi, OsmApiError } from "./osm-api.ts";
 
 interface Request {
 	method: string;
 	url: string;
+	cache: RequestCache | undefined;
 	authorization: string | null;
 	body: string | null;
 }
@@ -20,6 +21,7 @@ function fakeFetch(routes: Record<string, Responder>) {
 		const request: Request = {
 			method: init?.method ?? "GET",
 			url: String(input),
+			cache: init?.cache,
 			authorization: new Headers(init?.headers).get("Authorization"),
 			body: typeof init?.body === "string" ? init.body : null,
 		};
@@ -200,6 +202,87 @@ describe("loadMap", () => {
 	});
 });
 
+describe("loadEntities", () => {
+	it("fetches current versions in batches by type, deleted ones included, never cached", async () => {
+		const { fetch, requests } = fakeFetch({
+			"GET /api/0.6/nodes.json": () =>
+				Response.json({
+					elements: [
+						{ type: "node", id: 1, lat: 1, lon: 2, version: 3, user: "Ana" },
+						{ type: "node", id: 2, version: 4, visible: false, user: "Bo" },
+					],
+				}),
+			"GET /api/0.6/ways.json": () =>
+				Response.json({
+					elements: [{ type: "way", id: 7, version: 2, nodes: [1, 2] }],
+				}),
+		});
+		const current = await api(fetch).loadEntities(["n1", "w7", "n2"]);
+		expect(requests.map((r) => r.url).sort()).toEqual([
+			"https://api.example.org/api/0.6/nodes.json?nodes=1,2",
+			"https://api.example.org/api/0.6/ways.json?ways=7",
+		]);
+		expect(requests.every((r) => r.cache === "no-store")).toBe(true);
+		expect(current).toContainEqual({
+			id: "n2",
+			version: 4,
+			entity: null,
+			user: "Bo",
+		});
+		expect(current).toContainEqual({
+			id: "n1",
+			version: 3,
+			user: "Ana",
+			entity: {
+				type: "node",
+				id: "n1",
+				version: 3,
+				user: "Ana",
+				tags: {},
+				loc: [2, 1],
+			},
+		});
+		expect(current.find((c) => c.id === "w7")?.entity).toMatchObject({
+			nodes: ["n1", "n2"],
+		});
+	});
+
+	it("asks for at most 150 ids at a time", async () => {
+		const { fetch, requests } = fakeFetch({
+			"GET /api/0.6/nodes.json": () => Response.json({ elements: [] }),
+		});
+		const ids = Array.from({ length: 301 }, (_, i) => `n${i + 1}` as const);
+		await api(fetch).loadEntities(ids);
+		expect(requests).toHaveLength(3);
+		expect(requests.map((r) => r.url.split(",").length).sort()).toEqual([
+			1, 150, 150,
+		]);
+	});
+
+	it("asks for nothing when there is nothing to check", async () => {
+		const { fetch, requests } = fakeFetch({});
+		expect(await api(fetch).loadEntities([])).toEqual([]);
+		expect(requests).toEqual([]);
+	});
+});
+
+describe("namedEntities: the ids in the API's error answers", () => {
+	it.each([
+		["Version mismatch: Provided 1, server had: 2 of Way 100", ["w100"]],
+		[
+			"Precondition failed: Node 5 is still used by ways 7,8.",
+			["n5", "w7", "w8"],
+		],
+		[
+			"Relation 3 requires the relations with id in 4, which either do not exist, or are not visible.",
+			["r3", "r4"],
+		],
+		["The changeset 123 was closed at 2026-11-24 07:00:00 UTC", []],
+	])("%s", (body, ids) => {
+		expect(namedEntities(body)).toEqual(ids);
+	});
+});
+
 describe("upload", () => {
 	const base = Graph.fromEntities([node("n1", {}, [2.35, 48.85])]);
 	const edited = base
@@ -248,15 +331,22 @@ describe("upload", () => {
 	});
 
 	it.each([
-		[409, "conflict", "Version mismatch: Provided 1, server had: 2 of Node 1"],
+		[
+			409,
+			"conflict",
+			"Version mismatch: Provided 1, server had: 2 of Node 1",
+			["n1"],
+		],
 		[
 			412,
 			"precondition",
-			"Way 10 requires the nodes with id in (5), which either do not exist, or are not visible.",
+			"Way 10 requires the nodes with id in (5,6), which either do not exist, or are not visible.",
+			["w10", "n5", "n6"],
 		],
+		[410, "gone", "The node with the id 1 has already been deleted", ["n1"]],
 	] as const)(
 		"on HTTP %i, fails with kind %j, still closes the changeset and uploads only once",
-		async (status, kind, message) => {
+		async (status, kind, message, entities) => {
 			const { fetch, requests } = fakeFetch(
 				routes({
 					"POST /api/0.6/changeset/42/upload": () =>
@@ -267,7 +357,7 @@ describe("upload", () => {
 				.upload(edited, { comment: "test" })
 				.catch((e: unknown) => e);
 
-			expect(error).toMatchObject({ status, kind, changesetId: 42 });
+			expect(error).toMatchObject({ status, kind, changesetId: 42, entities });
 			expect((error as Error).message).toContain(message);
 			expect(requests.filter((r) => r.url.endsWith("/upload"))).toHaveLength(1);
 			expect(requests.at(-1)?.url).toBe(
@@ -275,6 +365,22 @@ describe("upload", () => {
 			);
 		},
 	);
+
+	it("marks what it wrote as last edited by the uploader, now", async () => {
+		const { fetch } = fakeFetch(routes());
+		const result = await api(fetch).upload(
+			edited,
+			{ comment: "test" },
+			{ user: "Tester" },
+		);
+		for (const id of ["n1", "n500"] as const) {
+			const entity = result.graph.entity(id);
+			expect(entity?.user).toBe("Tester");
+			expect(Date.now() - Date.parse(entity?.timestamp ?? "")).toBeLessThan(
+				60_000,
+			);
+		}
+	});
 
 	it("returns the result even if closing the changeset fails (it closes itself later)", async () => {
 		const { fetch } = fakeFetch(

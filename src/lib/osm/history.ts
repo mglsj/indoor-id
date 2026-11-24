@@ -139,6 +139,24 @@ export class History<A = string> {
 		return { conflicts };
 	}
 
+	/**
+	 * Takes the server's current versions of entities, edited or not, under every step
+	 * (`server`; `gone`: deleted there), then applies `action` (what the edits become over them,
+	 * see `osm/rebase.ts`) as a step. Unlike `merge`, edited entities are taken: the caller has
+	 * merged them. No step is made when the action changes nothing.
+	 */
+	rebase(
+		server: readonly Entity[],
+		gone: readonly EntityId[],
+		action: Action,
+		annotation: A,
+	): Graph {
+		if (server.length > 0 || gone.length > 0) {
+			this.#server = this.#server.withBaseEntities(server, gone).base();
+		}
+		return this.perform(action, annotation);
+	}
+
 	/** Returns the annotation of the undone action, or null if there was nothing to undo. */
 	undo(): A | null {
 		if (!this.canUndo) return null;

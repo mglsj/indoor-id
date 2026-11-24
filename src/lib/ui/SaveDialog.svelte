@@ -1,6 +1,7 @@
 <script lang="ts">
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+	import type { Conflict, Resolution } from "#lib/actions/rebase.ts";
 	import { changesetTags, MAX_CHANGESET_CHANGES } from "#lib/api/changeset.ts";
 	import { OsmApiError } from "#lib/api/osm-api.ts";
 	import * as Alert from "#lib/components/shadcn/alert/index.ts";
@@ -12,7 +13,8 @@
 	import { Spinner } from "#lib/components/shadcn/spinner/index.ts";
 	import { Textarea } from "#lib/components/shadcn/textarea/index.ts";
 	import { scopedIssues } from "#lib/edit/scope.ts";
-	import { msg, t } from "#lib/i18n/messages.ts";
+	import { type Message, msg, t } from "#lib/i18n/messages.ts";
+	import { labelFor } from "#lib/map/classify.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
 	import type { Session } from "#lib/state/session.svelte.ts";
 	import { BLOCKING_RULES } from "#lib/validation/validate.ts";
@@ -49,6 +51,9 @@
 		| { kind: "signing-in"; cancel: AbortController }
 		| { kind: "uploading" }
 		| { kind: "done"; changesetId: number; notDeleted: readonly string[] }
+		| { kind: "up-to-date" }
+		/** Choosing a version of a conflict. */
+		| { kind: "resolving" }
 		| { kind: "error"; message: string; uploaded?: number }
 	>({ kind: "form" });
 
@@ -66,8 +71,12 @@
 	);
 	const issues = $derived(scoped.shown);
 	const busy = $derived(
-		phase.kind === "uploading" || phase.kind === "signing-in",
+		phase.kind === "uploading" ||
+			phase.kind === "signing-in" ||
+			phase.kind === "resolving",
 	);
+	/** Edits that clash with someone else's, found by the last upload (P5.4b). */
+	const conflicts = $derived(editor.sync.conflicts);
 	/** A changeset takes at most 10,000 changes: more are refused before sending anything. */
 	const tooMany = $derived(
 		editor.history.editCount > MAX_CHANGESET_CHANGES
@@ -87,7 +96,7 @@
 				await session.login({ signal: cancel.signal });
 			}
 			phase = { kind: "uploading" };
-			const { changesetId, notDeleted } = await editor.sync.upload(
+			const outcome = await editor.sync.upload(
 				changesetTags({
 					comment,
 					source,
@@ -95,8 +104,20 @@
 					floorPlans,
 					reviewRequested,
 				}),
+				{ user: session.userName ?? undefined },
 			);
-			phase = { kind: "done", changesetId, notDeleted };
+			if (outcome.kind === "conflicts") {
+				phase = { kind: "form" };
+				return;
+			}
+			phase =
+				outcome.kind === "uploaded"
+					? {
+							kind: "done",
+							changesetId: outcome.changesetId,
+							notDeleted: outcome.notDeleted,
+						}
+					: { kind: "up-to-date" };
 			onuploaded?.();
 		} catch (error) {
 			// Cancelled: the form is back already.
@@ -114,6 +135,46 @@
 		}
 	}
 
+	/** Keeps the user's version of conflicts, or takes the server's. */
+	async function resolve(ids: readonly Conflict["id"][], choice: Resolution) {
+		phase = { kind: "resolving" };
+		try {
+			for (const id of ids) await editor.sync.resolve(id, choice);
+			phase = { kind: "form" };
+		} catch (error) {
+			phase = { kind: "error", message: explain(error) };
+		}
+	}
+
+	/** What a conflict is about: the feature's preset and name, then its id. */
+	function conflictLabel(conflict: Conflict): string {
+		const entity = conflict.mine ?? conflict.theirs.entity ?? conflict.base;
+		const name = labelFor(entity.tags);
+		const preset = editor.presetOf(entity)?.name;
+		return [preset, name].filter(Boolean).join(" ") || entity.id;
+	}
+
+	/** Why a feature is in conflict. */
+	function conflictReason(conflict: Conflict): Message {
+		const user = conflict.theirs.user ?? t(msg("conflict_someone"));
+		switch (conflict.kind) {
+			case "deleted-by-them":
+				return msg("conflict_deleted_by_them", { user });
+			case "deleted-by-me":
+				return msg("conflict_deleted_by_me", { user });
+			case "deleted-in-use":
+				return msg("conflict_deleted_in_use", { user });
+			case "both-edited": {
+				const keys = conflict.keys.join(", ");
+				if (keys && conflict.geometry)
+					return msg("conflict_both_edited_all", { keys, user });
+				return keys
+					? msg("conflict_both_edited_tags", { keys, user })
+					: msg("conflict_both_edited_geometry", { user });
+			}
+		}
+	}
+
 	/** Cancel: stops a login under way (an upload, once sent, can't be taken back). */
 	function cancel() {
 		if (phase.kind === "signing-in") {
@@ -124,13 +185,21 @@
 		}
 	}
 
+	/** The features an error names, or `otherwise`. */
+	function named(error: OsmApiError, otherwise: string): string {
+		return error.entities.length > 0 ? error.entities.join(", ") : otherwise;
+	}
+
 	function explain(error: unknown): string {
 		if (!(error instanceof OsmApiError)) return (error as Error).message;
 		switch (error.kind) {
 			case "conflict":
-				return "Someone else changed the same data in the meantime. Your edits are kept: reload the area to get their changes, then upload again.";
+				return t(
+					msg("upload_error_conflict", { ids: named(error, "the same data") }),
+				);
 			case "precondition":
-				return "Some data you edited was deleted or changed on the server. Your edits are kept: reload the area and check them.";
+			case "gone":
+				return t(msg("upload_error_gone", { ids: named(error, "some data") }));
 			case "auth":
 				return "OpenStreetMap refused your login. Log in again, then upload.";
 			case "rate-limit":
@@ -174,7 +243,12 @@
 			{/if}
 		</Dialog.Header>
 
-		{#if phase.kind === "done"}
+		{#if phase.kind === "up-to-date"}
+			<p role="status">{t(msg("upload_up_to_date"))}</p>
+			<Dialog.Footer>
+				<Button onclick={() => (open = false)}>Close</Button>
+			</Dialog.Footer>
+		{:else if phase.kind === "done"}
 			<p role="status">
 				Uploaded in
 				<a
@@ -273,6 +347,74 @@
 					</Field.Description>
 				</Field.Group>
 
+				{#if conflicts.length > 0}
+					<Alert.Root role="note" aria-label={t(msg("upload_conflicts_title"))}>
+						<CircleAlert />
+						<Alert.Title>{t(msg("upload_conflicts_title"))}</Alert.Title>
+						<Alert.Description>
+							<p>{t(msg("upload_conflicts_intro"))}</p>
+							<ul
+								class="mt-2 flex w-full flex-col gap-2"
+								data-testid="conflicts"
+							>
+								{#each conflicts as conflict (conflict.id)}
+									<li class="flex flex-col gap-1">
+										<span class="font-medium text-foreground"
+											>{conflictLabel(conflict)}
+											<span class="text-muted-foreground"
+												>({conflict.id})</span
+											></span
+										>
+										<span>{t(conflictReason(conflict))}</span>
+										<span class="flex gap-2">
+											<Button
+												variant="outline"
+												size="xs"
+												disabled={busy}
+												onclick={() => resolve([conflict.id], "mine")}
+												>{t(msg("conflict_keep_mine"))}</Button
+											>
+											<Button
+												variant="outline"
+												size="xs"
+												disabled={busy}
+												onclick={() => resolve([conflict.id], "theirs")}
+												>{t(msg("conflict_take_theirs"))}</Button
+											>
+										</span>
+									</li>
+								{/each}
+							</ul>
+							{#if conflicts.length > 1}
+								<span class="mt-2 flex gap-2">
+									<Button
+										variant="secondary"
+										size="xs"
+										disabled={busy}
+										onclick={() =>
+											resolve(
+												conflicts.map((c) => c.id),
+												"mine",
+											)}
+										>{t(msg("conflict_keep_all_mine"))}</Button
+									>
+									<Button
+										variant="secondary"
+										size="xs"
+										disabled={busy}
+										onclick={() =>
+											resolve(
+												conflicts.map((c) => c.id),
+												"theirs",
+											)}
+										>{t(msg("conflict_take_all_theirs"))}</Button
+									>
+								</span>
+							{/if}
+						</Alert.Description>
+					</Alert.Root>
+				{/if}
+
 				{#if blocking.length > 0}
 					<Alert.Root variant="destructive">
 						<CircleAlert />
@@ -322,6 +464,7 @@
 					<Button
 						type="submit"
 						disabled={busy ||
+							conflicts.length > 0 ||
 							!session.configured ||
 							tooMany !== null ||
 							blocking.length > 0}

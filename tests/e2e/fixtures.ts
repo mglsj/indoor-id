@@ -238,12 +238,31 @@ export function room(
 	];
 }
 
-/** Serves `elements` for every downloaded area and counts the downloads. */
+/**
+ * Serves `elements` for every downloaded area and counts the downloads. The current versions
+ * an upload checks first (`/nodes.json?nodes=…`) come from the same elements: nobody else
+ * edited them. Route them again in a test to serve someone else's edit.
+ */
 export async function serveOsm(page: Page, elements: Element[]) {
 	const requests: string[] = [];
 	await page.route("**/api/0.6/map.json*", (route) => {
 		requests.push(route.request().url());
 		return route.fulfill({ json: { version: "0.6", elements } });
+	});
+	await page.route(/\/api\/0\.6\/(nodes|ways|relations)\.json\?/, (route) => {
+		const url = new URL(route.request().url());
+		const type = url.pathname.match(/(node|way|relation)s\.json$/)?.[1];
+		const ids = new Set(
+			url.searchParams.get(`${type}s`)?.split(",").map(Number),
+		);
+		return route.fulfill({
+			json: {
+				version: "0.6",
+				elements: elements.filter(
+					(e) => e.type === type && ids.has(e.id as number),
+				),
+			},
+		});
 	});
 	return requests;
 }

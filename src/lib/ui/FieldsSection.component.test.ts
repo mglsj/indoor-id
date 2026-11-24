@@ -17,6 +17,7 @@ async function benches() {
 		api: {
 			loadMap: async () => [],
 			loadRelation: async () => [],
+			loadEntities: async () => [],
 			upload: () => Promise.reject(new Error("no upload")),
 		},
 		minZoom: 16,

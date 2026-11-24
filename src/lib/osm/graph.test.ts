@@ -90,6 +90,33 @@ describe("Graph", () => {
 	});
 });
 
+describe("Graph: rebase support (P5.4b)", () => {
+	const base = Graph.fromEntities([node("n1"), node("n2")]);
+
+	it("reverts a local edit to the server data", () => {
+		const edited = base.replace(node("n1", { door: "yes" })).remove("n2");
+		const reverted = edited.update((g) => g.revert("n1")).revert("n2");
+		expect(reverted.isEdited("n1")).toBe(false);
+		expect(reverted.entity("n2")).toBe(base.entity("n2"));
+		expect(reverted.hasChanges()).toBe(false);
+		expect([...reverted.changedSince(edited)].sort()).toEqual(["n1", "n2"]);
+	});
+
+	it("counts a copy with the server's newer version as a change, same content or not", () => {
+		const restored = base.replace({ ...node("n1"), version: 2 });
+		expect(restored.changeCount()).toBe(1);
+		expect(restored.changes().modified).toEqual([
+			{ ...node("n1"), version: 2 },
+		]);
+	});
+
+	it("takes entities out of the server data", () => {
+		const after = base.withBaseEntities([], ["n2"]);
+		expect(after.entity("n2")).toBeUndefined();
+		expect(after.entity("n1")).toBeDefined();
+	});
+});
+
 describe("Graph.changedSince", () => {
 	const base = Graph.fromEntities([node("n1"), node("n2"), node("n3")]);
 
