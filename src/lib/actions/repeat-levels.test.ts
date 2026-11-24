@@ -164,3 +164,36 @@ describe("repeatOnLevels", () => {
 		expect(copies[0]).toMatchObject({ loc: [5, 5], tags: { level: "2" } });
 	});
 });
+
+describe("currentRepeat: the method offered first (P6)", () => {
+	const g = building([
+		node("n40", {}, [5, 0]),
+		node("n41", {}, [6, 0]),
+		way("w40", ["n40", "n41"], { indoor: "wall", level: "0" }),
+		node("n42", { indoor: "column", level: "0" }, [7, 7]),
+	]);
+
+	it("offers one feature on several levels for walls and columns", () => {
+		expect(currentRepeat(g, "w40", 0, [0, 1], nodesOn(g)).method).toBe("level");
+		expect(currentRepeat(g, "n42", 0, [0, 1], nodesOn(g)).method).toBe("level");
+	});
+
+	it("offers copies for rooms", () => {
+		expect(currentRepeat(g, "w1", 0, [0, 1], nodesOn(g)).method).toBe("copies");
+	});
+
+	it("keeps the copies a wall already has", () => {
+		const near = nodesOn(g);
+		const now = currentRepeat(g, "w40", 0, [0, 1], near);
+		const copied = repeatOnLevels(
+			"w40",
+			0,
+			{ method: "copies", levels: [1] },
+			now,
+			near,
+		)(g);
+		expect(
+			currentRepeat(copied, "w40", 0, [0, 1], nodesOn(copied)),
+		).toMatchObject({ method: "copies", levels: [1] });
+	});
+});

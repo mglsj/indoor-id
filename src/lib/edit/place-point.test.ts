@@ -54,6 +54,36 @@ describe("placePoint", () => {
 		});
 	});
 
+	it("makes a gate in an indoor fence, which the user can make a turnstile (P6)", () => {
+		const g = Graph.fromEntities([
+			...graph().entities(),
+			node("n8", {}, [0.2, 0.2]),
+			node("n9", {}, [0.2, 1.8]),
+			way("w4", ["n8", "n9"], { barrier: "fence", indoor: "yes", level: "0" }),
+		]);
+		const placed = placePoint(
+			g,
+			[0.2, 1],
+			{
+				kind: "segment",
+				segment: {
+					way: "w4",
+					a: { id: "n8", loc: [0.2, 0.2] },
+					b: { id: "n9", loc: [0.2, 1.8] },
+				},
+				loc: [0.2, 1],
+			},
+			0,
+		);
+		expect(placed?.kind).toBe("gate");
+		expect(placed?.annotation).toEqual(msg("undo_add_gate"));
+		const after = placed?.action(g);
+		const id = placed?.id ?? "n0";
+		// The fence's level is its own, as a door takes its wall's.
+		expect(after?.entity(id)?.tags).toEqual({ barrier: "gate" });
+		expect(after?.entity("w4")).toMatchObject({ nodes: ["n8", id, "n9"] });
+	});
+
 	it("makes an entrance on the building's outline, on the shown level", () => {
 		const g = graph();
 		const placed = placePoint(g, [0.5, 0], side("n1", "n2", [0.5, 0]), 0);

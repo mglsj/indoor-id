@@ -123,6 +123,28 @@ function placeOf(scope: Scope, point: Point): "inside" | "wall" | "outside" {
 	return inside ? "inside" : "outside";
 }
 
+/** How many of a way's positions are strictly inside the scope and outside it. */
+function countPlaces(
+	scope: Scope,
+	locs: readonly Loc[],
+): { inside: number; outside: number } {
+	// A closed way's last position repeats its first.
+	const first = locs[0];
+	const last = locs.at(-1);
+	const unique =
+		locs.length > 1 && first?.[0] === last?.[0] && first?.[1] === last?.[1]
+			? locs.slice(0, -1)
+			: locs;
+	let inside = 0;
+	let outside = 0;
+	for (const loc of unique) {
+		const place = inExtent(scope, loc) ? placeOf(scope, loc) : "outside";
+		if (place === "inside") inside++;
+		else if (place === "outside") outside++;
+	}
+	return { inside, outside };
+}
+
 /** Whether the scope's extent holds a position (a quick test before the rings). */
 function inExtent({ extent }: Scope, [x = 0, y = 0]: Point): boolean {
 	const margin = 1e-6;
@@ -138,9 +160,11 @@ function inExtent({ extent }: Scope, [x = 0, y = 0]: Point): boolean {
  * Whether a feature belongs to the scope, by position:
  * - the scope's own way or relation, and its outer ways;
  * - a point inside or on a wall (doors and entrances on the facade);
- * - a way with a node strictly inside, or with every node inside or on a wall (a level
- *   outline along the walls), so a neighbour's room against a shared wall is left out and a
- *   space across two buildings is in both;
+ * - a way with every node inside or on a wall (a level outline along the walls), or with at
+ *   least as many nodes strictly inside as outside, nodes on a wall counting for neither (P6,
+ *   osm-simple3d-editor `1d64ad6`): a neighbour's room against a shared wall is left out, a
+ *   platform touching a station isn't the station's, and a space split evenly across two
+ *   buildings is in both;
  * - another building only when wholly inside or on the walls;
  * - a relation when one of its members is.
  */
@@ -168,11 +192,11 @@ function contains(
 			const locs = wayLocs(graph, entity);
 			if (locs.length === 0 || !locs.some((loc) => inExtent(scope, loc)))
 				return false;
-			const places = locs.map((loc) => placeOf(scope, loc));
-			const within = places.every((p) => p !== "outside");
+			const { inside, outside } = countPlaces(scope, locs);
+			const within = outside === 0;
 			// Another building is in only when wholly inside: never a neighbour.
 			if (isBuilding(entity.tags)) return within;
-			return within || places.includes("inside");
+			return within || (inside > 0 && inside >= outside);
 		}
 		case "relation":
 			return entity.members.some((m) => contains(graph, scope, m.ref, seen));
@@ -216,28 +240,61 @@ export function scopeAt(graph: Graph, loc: Loc): Scope | null {
 
 /**
  * The building (or level outline) a feature belongs to, for entering it from a click on the
- * feature in map mode: the scope at the middle of its extent, else at one of its nodes, that
- * holds it; null for indoor data outside any.
+ * feature in map mode: of the scopes holding it, the one with most of its corners strictly
+ * inside (P6, osm-simple3d-editor `1d64ad6`), not the one at its centre; buildings before
+ * level outlines, the smallest on a tie (a building inside another). Null for indoor data
+ * outside any. Scans the loaded ways and relations, so it is for a click.
  */
 export function scopeFor(graph: Graph, id: EntityId): Scope | null {
 	const entity = graph.entity(id);
 	if (!entity) return null;
-	const locs: Loc[] = [];
-	if (entity.type === "node") locs.push(entity.loc);
-	else {
-		const extent = entityExtent(graph, id);
-		if (extent)
-			locs.push([
-				(extent.west + extent.east) / 2,
-				(extent.south + extent.north) / 2,
-			]);
-		if (entity.type === "way") locs.push(...wayLocs(graph, entity));
+	if (entity.type === "node") return scopeAt(graph, entity.loc);
+	const extent = entityExtent(graph, id);
+	if (!extent) return null;
+	const locs = cornersOf(graph, entity);
+	let best: { scope: Scope; rank: number[] } | null = null;
+	for (const other of graph.entities()) {
+		if (other.type === "node" || other.id === id) continue;
+		const scope = scopeOf(graph, other.id);
+		if (!scope || !overlaps(scope.extent, extent)) continue;
+		if (!inScope(graph, scope, id)) continue;
+		const rank = [
+			scope.kind === "building" ? 1 : 0,
+			countPlaces(scope, locs).inside,
+			-Math.min(...scope.rings.map(ringArea)),
+		];
+		if (!best || isAhead(rank, best.rank)) best = { scope, rank };
 	}
-	for (const loc of locs) {
-		const scope = scopeAt(graph, loc);
-		if (scope && inScope(graph, scope, id)) return scope;
+	return best?.scope ?? null;
+}
+
+/** A way's positions, or a relation's members' (one level deep). */
+function cornersOf(graph: Graph, entity: Way | Relation): Loc[] {
+	if (entity.type === "way") return wayLocs(graph, entity);
+	return entity.members.flatMap((m) => {
+		const member = graph.entity(m.ref);
+		if (member?.type === "way") return wayLocs(graph, member);
+		return member?.type === "node" ? [member.loc] : [];
+	});
+}
+
+function overlaps(a: Extent, b: Extent): boolean {
+	return (
+		a.west <= b.east &&
+		b.west <= a.east &&
+		a.south <= b.north &&
+		b.south <= a.north
+	);
+}
+
+/** Whether rank `a` comes before `b`, comparing in order. */
+function isAhead(a: readonly number[], b: readonly number[]): boolean {
+	for (let i = 0; i < a.length; i++) {
+		const x = a[i] ?? 0;
+		const y = b[i] ?? 0;
+		if (x !== y) return x > y;
 	}
-	return null;
+	return false;
 }
 
 const isPart = (tags: Tags) =>

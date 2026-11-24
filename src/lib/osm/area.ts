@@ -24,6 +24,8 @@ const AREA_KEYS = new Set([
 export function isArea(tags: Tags): boolean {
 	if (tags.area === "yes") return true;
 	if (tags.area === "no") return false;
+	// An indoor fence (`indoor=yes`) around a gallery or a ticket hall is a railing (P6).
+	if (tags.barrier === "fence") return false;
 	if (tags.indoor) return tags.indoor !== "wall" && tags.indoor !== "door";
 	if (tags.public_transport === "platform" || tags.railway === "platform")
 		return true;

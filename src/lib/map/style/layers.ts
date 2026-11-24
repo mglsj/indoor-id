@@ -1,6 +1,6 @@
 /**
  * MapLibre layers drawing the indoor features built by `buildFeatures`. They only read the
- * `@kind`, `@icon`, `@label`, `@restricted`, `@arrow`, `@door-r17` and `@lv` properties, so
+ * `@kind`, `@icon`, `@label`, `@entrance`, `@restricted`, `@arrow`, `@door-r17` and `@lv` properties, so
  * all tag logic stays in `classify.ts`. Switching level only changes the layers' filters.
  */
 import { levelFilter } from "../features.ts";
@@ -422,7 +422,7 @@ export function indoorLayers(
 					? [
 							"match",
 							kind,
-							"wall",
+							["wall", "railing"],
 							E.wallLine,
 							"path",
 							[
@@ -443,7 +443,7 @@ export function indoorLayers(
 					: [
 							"match",
 							kind,
-							"wall",
+							["wall", "railing"],
 							C.wall,
 							"path",
 							C.path,
@@ -458,6 +458,8 @@ export function indoorLayers(
 					: widthByKind(
 							[
 								["wall", 0.6, 6],
+								// A railing is thinner than a wall (P6).
+								["railing", 0.4, 2],
 								[["door", "passage"], 2, 12],
 							],
 							[1, 4],
@@ -569,12 +571,23 @@ export function indoorLayers(
 			filter: onLevel([
 				"all",
 				["any", isPoint, isPolygon],
-				["any", ["has", "@icon"], ["has", "@label"]],
+				[
+					"any",
+					["has", "@icon"],
+					["has", "@label"],
+					...(presentation === "view"
+						? [["has", "@entrance"] as ExpressionSpecification]
+						: []),
+				],
 			]),
 			layout: {
 				"icon-image": ["coalesce", ["get", "@icon"], ""],
 				"icon-size": 0.5,
-				"text-field": ["coalesce", ["get", "@label"], ""],
+				// The viewer labels entrances with their ref and flats (P6).
+				"text-field":
+					presentation === "view"
+						? ["coalesce", ["get", "@entrance"], ["get", "@label"], ""]
+						: ["coalesce", ["get", "@label"], ""],
 				"text-font": textFont,
 				"text-size": 12,
 				"text-anchor": ["case", ["has", "@icon"], "top", "center"],

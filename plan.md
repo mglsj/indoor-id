@@ -49,7 +49,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | P5.4b  | Rebase before upload, conflicts            | Done         |
 | W2     | Wiki conformance, November research        | Done         |
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
-| P6     | Parity and polish                          | Not started  |
+| P6     | Parity and polish                          | P6.1 done    |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -203,12 +203,8 @@ check in the background every few edits (osm-simple3d-editor `9ed266f`).
   outlines; removing a way's last vertices deletes the way.
 - ~~Floor plan import: the permission note~~ moved to B (the import dialog moves into building
   mode there).
-- From the 2026-11-24 recheck: Repeat on levels defaults to one object (`level=0;1;2`) for
-  walls and columns, copies for rooms (osm-simple3d-editor `27d4a4d`); indoor fences
-  (`barrier=fence` with `level` or `indoor=yes`) drawn as railings, with turnstiles and gates
-  on them as openings (`094fc0a`); in the viewer, entrance labels from `ref` and `addr:flats`
-  (`a58c319`); which building indoor data belongs to by most of its vertices, not its centre
-  (`1d64ad6`: a platform touching a station isn't the station's).
+- ~~From the 2026-11-24 recheck~~: done ✅ (P6.1, 2026-11-24); see "P6.1" in
+  [docs/history.md](docs/history.md).
 - "Cut out of the level outline" (osm-simple3d-editor `6e898c1`): a quick way to draw the
   atrium holes 3D.3 reads. Offset with its inner-ring mode (`76eadf2`) moved to C.6.
 - Release 0.1 alpha: an e2e checklist of the features it ships with, and an announcement as a

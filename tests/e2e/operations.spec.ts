@@ -121,6 +121,32 @@ test("Repeat on levels puts a copy of the room on the level checked", async ({
 	await expect(page.getByTestId("edit-count")).toHaveText("5");
 });
 
+test("Repeat on levels offers one feature on several levels for a column", async ({
+	page,
+}) => {
+	const column = room(100, LON, LAT, "0", 0.00005);
+	(column.at(-1) as { tags: Record<string, string> }).tags = {
+		indoor: "column",
+		level: "0",
+	};
+	await serveOsm(page, [...column, ...room(200, LON + 0.001, LAT, "1")]);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
+	await camera(page);
+	await mapDrawn(page);
+	await clickMap(page);
+	await expect(inspector(page).root).toBeVisible();
+	await page.keyboard.press("r");
+	const dialog = page.getByRole("dialog", { name: "Repeat on levels" });
+	await expect(
+		dialog.getByRole("radio", { name: "One feature on several levels" }),
+	).toBeChecked();
+	await dialog.getByRole("checkbox", { name: /^Level 1/ }).check();
+	await dialog.getByRole("button", { name: "Apply" }).click();
+	await expect(dialog).toBeHidden();
+	// The column's tags only: no copy.
+	await expect(page.getByTestId("edit-count")).toHaveText("1");
+});
+
 test("a room and an area drawn inside it make a room with a hole", async ({
 	page,
 }) => {

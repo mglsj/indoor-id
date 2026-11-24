@@ -168,6 +168,24 @@ describe("inScope: what belongs to the building entered", () => {
 		expect(inScope(graph, b, "w12")).toBe(true);
 	});
 
+	it("holds what has most of its corners inside, not a platform touching it (P6)", () => {
+		const touching = Graph.fromEntities([
+			...graph.entities(),
+			// One corner inside A, three outside it: a platform against the station.
+			...ring("w16", 700, [at(-5, 2), at(1, 2), at(-5, 8), at(-8, 5)], {
+				railway: "platform",
+				level: "0",
+			}),
+			// Three corners inside A, one outside.
+			...ring("w17", 710, [at(2, 2), at(4, 2), at(4, 4), at(-2, 4)], {
+				indoor: "area",
+				level: "0",
+			}),
+		]);
+		expect(inScope(touching, a, "w16")).toBe(false);
+		expect(inScope(touching, a, "w17")).toBe(true);
+	});
+
 	it("holds a level outline that runs along the walls", () => {
 		expect(inScope(graph, a, "w13")).toBe(true);
 	});
@@ -245,6 +263,23 @@ describe("scopeFor: the building a click on an indoor feature enters", () => {
 	it("finds the building around a room or a point", () => {
 		expect(scopeFor(graph, "w10")?.id).toBe("w1");
 		expect(scopeFor(graph, "n402")?.id).toBe("w2");
+	});
+
+	it("picks the building holding most of the corners, not the one at the centre (P6)", () => {
+		// From x 12 to 36: three corners in B, one in A, its centre (x 24) in B too; and one
+		// from x 2 to 26 whose centre (x 14) is in A but whose corners are mostly in B.
+		const across = street([
+			...ring("w20", 800, [at(12, 2), at(36, 2), at(36, 8), at(30, 8)], {
+				indoor: "area",
+				level: "0",
+			}),
+			...ring("w21", 810, [at(2, 2), at(26, 2), at(26, 8), at(22, 8)], {
+				indoor: "area",
+				level: "0",
+			}),
+		]);
+		expect(scopeFor(across, "w20")?.id).toBe("w2");
+		expect(scopeFor(across, "w21")?.id).toBe("w2");
 	});
 
 	it("finds none for indoor data outside any building", () => {

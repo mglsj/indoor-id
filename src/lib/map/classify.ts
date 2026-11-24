@@ -14,9 +14,11 @@ export type FeatureKind =
 	/** Stairwell, elevator shaft, escalator area. */
 	| "vertical"
 	| "wall"
+	/** Indoor fence: a railing along a gallery, ticket barriers (P6). */
+	| "railing"
 	| "column"
 	| "building"
-	/** Door or entrance (point, or line for a wide opening). */
+	/** Door or entrance (point, or line for a wide opening); a turnstile or gate indoors. */
 	| "door"
 	/** Opening without a door: `door=no`. */
 	| "passage"
@@ -45,6 +47,8 @@ export function classify(tags: Tags, geometry: GeometryType): FeatureKind {
 	if (!surface && (tags.door !== undefined || tags.entrance !== undefined)) {
 		return tags.door === "no" ? "passage" : "door";
 	}
+	if (!surface && isOpeningBarrier(tags) && isIndoorTagged(tags)) return "door";
+	if (!surface && isIndoorFence(tags)) return "railing";
 	if (surface && isVertical(tags)) return "vertical";
 	if (tags.indoor === "wall") return "wall";
 	if (
@@ -76,6 +80,40 @@ export function classify(tags: Tags, geometry: GeometryType): FeatureKind {
 	}
 	if (geometry === "Point") return "poi";
 	return tags.highway !== undefined ? "path" : "line";
+}
+
+/** Gates and turnstiles: openings in a fence, drawn indoors as doors are (P6). */
+const OPENING_BARRIERS = new Set([
+	"gate",
+	"turnstile",
+	"full-height_turnstile",
+	"swing_gate",
+	"lift_gate",
+	"sliding_gate",
+	"wicket_gate",
+	"entrance",
+]);
+
+/** Whether a point is a gate or turnstile (indoors or not). */
+export function isOpeningBarrier(tags: Tags): boolean {
+	return tags.barrier !== undefined && OPENING_BARRIERS.has(tags.barrier);
+}
+
+/** Whether tags put a feature indoors: `level`, `repeat_on` or `indoor=*`. */
+function isIndoorTagged(tags: Tags): boolean {
+	return (
+		tags.level !== undefined ||
+		tags.repeat_on !== undefined ||
+		(tags.indoor !== undefined && tags.indoor !== "no")
+	);
+}
+
+/**
+ * An indoor fence (osm-simple3d-editor `094fc0a`, forum #198): `barrier=fence` with `level` or
+ * `indoor=yes`, a railing along a gallery or a line of ticket barriers.
+ */
+export function isIndoorFence(tags: Tags): boolean {
+	return tags.barrier === "fence" && isIndoorTagged(tags);
 }
 
 /**
@@ -226,6 +264,23 @@ export function trackGauge(tags: Tags): number | null {
 /** Text shown on the map: the name, or else the ref (e.g. a room number). */
 export function labelFor(tags: Tags): string | null {
 	return tags.name ?? tags.ref ?? null;
+}
+
+/**
+ * An entrance's label in the viewer (P6, osm-simple3d-editor `a58c319`): its name, else its
+ * `ref` (the staircase number) over the flats it leads to (`addr:flats`, `1-36;40` shown as
+ * `1–36, 40`). Null for anything else, or an entrance saying neither.
+ */
+export function entranceLabel(tags: Tags): string | null {
+	if (tags.entrance === undefined || tags.entrance === "no") return null;
+	if (tags.name) return tags.name;
+	const flats = tags["addr:flats"]
+		?.split(";")
+		.map((part) => part.trim().replace(/\s*-\s*/g, "–"))
+		.filter((part) => part !== "")
+		.join(", ");
+	const lines = [tags.ref, flats].filter((line) => line);
+	return lines.length > 0 ? lines.join("\n") : null;
 }
 
 /** Which way arrows point along a line, if any: steps and ramps up, escalators and walkways. */
