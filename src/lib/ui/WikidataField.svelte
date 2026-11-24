@@ -131,8 +131,8 @@
 				href={link}
 				target="_blank"
 				rel="noopener noreferrer"
-				aria-label="View on wikidata.org"
-				title="View on wikidata.org"
+				aria-label={t(msg("wikidata_view_on_wikidata_org"))}
+				title={t(msg("wikidata_view_on_wikidata_org"))}
 			>
 				<ExternalLink />
 			</Button>
@@ -140,23 +140,43 @@
 	</div>
 	{#if entity}
 		{#each [
-			["Description", description?.value],
-			["Identifier", entity.id],
+			["description", description?.value],
+			["identifier", entity.id],
 		] as [name, text] (name)}
 			{#if text}
 				<div class="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-2">
-					<span class="text-sm text-muted-foreground">{name}</span>
+					<span class="text-sm text-muted-foreground"
+						>{t(
+							msg(
+								name === "description"
+									? "wikidata_description"
+									: "wikidata_identifier",
+							),
+						)}</span
+					>
 					<InputGroup.Root>
 						<InputGroup.Input
 							value={text}
 							readonly
-							aria-label={`Wikidata ${name?.toLowerCase()}`}
+							aria-label={t(
+								msg(
+									name === "description"
+										? "wikidata_description_label"
+										: "wikidata_identifier_label",
+								),
+							)}
 						/>
 						<InputGroup.Addon align="inline-end">
 							<InputGroup.Button
 								size="icon-xs"
-								aria-label={`Copy the ${name?.toLowerCase()}`}
-								title="Copy"
+								aria-label={t(
+									msg(
+										name === "description"
+											? "wikidata_copy_description"
+											: "wikidata_copy_identifier",
+									),
+								)}
+								title={t(msg("operation_copy"))}
 								onclick={() => navigator.clipboard.writeText(text)}
 							>
 								<Copy />

@@ -78,6 +78,45 @@ describe("deleteEntities", () => {
 		});
 	});
 
+	describe("a hole of a multipolygon (P6)", () => {
+		/** A room r1 (outer w1) with one hole w2 (an atrium). */
+		const room = (outerTags = {}) =>
+			Graph.fromEntities([
+				node("n1", {}, [0, 0]),
+				node("n2", {}, [4, 0]),
+				node("n3", {}, [4, 4]),
+				node("n4", {}, [0, 4]),
+				node("n5", {}, [1, 1]),
+				node("n6", {}, [2, 1]),
+				node("n7", {}, [2, 2]),
+				way("w1", ["n1", "n2", "n3", "n4", "n1"], outerTags),
+				way("w2", ["n5", "n6", "n7", "n5"]),
+				relation(
+					"r1",
+					[
+						{ ref: "w1", role: "outer" },
+						{ ref: "w2", role: "inner" },
+					],
+					{ type: "multipolygon", indoor: "room", level: "0", name: "Hall" },
+				),
+			]);
+
+		it("leaves the outer way as a plain area with the relation's tags", () => {
+			const after = deleteEntities(["w2"])(room());
+			expect(after.entity("r1")).toBeUndefined();
+			expect(after.entity("w1")?.tags).toEqual({
+				indoor: "room",
+				level: "0",
+				name: "Hall",
+			});
+		});
+
+		it("keeps the multipolygon when its outer way has tags of its own", () => {
+			const after = deleteEntities(["w2"])(room({ building: "yes" }));
+			expect(after.entity("r1")).toBeDefined();
+		});
+	});
+
 	describe("a relation", () => {
 		it("takes the members left untagged and unused with it (iD's actionDeleteRelation)", () => {
 			const graph = Graph.fromEntities([

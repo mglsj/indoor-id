@@ -29,6 +29,38 @@ test("Delete removes the selected room and its corners, in one undo step", async
 	await expect(page.getByTestId("edit-count")).toHaveText("0");
 });
 
+test("a right-click opens the operations on what it is on (P6)", async ({
+	page,
+}) => {
+	await serveOsm(page, room(100, LON, LAT, "0"));
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
+	await camera(page);
+	await mapDrawn(page);
+	await clickMap(page, 0, 0, { button: "right" });
+	// The room is selected, and its operations listed where the click was.
+	await expect(inspector(page).root).toBeVisible();
+	const menu = page.getByRole("menu", { name: "Operations" });
+	await expect(menu).toBeVisible();
+	await menu.getByRole("menuitem", { name: /^Delete/ }).click();
+	await expect(menu).toBeHidden();
+	await expect(page.getByTestId("edit-count")).toHaveText("5");
+});
+
+test("counts the issues in the edits beside Save, checked in idle time (P6)", async ({
+	page,
+}) => {
+	const editor = await selectRoom(page);
+	await expect(page.getByTestId("issue-count")).toBeHidden();
+	const level = editor.getByLabel("Level", { exact: true });
+	await level.fill("1,5");
+	await level.press("Enter");
+	await expect(
+		page.getByRole("button", { name: "1 issue in your edits" }),
+	).toBeVisible();
+	await page.getByRole("button", { name: "Undo" }).click();
+	await expect(page.getByTestId("issue-count")).toBeHidden();
+});
+
 test("a copied room pastes where the pointer is, selected", async ({
 	page,
 }) => {

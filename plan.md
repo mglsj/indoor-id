@@ -49,7 +49,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | P5.4b  | Rebase before upload, conflicts            | Done         |
 | W2     | Wiki conformance, November research        | Done         |
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
-| P6     | Parity and polish                          | P6.1 done    |
+| P6     | Parity and polish                          | Done         |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -67,7 +67,7 @@ Finished phases (what was built, measured and decided) are in [docs/history.md](
 | Presets     | `@openstreetmap/id-tagging-schema` filtered at build time, plus a local indoor overlay; `fuse.js`                   |
 | Storage     | IndexedDB via `idb` (floor plans, autosaved edits, settings)                                                        |
 | Floor plans | `pdfjs-dist` (lazy loaded); MapLibre `image` source with `setWarp("perspective")`                                   |
-| i18n        | Paraglide (key/value JSON, compatible with Transifex)                                                               |
+| i18n        | Paraglide 3 (inlang message files, compatible with Transifex)                                                       |
 | Tests       | Vitest (unit), Playwright 1.63.0 (e2e, matches cloud sessions' Chromium)                                            |
 
 Decisions already discussed:
@@ -187,29 +187,26 @@ check in the background every few edits (osm-simple3d-editor `9ed266f`).
 
 ### P6: Parity and polish — M
 
-- Translations with Paraglide (one module per locale), starting from OsmInEdit's (en, fr, de,
-  it, hu, cs, es); preset and field names from the schema; plurals and dates from `Intl`.
-- Shortcuts help (from the keymap), help pages, indoor= preview (origin-checked
-  `postMessage`), README and usage docs.
-- Reach: userscripts adding "Open in IndoorID" to openstreetmap.org, OSMCha and indoor= (as
-  osm-simple3d-editor does); a read-only `?source=josm` that reads JOSM's active layer,
-  unsaved edits included, from Remote Control `GET http://127.0.0.1:8111/export` (JOSM
-  r19425+, "Export data" permission), upload disabled.
-- Left over from P5.3: a right-click operations menu; the read-only hover preview in the
-  Inspector (tried, dropped because the side panel opened and closed as the pointer crossed
-  features); validation in idle time.
-- Left over from geometry editing (from osm-simple3d-editor): a multipolygon left with one
-  outer way and no holes becomes a tagged way again on upload; tracing along existing
-  outlines; removing a way's last vertices deletes the way.
+- ~~Translations~~: the machinery is done ✅ (P6.6, 2026-11-24); see "P6.6" in
+  [docs/history.md](docs/history.md). Left: the UI strings in cs, de, es, fr, hu and it (a few
+  from OsmInEdit so far), and the help page.
+- ~~Shortcuts help, help pages, indoor= preview, README and usage docs~~: done ✅ (P6.4,
+  2026-11-24); see "P6.4" in [docs/history.md](docs/history.md).
+- ~~Reach: userscripts and a read-only `?source=josm`~~: done ✅ (P6.5, 2026-11-24); see
+  "P6.5" in [docs/history.md](docs/history.md).
+- ~~Left over from P5.3 and from geometry editing~~: done ✅ (P6.2, 2026-11-24); see "P6.2"
+  in [docs/history.md](docs/history.md). Not done: the read-only hover preview in the
+  Inspector (dropped in P5.3).
 - ~~Floor plan import: the permission note~~ moved to B (the import dialog moves into building
   mode there).
 - ~~From the 2026-11-24 recheck~~: done ✅ (P6.1, 2026-11-24); see "P6.1" in
   [docs/history.md](docs/history.md).
-- "Cut out of the level outline" (osm-simple3d-editor `6e898c1`): a quick way to draw the
-  atrium holes 3D.3 reads. Offset with its inner-ring mode (`76eadf2`) moved to C.6.
-- Release 0.1 alpha: an e2e checklist of the features it ships with, and an announcement as a
-  new editor. As of 2026-11-11 nobody on the OSM forum has discussed IndoorID; announcing it
-  could come as early as V.
+- ~~"Cut out of the level outline"~~: done ✅ (P6.3, 2026-11-24); see "P6.3" in
+  [docs/history.md](docs/history.md).
+- ~~Release 0.1 alpha: checklist and announcement~~: done ✅ (P6.7, 2026-11-24); see "P6.7" in
+  [docs/history.md](docs/history.md): [docs/release-0.1.md](docs/release-0.1.md) and the draft
+  [docs/announcement-0.1.md](docs/announcement-0.1.md), not posted. Tagging the release and
+  posting are the maintainer's.
 
 ## Later: 3D
 

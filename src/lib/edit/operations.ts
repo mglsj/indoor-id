@@ -10,6 +10,7 @@ import {
 	copyEntities,
 	pasteEntities,
 } from "#lib/actions/copy.ts";
+import { cutOutOfLevel, levelOutlineAround } from "#lib/actions/cut-out.ts";
 import { deleteEntities } from "#lib/actions/delete.ts";
 import { canDisconnect, disconnect } from "#lib/actions/disconnect.ts";
 import { mergeAreas, mergeRefusal } from "#lib/actions/merge-areas.ts";
@@ -25,7 +26,13 @@ import { canRepeat } from "#lib/actions/repeat-levels.ts";
 import { makeSymmetric, straightenToFrame } from "#lib/actions/straighten.ts";
 import { squareToFrame } from "#lib/actions/transform.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
-import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
+import {
+	type EntityId,
+	entityType,
+	type Loc,
+	type NodeId,
+	type WayId,
+} from "#lib/osm/entity.ts";
 import type { Extent } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import { nodesOf } from "./feature-drag.ts";
@@ -75,6 +82,7 @@ export interface Operation {
 		| "square"
 		| "merge"
 		| "multipolygon"
+		| "cut-out"
 		| "repeat"
 		| "copy"
 		| "paste"
@@ -250,6 +258,35 @@ const multipolygonOperation: Operation = {
 				: { graph, select: selected };
 		},
 		annotation: msg("undo_multipolygon"),
+	}),
+};
+
+/** A closed way cut out of the level outline around it, as a hole (P6, `cut-out.ts`). */
+const cutOutOperation: Operation = {
+	id: "cut-out",
+	label: msg("operation_cut_out"),
+	keys: ["Shift+H"],
+	available: ({ graph, selected, level }) => {
+		const [id, ...rest] = selected;
+		return (
+			id !== undefined &&
+			rest.length === 0 &&
+			entityType(id) === "way" &&
+			levelOutlineAround(graph, id as WayId, level) !== null
+		);
+	},
+	disabled: () => null,
+	run: ({ selected, level }) => ({
+		kind: "edit",
+		edit: (graph) => {
+			const id = selected[0] as WayId;
+			const after = cutOutOfLevel(id, level)(graph);
+			const outline = after
+				.parentRelations(id)
+				.find((r) => r.tags.type === "multipolygon");
+			return { graph: after, select: outline ? [outline.id] : selected };
+		},
+		annotation: msg("undo_cut_out"),
 	}),
 };
 
@@ -477,6 +514,7 @@ export const OPERATIONS: readonly Operation[] = [
 	keepsOutline(inView(squareOperation)),
 	mergeOperation,
 	multipolygonOperation,
+	cutOutOperation,
 	repeatOperation,
 	keepsOutline(
 		inView(toolOperation("move", msg("operation_move"), "Shift+M", anything)),

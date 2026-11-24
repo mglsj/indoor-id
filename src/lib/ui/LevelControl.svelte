@@ -5,6 +5,7 @@
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
 	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import {
 		type FloorNumbering,
 		numberedEntry,
@@ -55,7 +56,7 @@
 		const label = fullLabel(entry);
 		return entry.ref === undefined && entry.name === undefined
 			? label
-			: `Level ${String(entry.level)}: ${label}`;
+			: t(msg("level_named", { level: String(entry.level), label }));
 	}
 </script>
 
@@ -89,15 +90,15 @@
 
 <ButtonGroup.Root
 	orientation="vertical"
-	aria-label="Level"
+	aria-label={t(msg("level_control"))}
 	class="max-w-20 rounded-md bg-background shadow-md"
 >
-	{@render stepButton("Level up", ChevronUp, upTarget)}
+	{@render stepButton(t(msg("level_up")), ChevronUp, upTarget)}
 	<ButtonGroup.Text class="justify-center px-1 tabular-nums">
 		{#snippet child({ props })}
 			<output
 				{...props}
-				aria-label="Current level"
+				aria-label={t(msg("level_current"))}
 				data-testid="level"
 				data-level={level}
 			>
@@ -110,7 +111,7 @@
 			type="single"
 			orientation="vertical"
 			variant="outline"
-			aria-label="Levels"
+			aria-label={t(msg("level_list"))}
 			class="max-h-64 w-full overflow-y-auto"
 			bind:value={selectedValue, selectLevel}
 		>
@@ -133,5 +134,5 @@
 			{/each}
 		</ToggleGroup.Root>
 	{/if}
-	{@render stepButton("Level down", ChevronDown, downTarget)}
+	{@render stepButton(t(msg("level_down")), ChevronDown, downTarget)}
 </ButtonGroup.Root>

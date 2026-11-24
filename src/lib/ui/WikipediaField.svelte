@@ -127,8 +127,8 @@
 		class="w-28 shrink-0"
 		value={site[1]}
 		lang={site[2]}
-		ariaLabel="Wikipedia language"
-		placeholder="Language"
+		ariaLabel={t(msg("wikipedia_language"))}
+		placeholder={t(msg("language_choose"))}
 		readonly={locked}
 		search={searchLanguages}
 		onchoose={(item) => {
@@ -147,7 +147,7 @@
 		lang={site[2]}
 		placeholder={mixed.has(key)
 			? t(msg("field_multiple_values"))
-			: "Article title"}
+			: t(msg("wikipedia_article_title"))}
 		readonly={locked}
 		search={searchTitles}
 		onchoose={(item) => setTitle(item.key, site, true)}
@@ -160,8 +160,8 @@
 			href={link}
 			target="_blank"
 			rel="noopener noreferrer"
-			aria-label="View on wikipedia.org"
-			title="View on wikipedia.org"
+			aria-label={t(msg("wikipedia_view_on_wikipedia_org"))}
+			title={t(msg("wikipedia_view_on_wikipedia_org"))}
 		>
 			<ExternalLink />
 		</Button>

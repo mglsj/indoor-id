@@ -164,3 +164,25 @@ function sameTags(a: Tags, b: Tags): boolean {
 		keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k])
 	);
 }
+
+/**
+ * A multipolygon left with one closed outer way and no holes becomes that way again, carrying
+ * the relation's tags (P6, as osm-simple3d-editor does before upload): what a removed hole
+ * leaves behind. Unchanged when the way has tags of its own, belongs to another relation, or
+ * the relation is itself a member of one.
+ */
+export function unwrapLoneOuter(graph: Graph, id: RelationId): Graph {
+	const relation = graph.entity(id);
+	if (relation?.type !== "relation" || !isMultipolygon(relation.tags))
+		return graph;
+	const [member, ...rest] = relation.members;
+	if (!member || rest.length > 0) return graph;
+	if (member.role !== "outer" && member.role !== "") return graph;
+	const way = graph.entity(member.ref);
+	if (way?.type !== "way" || !isClosedRing(way)) return graph;
+	if (hasInterestingTags(way.tags)) return graph;
+	if (graph.parentRelations(way.id).length > 1) return graph;
+	if (graph.parentRelations(id).length > 0) return graph;
+	const { type: _type, ...tags } = relation.tags;
+	return graph.remove(id).replace({ ...way, tags: { ...way.tags, ...tags } });
+}

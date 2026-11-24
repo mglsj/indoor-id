@@ -9,7 +9,7 @@
 	import * as Alert from "#lib/components/shadcn/alert/index.ts";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import { ScrollArea } from "#lib/components/shadcn/scroll-area/index.ts";
-	import { t } from "#lib/i18n/messages.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import { type EntityId, isNewId, osmId } from "#lib/osm/entity.ts";
 	import type { Extent } from "#lib/osm/geometry.ts";
 	import type { Preset } from "#lib/presets/presets.ts";
@@ -105,7 +105,7 @@
 </script>
 
 <aside
-	aria-label="Feature editor"
+	aria-label={t(msg("inspector_label"))}
 	class="flex h-full w-full flex-col border-r bg-background shadow-lg"
 >
 	<header class="flex items-center gap-2 border-b px-4 py-3">
@@ -114,22 +114,22 @@
 				variant="ghost"
 				size="icon-sm"
 				class="-ml-2"
-				aria-label="Back to the feature"
-				title="Back to the feature"
+				aria-label={t(msg("inspector_back"))}
+				title={t(msg("inspector_back"))}
 				onclick={() => (choosing = false)}
 			>
 				<ArrowLeft />
 			</Button>
 		{/if}
 		<h2 class="min-w-0 flex-1 truncate text-base font-semibold">
-			{choosing ? "Select feature type" : "Edit feature"}
+			{t(msg(choosing ? "inspector_select_type" : "inspector_edit_feature"))}
 		</h2>
 		{#if !readonly}
 			<Button
 				variant="ghost"
 				size="icon-sm"
-				aria-label={changed ? "Done" : "Close"}
-				title={changed ? "Done" : "Close"}
+				aria-label={t(msg(changed ? "building_done" : "close"))}
+				title={t(msg(changed ? "building_done" : "close"))}
 				onclick={() => editor.select(null)}
 			>
 				{#if changed}
@@ -158,18 +158,25 @@
 	{:else}
 		<ScrollArea class="min-h-0 flex-1">
 			<fieldset disabled={readonly} class="contents">
-				<InspectorSection id="feature-type" title="Feature Type">
+				<InspectorSection
+					id="feature-type"
+					title={t(msg("inspector_feature_type"))}
+				>
 					<div class="flex items-center gap-1">
 						<button
 							type="button"
 							class="flex w-full items-center gap-3 rounded-md border p-2 text-left outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"
-							aria-label={`${preset?.name ?? "Feature"}, change feature type`}
+							aria-label={t(
+								msg("inspector_change_type", {
+									type: preset?.name ?? t(msg("feature")),
+								}),
+							)}
 							onclick={() => (choosing = true)}
 						>
 							<PresetIcon icon={preset?.icon} size={28} />
 							<span class="min-w-0 flex-1">
 								<span class="block truncate font-medium">
-									{preset?.name ?? "Feature"}
+									{preset?.name ?? t(msg("feature"))}
 								</span>
 								<span class="block text-xs text-muted-foreground"
 									>{entity.id}</span
@@ -181,7 +188,7 @@
 							preset &&
 							presetReference(preset)}
 							<InfoButton
-								label={preset?.name ?? "Feature"}
+								label={preset?.name ?? t(msg("feature"))}
 								expanded={showPresetDocs}
 								ontoggle={() => (showPresetDocs = !showPresetDocs)}
 							/>
@@ -193,7 +200,10 @@
 				</InspectorSection>
 
 				{#if issues.length > 0}
-					<InspectorSection id="issues" title={`Issues (${issues.length})`}>
+					<InspectorSection
+						id="issues"
+						title={t(msg("issues_title", { count: issues.length }))}
+					>
 						<div class="flex flex-col gap-2">
 							{#each issues as issue (issue.id)}
 								<Alert.Root role="note">
@@ -217,7 +227,7 @@
 					</InspectorSection>
 				{/if}
 
-				<InspectorSection id="fields" title="Fields">
+				<InspectorSection id="fields" title={t(msg("inspector_fields"))}>
 					{#if preset}
 						{#key preset.id}
 							<FieldsSection entities={[entity]} {preset} {readonly} />
@@ -227,7 +237,7 @@
 
 				<InspectorSection
 					id="tags"
-					title={`Tags (${tagCount})`}
+					title={t(msg("tags_title", { count: tagCount }))}
 					defaultOpen={false}
 					forceOpen={isFallback}
 				>
@@ -283,7 +293,7 @@
 					rel="noopener noreferrer"
 					class="inline-flex items-center gap-1 font-medium underline-offset-4 hover:underline"
 				>
-					View on openstreetmap.org
+					{t(msg("inspector_view_on_osm"))}
 					<ExternalLink class="size-3.5" aria-hidden="true" />
 				</a>
 				{#if lastEdited}

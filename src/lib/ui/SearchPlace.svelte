@@ -8,6 +8,7 @@
 	import * as InputGroup from "#lib/components/shadcn/input-group/index.ts";
 	import { ScrollArea } from "#lib/components/shadcn/scroll-area/index.ts";
 	import { Spinner } from "#lib/components/shadcn/spinner/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 
 	interface Props {
 		/** Area to search near, usually the visible map. */
@@ -68,8 +69,8 @@
 			<InputGroup.Root>
 				<InputGroup.Input
 					type="search"
-					aria-label="Search a place"
-					placeholder="Search a place"
+					aria-label={t(msg("search_search_a_place"))}
+					placeholder={t(msg("search_search_a_place"))}
 					autocomplete="off"
 					bind:value={query}
 				/>
@@ -77,11 +78,11 @@
 					<InputGroup.Button
 						type="submit"
 						size="icon-xs"
-						aria-label="Search"
+						aria-label={t(msg("search_search"))}
 						disabled={searching}
 					>
 						{#if searching}
-							<Spinner aria-label="Searching" />
+							<Spinner aria-label={t(msg("search_searching"))} />
 						{:else}
 							<Search />
 						{/if}
@@ -96,7 +97,10 @@
 			class="overflow-hidden rounded-md bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
 		>
 			<ScrollArea class="*:data-[slot=scroll-area-viewport]:max-h-80">
-				<ul aria-label="Search results" class="flex flex-col p-1">
+				<ul
+					aria-label={t(msg("search_search_results"))}
+					class="flex flex-col p-1"
+				>
 					{#each results as place (place.description)}
 						<li>
 							<Button
@@ -116,7 +120,7 @@
 						</li>
 					{:else}
 						<li class="px-2 py-2 text-sm text-muted-foreground">
-							No place found
+							{t(msg("search_no_place_found"))}
 						</li>
 					{/each}
 				</ul>

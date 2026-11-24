@@ -88,10 +88,12 @@
 
 	/** The link button's name: where it goes. */
 	const linkLabel = $derived.by(() => {
-		if (field.type === "schedule") return "Edit in YoHours";
-		if (field.type === "url") return "Visit website";
+		if (field.type === "schedule") return t(msg("textfield_yohours"));
+		if (field.type === "url") return t(msg("textfield_visit"));
 		const domain = field.urlFormat?.match(/^https?:\/\/(.+?)\//)?.[1];
-		return domain ? `View on ${domain}` : "Open link";
+		return domain
+			? t(msg("textfield_view_on", { site: domain }))
+			: t(msg("textfield_open_link"));
 	});
 
 	/** A colour the browser can show, as OSM allows them (hex or a name). */
@@ -140,7 +142,7 @@
 		value={current.value}
 		placeholder={current.mixed
 			? t(msg("field_multiple_values"))
-			: (field.placeholder ?? "Unknown")}
+			: (field.placeholder ?? t(msg("field_unknown")))}
 		title={field.key && current.value
 			? `${field.key}=${current.value}`
 			: undefined}
@@ -162,7 +164,7 @@
 			{@const disabled = locked || current.mixed || !canStep(field, typed)}
 			<InputGroup.Button
 				size="icon-xs"
-				aria-label={`Decrease ${field.label}`}
+				aria-label={t(msg("textfield_decrease", { field: field.label }))}
 				{disabled}
 				onclick={() => commit(stepNumber(field, typed, -increment))}
 			>
@@ -170,7 +172,7 @@
 			</InputGroup.Button>
 			<InputGroup.Button
 				size="icon-xs"
-				aria-label={`Increase ${field.label}`}
+				aria-label={t(msg("textfield_increase", { field: field.label }))}
 				{disabled}
 				onclick={() => commit(stepNumber(field, typed, increment))}
 			>
@@ -199,8 +201,8 @@
 		{:else if field.type === "colour" && (colour || !typed)}
 			<InputGroup.Button
 				size="icon-xs"
-				aria-label="Choose a colour"
-				title="Choose a colour"
+				aria-label={t(msg("textfield_choose_a_colour"))}
+				title={t(msg("textfield_choose_a_colour"))}
 				disabled={locked}
 				onclick={() => picker?.showPicker()}
 			>
@@ -226,8 +228,8 @@
 			{#if isSurveyDate && typed !== today()}
 				<InputGroup.Button
 					size="icon-xs"
-					aria-label="Set to today"
-					title="Set to today"
+					aria-label={t(msg("textfield_set_to_today"))}
+					title={t(msg("textfield_set_to_today"))}
 					disabled={locked}
 					onclick={() => commit(today())}
 				>
@@ -237,8 +239,8 @@
 			{#if !typed || isDateLike(typed)}
 				<InputGroup.Button
 					size="icon-xs"
-					aria-label="Choose a date"
-					title="Choose a date"
+					aria-label={t(msg("textfield_choose_a_date"))}
+					title={t(msg("textfield_choose_a_date"))}
 					disabled={locked}
 					onclick={() => picker?.showPicker()}
 				>

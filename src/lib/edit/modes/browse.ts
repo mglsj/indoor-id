@@ -6,7 +6,8 @@
  * selects it, a press on one drags it (`drag`); a press on a selected feature moves the
  * selection whole (`move`). A click on empty floor may select it instead (`floor`, P5.4a).
  * In a building, Escape with nothing selected leaves it (`leave`, B.1); a double-click enters
- * the building under it (`enter`, B.2), or zooms the map where there is none.
+ * the building under it (`enter`, B.2), or zooms the map where there is none. A right-click on
+ * a feature selects it, unless it already is, and opens the operations menu (`menu`, P6).
  */
 import type { Drag, MapPoint, Mode } from "../mode.ts";
 
@@ -42,6 +43,10 @@ export interface BrowseOptions {
 	readonly leave?: () => boolean;
 	/** Enters the building at a double-click (B.2); true when it did, and the map doesn't zoom. */
 	readonly enter?: (at: MapPoint) => boolean;
+	/** Whether a feature is selected (a right-click on it keeps the selection). */
+	readonly isSelected?: (id: string) => boolean;
+	/** Opens the operations menu on the selection at this point (P6); true when it did. */
+	readonly menu?: (at: MapPoint) => boolean;
 }
 
 export function browseMode({
@@ -59,6 +64,8 @@ export function browseMode({
 	hasSelection,
 	leave,
 	enter,
+	isSelected,
+	menu,
 }: BrowseOptions): Mode {
 	function click(at: MapPoint) {
 		const vertex = vertexAt?.(at.point) ?? null;
@@ -69,8 +76,18 @@ export function browseMode({
 		else if (id) toggle(id);
 	}
 
+	/** A right-click: the menu of what it is on, selected first unless it already is. */
+	function contextMenu(at: MapPoint): boolean {
+		if (!menu) return false;
+		const id = vertexAt?.(at.point) ?? hitTest(at.point);
+		if (!id) return false;
+		if (!isSelected?.(id)) select(id, at);
+		return menu(at);
+	}
+
 	return {
 		name: "browse",
+		contextMenu,
 		// Shift+click selects several features: MapLibre's Shift+drag zoom would take the click.
 		gestures: toggle ? { boxZoom: false } : undefined,
 		hover(at) {

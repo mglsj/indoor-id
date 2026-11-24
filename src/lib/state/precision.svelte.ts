@@ -46,6 +46,7 @@ export const INFERENCE_OPTIONS: Record<Inference, SnapOption> = {
 interface Saved {
 	enabled: boolean;
 	grid: boolean;
+	tracing: boolean;
 	gridMinor: number;
 	gridMajor: number;
 	options: Record<SnapOption, boolean>;
@@ -73,6 +74,12 @@ export class PrecisionSettings {
 	grid = $state(false);
 	gridMinor = $state(0.5);
 	gridMajor = $state(5);
+	/**
+	 * Tracing (`T`, P6): a click on a node after a corner on a node follows the ways between
+	 * them, as QGIS's tracing. Off by default: a dividing wall from corner to corner of a room
+	 * would otherwise run round it.
+	 */
+	tracing = $state(false);
 	readonly #storage: Storage | undefined;
 
 	constructor(storage: Storage | undefined, locale = "en-GB") {
@@ -87,6 +94,7 @@ export class PrecisionSettings {
 			if (saved.units === "metric" || saved.units === "imperial")
 				this.units = saved.units;
 			if (typeof saved.grid === "boolean") this.grid = saved.grid;
+			if (typeof saved.tracing === "boolean") this.tracing = saved.tracing;
 			if (validSpacing(saved.gridMinor, saved.gridMajor)) {
 				this.gridMinor = saved.gridMinor as number;
 				this.gridMajor = saved.gridMajor as number;
@@ -122,6 +130,11 @@ export class PrecisionSettings {
 		this.#save();
 	}
 
+	toggleTracing() {
+		this.tracing = !this.tracing;
+		this.#save();
+	}
+
 	toggleGrid() {
 		this.grid = !this.grid;
 		this.#save();
@@ -145,6 +158,7 @@ export class PrecisionSettings {
 		const saved: Saved = {
 			enabled: this.enabled,
 			grid: this.grid,
+			tracing: this.tracing,
 			gridMinor: this.gridMinor,
 			gridMajor: this.gridMajor,
 			options: this.options,
@@ -175,6 +189,7 @@ function read(storage: Storage | undefined): Partial<Saved> | null {
 			angleStep: saved.angleStep,
 			units: saved.units,
 			grid: saved.grid,
+			tracing: saved.tracing,
 			gridMinor: saved.gridMinor,
 			gridMajor: saved.gridMajor,
 		};

@@ -4,7 +4,7 @@
 	 * those of a tab closed without uploading them.
 	 */
 	import * as AlertDialog from "#lib/components/shadcn/alert-dialog/index.ts";
-	import { msg, t } from "#lib/i18n/messages.ts";
+	import { currentLanguage, msg, t } from "#lib/i18n/messages.ts";
 
 	interface Props {
 		/** The edits found: how many features they change, and when they were saved (ms). */
@@ -24,8 +24,8 @@
 				{#if offer}
 					{t(
 						msg("restore_description", {
-							count: String(offer.count),
-							saved: new Date(offer.saved).toLocaleString(),
+							count: offer.count,
+							saved: new Date(offer.saved).toLocaleString(currentLanguage()),
 						}),
 					)}
 				{/if}

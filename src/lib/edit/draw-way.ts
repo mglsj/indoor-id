@@ -4,7 +4,8 @@
  * side), or a new node. The way is tagged with the shown level (`area=yes` too for an area,
  * so the user picks its type next, as iD). `action` builds the whole drawing at once, with
  * the pointer as a last corner while it moves, for `EditHistory.preview`; the end commits it
- * as one undo step.
+ * as one undo step. With tracing on (P6), a click on a node after a corner on a node also puts
+ * in the nodes between them along the existing ways (`trace`).
  */
 import { addNode, insertNodeInSegment } from "#lib/actions/geometry.ts";
 import type { SnapTarget } from "#lib/edit/precision/snap.ts";
@@ -16,7 +17,12 @@ import type { Tags } from "#lib/osm/tags.ts";
 export type DrawKind = "line" | "area";
 
 type Corner =
-	| { readonly kind: "node"; readonly id: NodeId }
+	| {
+			readonly kind: "node";
+			readonly id: NodeId;
+			/** Put in by tracing (P6): taken back with the corner clicked after it. */
+			readonly traced?: true;
+	  }
 	| {
 			readonly kind: "new";
 			readonly id: NodeId;
@@ -24,6 +30,9 @@ type Corner =
 			/** The side it was put on, whose ways get it too. */
 			readonly side?: { readonly a: NodeId; readonly b: NodeId };
 	  };
+
+/** The existing nodes between two along the ways (`tracePath`), or null. */
+export type Trace = (from: NodeId, to: NodeId) => readonly NodeId[] | null;
 
 /** What a click did. */
 export type ClickResult = "added" | "finish" | "ignored";
@@ -70,15 +79,22 @@ export class WayDrawing {
 	 * finishes once there are enough corners; on another corner of the drawing it does nothing.
 	 * New nodes get their ids from `graph` (the graph shown).
 	 */
-	click(graph: Graph, loc: Loc, snapped: SnapTarget | null): ClickResult {
+	click(
+		graph: Graph,
+		loc: Loc,
+		snapped: SnapTarget | null,
+		trace?: Trace,
+	): ClickResult {
 		if (snapped?.kind === "node") {
 			const index = this.nodes.indexOf(snapped.id);
 			const last = index === this.#corners.length - 1;
 			const first = index === 0 && this.kind === "area";
 			if (index >= 0) {
-				if ((last || first) && this.canFinish) return "finish";
-				return "ignored";
+				if (!(last || first) || !this.canFinish) return "ignored";
+				if (first) this.#trace(snapped.id, trace);
+				return "finish";
 			}
+			this.#trace(snapped.id, trace);
 			this.#corners.push({ kind: "node", id: snapped.id });
 			return "added";
 		}
@@ -96,9 +112,28 @@ export class WayDrawing {
 		return "added";
 	}
 
-	/** Takes the last corner back; false when there was none. */
+	/**
+	 * With tracing on, the nodes between the last corner and `to` along the ways joining them,
+	 * as corners: only from an existing node to an existing node, never through the drawing's.
+	 */
+	#trace(to: NodeId, trace: Trace | undefined): void {
+		const last = this.#corners.at(-1);
+		if (!trace || last?.kind !== "node") return;
+		const path = trace(last.id, to);
+		if (!path || path.some((id) => this.has(id))) return;
+		for (const id of path)
+			this.#corners.push({ kind: "node", id, traced: true });
+	}
+
+	/** Takes the last corner back, with the corners traced before it; false when there was none. */
 	undoLast(): boolean {
-		return this.#corners.pop() !== undefined;
+		if (this.#corners.pop() === undefined) return false;
+		while (this.#corners.at(-1)?.kind === "node") {
+			const corner = this.#corners.at(-1) as { traced?: true };
+			if (!corner.traced) break;
+			this.#corners.pop();
+		}
+		return true;
 	}
 
 	/** Whether a node is one of the drawing's corners. */

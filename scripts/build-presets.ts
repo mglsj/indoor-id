@@ -234,6 +234,38 @@ write("categories.json", outCategories);
 // Keys iD drops on save and never suggests (`created_by`…).
 write("discarded.json", Object.keys(read("discarded.json")));
 
+/**
+ * The schema's translations of what was kept, one file per language IndoorID offers (P6),
+ * loaded with the presets in that language (`presets/localize.ts`).
+ */
+const keptFields = new Set(outFields.map((f) => f.id as string));
+const keptCategories = new Set(outCategories.map((c) => c.id as string));
+const pick = <T>(all: Record<string, T> | undefined, kept: Set<string>) =>
+	Object.fromEntries(
+		Object.entries(all ?? {}).filter(([id]) => kept.has(id)),
+	) as Record<string, T>;
+mkdirSync(join(out, "translations"), { recursive: true });
+// The languages offered, as Paraglide reads them.
+const { locales } = JSON.parse(
+	readFileSync(join(root, "project.inlang/settings.json"), "utf8"),
+) as { locales: string[] };
+for (const locale of locales) {
+	if (locale === "en") continue;
+	const text = read(`translations/${locale}.json`)[locale]?.presets ?? {};
+	writeFileSync(
+		join(out, "translations", `${locale}.json`),
+		JSON.stringify({
+			presets: pick(text.presets, keptPresets),
+			fields: pick(text.fields, keptFields),
+			categories: Object.fromEntries(
+				Object.entries(pick<Json>(text.categories, keptCategories)).map(
+					([id, category]) => [id, category.name],
+				),
+			),
+		}),
+	);
+}
+
 /** Icon sets bundled for the map, by the prefix of iD's icon names (`maki-toilet`). */
 const ICON_SETS: Record<string, string> = {
 	maki: "node_modules/@mapbox/maki/icons",

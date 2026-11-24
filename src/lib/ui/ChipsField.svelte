@@ -139,8 +139,8 @@
 						<button
 							type="button"
 							id={`${id}-chip-${i}`}
-							aria-label={`Remove ${chip.label}`}
-							title={ordered ? "Remove (Alt+← Alt+→ to move)" : "Remove"}
+							aria-label={t(msg("remove_item", { item: chip.label }))}
+							title={t(msg(ordered ? "chips_remove_ordered" : "remove"))}
 							class="flex size-6 items-center justify-center rounded-sm text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
 							onclick={() => onchange((own) => withoutChip(field, own, chip))}
 							onkeydown={(event) => onkeydown(event, i)}

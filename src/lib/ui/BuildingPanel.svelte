@@ -4,6 +4,7 @@
 	 * levels (a click shows one), whether its surroundings are drawn, and a button to leave (as
 	 * the header's Done).
 	 */
+	import ExternalLink from "@lucide/svelte/icons/external-link";
 	import X from "@lucide/svelte/icons/x";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import { Checkbox } from "#lib/components/shadcn/checkbox/index.ts";
@@ -32,6 +33,8 @@
 		onoutline: (locked: boolean) => void;
 		/** Leaves the building. */
 		ondone: () => void;
+		/** Shows the building, edits included, in indoor= (P6). */
+		onpreview?: () => void;
 	}
 
 	let {
@@ -45,6 +48,7 @@
 		outlineLocked,
 		onoutline,
 		ondone,
+		onpreview,
 	}: Props = $props();
 
 	const KIND_LABELS = {
@@ -132,5 +136,16 @@
 				</Field.Description>
 			</Field.Content>
 		</Field.Field>
+		{#if onpreview}
+			<section class="flex flex-col gap-1">
+				<Button variant="outline" size="sm" onclick={onpreview}>
+					<ExternalLink data-icon="inline-start" />
+					{t(msg("preview_indoor_equal"))}
+				</Button>
+				<p class="text-xs text-muted-foreground">
+					{t(msg("preview_indoor_equal_hint"))}
+				</p>
+			</section>
+		{/if}
 	</div>
 </aside>

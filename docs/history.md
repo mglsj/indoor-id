@@ -2003,6 +2003,139 @@ t/148767 #176, #198). Done ✅ 2026-11-24:
   corners strictly inside, then the smallest; buildings before level outlines. It scans the
   loaded ways once instead of once per corner.
 
+### P6.2: Editing left over from P5.3 — S–M — done
+
+Done ✅ 2026-11-24:
+
+- **Right-click menu**: `Mode.contextMenu`, handed MapLibre's `contextmenu` by `ModeManager`
+  (not at the end of a right-drag); browse mode selects the feature under the pointer unless
+  it is already selected (a vertex first) and opens the operations of the toolbar in a
+  `DropdownMenu` anchored at the click (`EditorView`, `openMenu`). On the empty map, no menu.
+- **Validation in idle time**: `state/idle-issues.svelte.ts` (`IdleIssues`) runs
+  `Editor.editIssues` in `requestIdleCallback` (1 s timeout; a 200 ms timer where there is
+  none) after each change of the graph, a newer change replacing a check still waiting; the
+  last issues stay shown until the next check. A button beside Save shows their count
+  ("1 issue in your edits") and opens the save dialog that lists them.
+- **A multipolygon left with one outer way** (osm-simple3d-editor does it before upload): done
+  at the edit instead, so the upload stays exactly what was edited. `unwrapLoneOuter` after
+  `deleteEntities` and `removeMembers`: a multipolygon left with one closed outer way and no
+  hole gives that way its tags (but `type`) and is deleted, unless the way has tags of its own,
+  belongs to another relation, or the relation is a member of one.
+- **Removing a way's last vertices deletes the way**: already so since P5.3 (`deleteEntities`:
+  a line left with one node, an area with fewer than three corners, goes with its untagged
+  nodes; a drawing stops once its last corner is taken back).
+- **Tracing along outlines** (osm-simple3d-editor's deferred "tracing along existing edges", as
+  QGIS): `T` while drawing a line or area (`PrecisionSettings.tracing`, saved, off by
+  default: a dividing wall from corner to corner of a room would otherwise run round it). A
+  click on a node after a corner on a node puts in the nodes between them along the ways on
+  the shown level or with no level (`edit/trace.ts`, `tracePath`: Dijkstra in metres, nodes
+  visited as reached, at most 5,000); closing an area on its first corner traces too.
+  Backspace takes the traced nodes back with the click.
+
+### P6.3: Cut out of the level outline — S — done
+
+Done ✅ 2026-11-24 (osm-simple3d-editor `6e898c1`): the operation "Cut out of the level outline"
+(`Shift+H`, building mode only) on one closed way drawn inside the `indoor=level` outline of the
+shown level (a way, or a multipolygon's outer ring; the smallest when several hold it). The
+outline becomes a multipolygon with the way as its hole, or gets one more hole, through
+`makeMultipolygon` (the hole loses the `level` and `area=yes` the drawing gave it); the
+outline's multipolygon is selected after. `actions/cut-out.ts` (`levelOutlineAround`,
+`cutOutOfLevel`). It is the quick way to draw the atriums and voids 3D.3 reads.
+
+### P6.4: Shortcuts help, help page, indoor= preview — S–M — done
+
+Done ✅ 2026-11-24:
+
+- **Keymap** (`edit/keymap.ts`): the map's keys (`MAP_KEYS`, run by `EditorView` through
+  `MAP_ACTIONS`), a drawing's (`DRAWING_KEYS`) and the selection's (from `OPERATIONS`) in one
+  place; a test checks every operation and map key is listed and no map key takes an
+  operation's combo. `ui/ShortcutsDialog.svelte` lists them, opened by `?` or the keyboard
+  button in the toolbar.
+- **Help page** (`/help`, `ui/HelpPage.svelte`, "Help" in the header): getting started, the
+  viewer, building mode, drawing, precision, floor plans, tagging, checking and uploading.
+  English only; the UI strings around it go through `msg()`.
+- **Preview in indoor=** (`view/indoor-equal.ts`): the building panel's button opens
+  indoorequal.org and, once that tab says `{ event: "ready" }`, sends the building's features
+  (their tags and `id`, edits included, from `draftOf`) as `{ command: "preview", file }`, then
+  the level and the building's extent, per indoor='s README ("Remote Command API"). Unlike the
+  README's example, only messages from that tab at `https://indoorequal.org` are taken, and
+  messages are sent to that origin only. A blocked pop-up shows a note. The GeoJSON format
+  indoor= expects isn't documented: OSM tags as properties is what its own files carry.
+- **README**: a "Using IndoorID" section pointing to the editor, the viewer and `/help`.
+
+### P6.5: Reach — userscript, read-only JOSM source — S–M — done
+
+Done ✅ 2026-11-24:
+
+- **Userscript** (`static/indoorid.user.js`, served at `/indoorid.user.js` and linked from the
+  help page's "From other tools"): adds "Open in IndoorID" to openstreetmap.org's Edit menu (a
+  floating button if the menu isn't found), and a button to OSMCha's changeset pages (the
+  changeset's bounding box from the OSM API, asked before the click so the new tab isn't taken
+  for a pop-up) and to indoor= (its `map=` and `level=` hash). IndoorID isn't hosted at a fixed
+  address yet, so the script asks for it once from the manager's menu (`GM_setValue`;
+  `localStorage` without a manager) and defaults to `http://localhost:5173/`; the help page
+  shows the running copy's address. Zooms under 17 open at 17, where data downloads. Its link
+  helpers are tested by evaluating the script in Vitest (`reach/userscript.test.ts`); e2e
+  checks the Edit menu entry on a stand-in page.
+- **`?source=josm`** (`api/josm.ts`, `osm/osm-xml.ts`): JOSM's active layer, unsaved edits
+  included, from Remote Control's `GET http://127.0.0.1:8111/export` (JOSM r19425, July 2025;
+  answers `.osm` XML with `Access-Control-Allow-Origin: *`; off until "Export data from JOSM"
+  is allowed). `JosmSource` is a `SyncApi`: the layer is read once and handed whole to the
+  first tile asked for (the loader uses one zoom-0 tile, from any zoom); `upload` throws
+  `josm_read_only`, and Save is disabled. Deleted features (`action="delete"`,
+  `visible="false"`) are left out; JOSM's new features keep their negative ids, and
+  `graph.newId` already counts below them. A banner says the data is JOSM's, or why it can't
+  be read (not running, permission off: 403, too old: 400, no data layer: empty answer), with
+  "Load again" (a page reload: data read again would clash with what is already in the graph).
+  With no place in the link the camera fits the layer. Autosave is off in this mode.
+  Not done: JOSM's unsaved changes aren't highlighted as edits (they load as server data).
+
+### P6.6: Translations — M — done (machinery)
+
+Done ✅ 2026-11-24:
+
+- **Paraglide 3** (`@inlang/paraglide-js` 3.2.2), as planned and confirmed on a decision card
+  after the trade-offs were raised: Paraglide bundles every locale's messages into the build
+  (per-locale builds are experimental and don't work with SvelteKit yet), and compiling
+  downloads its message-format plugin from jsDelivr (`project.inlang/settings.json`, pinned at
+  4.6.1). `bun run messages` (also on install) runs `paraglide-js compile` into the gitignored
+  `src/lib/i18n/paraglide/` (locale modules; strategy `localStorage`, `preferredLanguage`,
+  `baseLocale`). The `msg()`/`t()` seam stays: `msg` is typed from Paraglide's message
+  functions (`scripts/build-messages.ts` is gone), `t` calls `m[key](params)`; every message
+  is used, so looking them up by key costs nothing. A message missing from a translation is
+  Paraglide's English. `i18n/locale.ts`: `<html lang>` set from `+layout.ts`, the language
+  menu's names (`Intl.DisplayNames`), `setLocale` reloading the page (edits are autosaved).
+  `i18n/locales.ts` checks every translation's keys and params against English (unit test).
+- **Plurals** as message variants (`Intl.PluralRules` through Paraglide): `issue_count`,
+  `save_features_changed`, `load_failed`, `restore_description`. The restore dialog now says
+  "1 feature changed".
+- **Strings moved to messages**: about 260 hard-coded English strings in components (the
+  toolbar, the inspectors, fields, floor plan panels, dialogs, the map's load status); 672
+  messages in all. The help page stays English. e2e tests find controls by the same English
+  names.
+- **Feature types and fields** from iD's tagging schema translations: `build-presets.ts` writes
+  `generated/translations/{locale}.json` for each locale in the inlang settings (what was kept:
+  preset names, aliases and terms; field labels, placeholders, options, access rows, address
+  parts; category names), loaded with the presets in that language (`presets/localize.ts`); a
+  preset is still found by its English name.
+- **Dates**: relative times and the restore dialog's date in the language.
+- **Seeded translations**: OsmInEdit's locale files share only four strings with IndoorID's
+  (Help, Background, Done, Building): those are in. `measure_area` matched "Area" but OsmInEdit
+  meant the feature type (fr "Zone"), not the measure, so it was left out. The rest is for
+  translators.
+
+### P6.7: Release checklist and announcement — S — done
+
+Done ✅ 2026-11-24:
+
+- **Checklist** ([release-0.1.md](release-0.1.md)): the features 0.1 alpha ships with, each
+  next to the e2e test that shows it, and the manual checks tests can't reach (a real OSM
+  login and upload, a real JOSM, a userscript manager, indoor=, Firefox and Safari).
+  `src/lib/release-checklist.test.ts` fails when a named test no longer exists.
+- **Announcement draft** ([announcement-0.1.md](announcement-0.1.md)) for the community forum,
+  as a new editor (OsmInEdit named as its origin and in the credits). Not posted: the hosted
+  address and screenshots are still to fill in, and posting is the maintainer's call.
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept

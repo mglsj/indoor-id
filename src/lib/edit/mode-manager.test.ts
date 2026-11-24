@@ -81,7 +81,7 @@ function fakeMap() {
 	const fire = (type: string, x = 0, y = 0, extra: object = {}) => {
 		let prevented = false;
 		const preventDefault = () => (prevented = true);
-		if (type === "click" || type === "dblclick") {
+		if (type === "click" || type === "dblclick" || type === "contextmenu") {
 			const event = {
 				point: { x, y },
 				lngLat: { lng: x / 10, lat: y / 10 },
@@ -170,6 +170,18 @@ describe("ModeManager", () => {
 		// A mode without double-clicks leaves them to the map.
 		const other = setup({ name: "other" });
 		expect(other.fire("dblclick").prevented).toBe(false);
+	});
+
+	it("hands right-clicks to the mode (P6: the operations menu)", () => {
+		const contextMenu = vi.fn((_at: MapPoint) => true);
+		const { fire } = setup({ name: "test", contextMenu });
+		fire("contextmenu", 30, 40);
+		expect(contextMenu.mock.calls[0]?.[0]).toMatchObject({
+			point: { x: 30, y: 40 },
+			lngLat: [3, 4],
+		});
+		// A mode without a menu leaves right-clicks alone.
+		expect(() => setup({ name: "other" }).fire("contextmenu")).not.toThrow();
 	});
 
 	it("leaves the map to pan when the mode takes no drag", () => {

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import GripVertical from "@lucide/svelte/icons/grip-vertical";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import {
 		clampWidth,
 		DEFAULT_WIDTH,
@@ -72,7 +73,7 @@
 	aria-valuemin={bounds.min}
 	aria-valuemax={bounds.max}
 	tabindex="0"
-	title="Drag to resize, double-click to reset"
+	title={t(msg("panel_resize_hint"))}
 	data-dragging={drag ? "" : undefined}
 	class="group absolute inset-y-0 -right-1.5 z-10 flex w-3 cursor-col-resize touch-none items-center justify-center outline-none select-none"
 	{onpointerdown}

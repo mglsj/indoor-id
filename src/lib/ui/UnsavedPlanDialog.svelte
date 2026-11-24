@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import * as Dialog from "#lib/components/shadcn/dialog/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import type { FloorPlans } from "#lib/state/floorplans.svelte.ts";
 
 	interface Props {
@@ -22,17 +23,19 @@
 		<Dialog.Header>
 			<Dialog.Title>Save changes to {floorplans.editing?.name}?</Dialog.Title>
 			<Dialog.Description>
-				This floor plan has changes you haven't saved since you pressed Edit.
+				{t(msg("unsaved_plan_this_floor_plan_has"))}
 			</Dialog.Description>
 		</Dialog.Header>
 		<Dialog.Footer>
 			<Button variant="outline" onclick={() => floorplans.resolve("keep")}>
-				Keep editing
+				{t(msg("unsaved_plan_keep_editing"))}
 			</Button>
 			<Button variant="outline" onclick={() => floorplans.resolve("discard")}>
-				Discard
+				{t(msg("restore_discard"))}
 			</Button>
-			<Button onclick={() => floorplans.resolve("save")}>Save</Button>
+			<Button onclick={() => floorplans.resolve("save")}
+				>{t(msg("save"))}</Button
+			>
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>

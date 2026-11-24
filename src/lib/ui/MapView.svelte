@@ -3,6 +3,7 @@
 	import { untrack } from "svelte";
 	import type { Attachment } from "svelte/attachments";
 	import * as Alert from "#lib/components/shadcn/alert/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import { trackBasemap } from "#lib/map/basemap.ts";
 	import { MAX_ZOOM, type MapView } from "#lib/map/hash.ts";
 	import {
@@ -77,8 +78,8 @@
 			} catch (e) {
 				error =
 					e instanceof GPUInitializationError
-						? "Your browser could not start WebGL, which is needed to display the map."
-						: `The map could not be created: ${String(e)}`;
+						? t(msg("map_no_webgl"))
+						: t(msg("map_create_failed", { error: String(e) }));
 				return;
 			}
 
@@ -113,7 +114,7 @@
 			let fallback = false;
 			instance.on("error", (event) => {
 				if (styleLoaded || fallback) return;
-				error = `The basemap could not be loaded: ${event.error.message}`;
+				error = t(msg("map_basemap_failed", { error: event.error.message }));
 				// A plain background instead, so the indoor data still shows.
 				fallback = true;
 				instance.setStyle(fallbackStyle());

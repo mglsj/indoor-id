@@ -4,6 +4,7 @@
 	import { untrack } from "svelte";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import { ScrollArea } from "#lib/components/shadcn/scroll-area/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import { labelFor } from "#lib/map/classify.ts";
 	import type { Entity } from "#lib/osm/entity.ts";
 	import {
@@ -41,7 +42,7 @@
 </script>
 
 <aside
-	aria-label="Feature editor"
+	aria-label={t(msg("inspector_label"))}
 	class="flex h-full w-full flex-col border-r bg-background shadow-lg"
 >
 	<header class="flex items-center gap-2 border-b px-4 py-3">
@@ -51,8 +52,8 @@
 		<Button
 			variant="ghost"
 			size="icon-sm"
-			aria-label={changed ? "Done" : "Close"}
-			title={changed ? "Done" : "Close"}
+			aria-label={t(msg(changed ? "building_done" : "close"))}
+			title={t(msg(changed ? "building_done" : "close"))}
 			onclick={() => editor.select(null)}
 		>
 			{#if changed}
@@ -64,10 +65,13 @@
 	</header>
 
 	<ScrollArea class="min-h-0 flex-1">
-		<InspectorSection id="features" title={`Features (${entities.length})`}>
-			<ul aria-label="Selected features" class="flex flex-col gap-1">
+		<InspectorSection
+			id="features"
+			title={t(msg("features_title", { count: entities.length }))}
+		>
+			<ul aria-label={t(msg("features_selected"))} class="flex flex-col gap-1">
 				{#each entities as entity, i (entity.id)}
-					{@const type = presets[i]?.name ?? "Feature"}
+					{@const type = presets[i]?.name ?? t(msg("feature"))}
 					{@const label = labelFor(entity.tags)}
 					<li
 						class="flex items-center gap-1"
@@ -77,7 +81,11 @@
 						<button
 							type="button"
 							class="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"
-							aria-label={`Select ${type}${label ? ` ${label}` : ""}`}
+							aria-label={t(
+								msg("select_item", {
+									item: label ? t(msg("feature_label", { type, label })) : type,
+								}),
+							)}
 							onclick={() => editor.select(entity.id)}
 						>
 							<PresetIcon icon={presets[i]?.icon} size={20} />
@@ -91,8 +99,12 @@
 						<Button
 							variant="ghost"
 							size="icon-xs"
-							aria-label={`Deselect ${type}${label ? ` ${label}` : ""}`}
-							title="Deselect"
+							aria-label={t(
+								msg("deselect_item", {
+									item: label ? t(msg("feature_label", { type, label })) : type,
+								}),
+							)}
+							title={t(msg("deselect"))}
 							onclick={() => editor.selection.toggle(entity.id)}
 						>
 							<X />
@@ -103,7 +115,7 @@
 		</InspectorSection>
 
 		{#if preset}
-			<InspectorSection id="fields" title="Fields">
+			<InspectorSection id="fields" title={t(msg("inspector_fields"))}>
 				{#key preset.id}
 					<FieldsSection {entities} {preset} />
 				{/key}
@@ -112,7 +124,7 @@
 
 		<InspectorSection
 			id="tags"
-			title={`Tags (${Object.keys(shownTags).length})`}
+			title={t(msg("tags_title", { count: Object.keys(shownTags).length }))}
 			defaultOpen={false}
 		>
 			<TagEditor

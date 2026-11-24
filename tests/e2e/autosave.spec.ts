@@ -38,7 +38,7 @@ test("edits come back after a reload, to undo as before", async ({ page }) => {
 
 	await page.reload();
 	const dialog = page.getByRole("alertdialog", RESTORE);
-	await expect(dialog).toContainText("1 features changed");
+	await expect(dialog).toContainText("1 feature changed");
 	await dialog.getByRole("button", { name: "Restore" }).click();
 
 	await expect(dialog).toBeHidden();

@@ -1,0 +1,7 @@
+{
+	"$schema": "https://inlang.com/schema/inlang-message-format",
+	"nav_help": "Aiuto",
+	"background": "Sfondo",
+	"building_done": "Fatto",
+	"building_kind_building": "Edificio"
+}

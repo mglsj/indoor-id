@@ -310,7 +310,7 @@
 		<button
 			type="button"
 			tabindex="-1"
-			aria-label={`Show values for ${field.label}`}
+			aria-label={t(msg("combo_show_values", { field: field.label }))}
 			class="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground"
 			onmousedown={(event) => event.preventDefault()}
 			onclick={showAll}

@@ -9,6 +9,7 @@
 	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
 	import type { PlanMode } from "#lib/floorplans/content.ts";
 	import type { PdfDocument } from "#lib/floorplans/import.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 
 	interface Props {
 		pdf: PdfDocument;
@@ -95,15 +96,14 @@
 		interactOutsideBehavior={busy ? "ignore" : "close"}
 	>
 		<Dialog.Header>
-			<Dialog.Title>Import PDF pages</Dialog.Title>
+			<Dialog.Title>{t(msg("pdf_title"))}</Dialog.Title>
 			<Dialog.Description>
-				Choose the pages with floor plans, and how finely to render them. Each
-				page becomes a plan on the level shown.
+				{t(msg("pdf_description"))}
 			</Dialog.Description>
 		</Dialog.Header>
 		<form class="flex flex-col gap-6" onsubmit={submit}>
 			<Field.Set>
-				<Field.Legend class="sr-only">Pages</Field.Legend>
+				<Field.Legend class="sr-only">{t(msg("pdf_pages"))}</Field.Legend>
 				<ScrollArea class="*:data-[slot=scroll-area-viewport]:max-h-72">
 					<div class="grid grid-cols-3 gap-3">
 						{#each pages as n (n)}
@@ -127,7 +127,7 @@
 										checked={chosen.includes(n)}
 										onCheckedChange={(on) => choose(n, on)}
 									/>
-									Page {n}
+									{t(msg("pdf_page", { page: n }))}
 								</span>
 							</Field.Label>
 						{/each}
@@ -135,7 +135,7 @@
 				</ScrollArea>
 			</Field.Set>
 			<Field.Field>
-				<Field.Label id="pdf-mode-label">Draw as</Field.Label>
+				<Field.Label id="pdf-mode-label">{t(msg("pdf_draw_as"))}</Field.Label>
 				<ToggleGroup.Root
 					type="single"
 					variant="outline"
@@ -147,21 +147,22 @@
 						if (value) mode = value as PlanMode | "auto";
 					}}
 				>
-					<ToggleGroup.Item value="auto" class="flex-1">Auto</ToggleGroup.Item>
+					<ToggleGroup.Item value="auto" class="flex-1"
+						>{t(msg("pdf_mode_auto"))}</ToggleGroup.Item
+					>
 					<ToggleGroup.Item value="vector" class="flex-1"
-						>Vector</ToggleGroup.Item
+						>{t(msg("pdf_mode_vector"))}</ToggleGroup.Item
 					>
 					<ToggleGroup.Item value="image" class="flex-1"
-						>Image</ToggleGroup.Item
+						>{t(msg("pdf_mode_image"))}</ToggleGroup.Item
 					>
 				</ToggleGroup.Root>
 				<Field.Description>
-					Vector draws the page's lines sharp at any zoom, best for plans from
-					CAD; Image renders it, best for scans. Auto picks for each page.
+					{t(msg("pdf_mode_description"))}
 				</Field.Description>
 			</Field.Field>
 			<Field.Field data-disabled={mode === "vector" || undefined}>
-				<Field.Label for="pdf-dpi">Resolution (DPI)</Field.Label>
+				<Field.Label for="pdf-dpi">{t(msg("pdf_dpi"))}</Field.Label>
 				<Input
 					id="pdf-dpi"
 					type="number"
@@ -174,10 +175,12 @@
 				/>
 				{#if size && dpi > 0}
 					<Field.Description>
-						{Math.round(size.width * dpi)}
-						×
-						{Math.round(size.height * dpi)}
-						px. Higher shows more detail but takes more memory.
+						{t(
+							msg("pdf_dpi_size", {
+								width: Math.round(size.width * dpi),
+								height: Math.round(size.height * dpi),
+							}),
+						)}
 					</Field.Description>
 				{/if}
 			</Field.Field>
@@ -187,13 +190,15 @@
 					disabled={busy}
 					onclick={() => (open = false)}
 				>
-					Cancel
+					{t(msg("cancel"))}
 				</Button>
 				<Button type="submit" disabled={busy || chosen.length === 0}>
 					{#if busy}
 						<Spinner data-icon="inline-start" />
 					{/if}
-					{chosen.length > 1 ? `Import ${chosen.length} pages` : "Import"}
+					{chosen.length > 1
+						? t(msg("pdf_import_pages", { count: chosen.length }))
+						: t(msg("import"))}
 				</Button>
 			</Dialog.Footer>
 		</form>

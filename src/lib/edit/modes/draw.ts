@@ -3,7 +3,8 @@
  * (`WayDrawing`), the pointer drags the last side along, Enter or a click on the last corner
  * (or an area's first) finishes, Backspace takes the last corner back, Escape finishes when
  * there are enough corners and stops otherwise; Mod+Z takes the last corner back too (and stops
- * once none is left), as the history's undo waits until the drawing ends. `drawPointMode`: one click places a point
+ * once none is left), as the history's undo waits until the drawing ends; `T` turns tracing
+ * along existing ways on or off (P6). `drawPointMode`: one click places a point
  * whose role comes from where it snaps (`placePoint`). Both show what they draw through
  * `EditHistory.preview`, end in one undo step, and hand the new feature to `onfinish`.
  */
@@ -35,7 +36,7 @@ import type { EntityId, Loc, NodeId } from "#lib/osm/entity.ts";
 import { fromLocal, local } from "#lib/osm/geometry.ts";
 import type { Action } from "#lib/osm/history.ts";
 import type { Units } from "#lib/units/length.ts";
-import { type DrawKind, WayDrawing } from "../draw-way.ts";
+import { type DrawKind, type Trace, WayDrawing } from "../draw-way.ts";
 import { isMac, matches } from "../keys.ts";
 import type { MapPoint, Mode } from "../mode.ts";
 import type { DragHistory } from "../node-drag.ts";
@@ -86,6 +87,16 @@ export interface DrawOptions {
 	/** Drawing ended: the feature made, or null when nothing was. */
 	readonly onfinish: (id: EntityId | null) => void;
 	readonly precision?: DrawPrecision;
+	/** Tracing along existing ways (P6), toggled with `T`; none where it isn't offered. */
+	readonly tracing?: DrawTracing;
+}
+
+export interface DrawTracing {
+	/** Whether tracing is on (read at each click). */
+	on(): boolean;
+	toggle(): void;
+	/** The existing nodes between two along the ways drawn on the level. */
+	readonly path: Trace;
 }
 
 const ANNOTATIONS = {
@@ -95,7 +106,7 @@ const ANNOTATIONS = {
 
 export function drawWayMode(
 	kind: DrawKind,
-	{ history, level, snap, onfinish, precision }: DrawOptions,
+	{ history, level, snap, onfinish, precision, tracing }: DrawOptions,
 ): Mode {
 	const drawing = new WayDrawing(history.graph, kind, level);
 	let ended = false;
@@ -258,7 +269,8 @@ export function drawWayMode(
 		click(at) {
 			target = snapped(at);
 			const loc = target?.loc ?? at.lngLat;
-			const result = drawing.click(history.graph, loc, target);
+			const trace = tracing?.on() ? tracing.path : undefined;
+			const result = drawing.click(history.graph, loc, target, trace);
 			if (result === "added") {
 				frame ??= precision?.frameAt(loc) ?? null;
 				lock = null;
@@ -308,6 +320,12 @@ export function drawWayMode(
 				case "Enter":
 				case "Escape":
 					finish();
+					return true;
+				case "t":
+				case "T":
+					if (!tracing || event.ctrlKey || event.metaKey || event.altKey)
+						return false;
+					tracing.toggle();
 					return true;
 				case "Backspace":
 				case "Delete":

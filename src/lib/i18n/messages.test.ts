@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { MessageError, msg, t } from "./messages.ts";
+import { afterEach, describe, expect, it } from "vitest";
+import { currentLanguage, MessageError, msg, t } from "./messages.ts";
+import { overwriteGetLocale } from "./paraglide/runtime.js";
 
 describe("messages: text shown to users, as keys with params", () => {
 	it("renders a message in English, its params in place", () => {
@@ -34,5 +35,23 @@ describe("messages: text shown to users, as keys with params", () => {
 		expect(error).toBeInstanceOf(Error);
 		expect(error.message).toBe("This PDF could not be read.");
 		expect(error.msg.key).toBe("plan_import_pdf_unreadable");
+	});
+
+	describe("in another language", () => {
+		afterEach(() => overwriteGetLocale(() => "en"));
+
+		it("shows the translation, and English where it has none", () => {
+			overwriteGetLocale(() => "de");
+			expect(t(msg("nav_help"))).toBe("Hilfe");
+			expect(t(msg("undo_change_tags"))).toBe("Change tags");
+			expect(currentLanguage()).toBe("de");
+		});
+
+		it("picks the plural form by the language's rules", () => {
+			expect(t(msg("issue_count", { count: 1 }))).toBe("1 issue in your edits");
+			expect(t(msg("issue_count", { count: 2 }))).toBe(
+				"2 issues in your edits",
+			);
+		});
 	});
 });

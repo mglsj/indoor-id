@@ -11,7 +11,7 @@
 	import * as Dialog from "#lib/components/shadcn/dialog/index.ts";
 	import * as Field from "#lib/components/shadcn/field/index.ts";
 	import * as RadioGroup from "#lib/components/shadcn/radio-group/index.ts";
-	import { msg } from "#lib/i18n/messages.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import { fullLabel, type LevelEntry } from "#lib/levels/level-names.ts";
 	import type { NodeId, WayId } from "#lib/osm/entity.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
@@ -68,18 +68,18 @@
 	const METHODS: { value: RepeatMethod; label: string; hint: string }[] = [
 		{
 			value: "copies",
-			label: "A copy on each level",
-			hint: "Separate features, sharing corners with what is mapped there",
+			label: t(msg("repeat_copies")),
+			hint: t(msg("repeat_copies_hint")),
 		},
 		{
 			value: "repeat_on",
-			label: "One feature with repeat_on",
-			hint: "Keeps level, lists the other levels in repeat_on",
+			label: t(msg("repeat_repeat_on")),
+			hint: t(msg("repeat_repeat_on_hint")),
 		},
 		{
 			value: "level",
-			label: "One feature on several levels",
-			hint: "Lists every level in level, as one feature spanning them",
+			label: t(msg("repeat_level")),
+			hint: t(msg("repeat_level_hint")),
 		},
 	];
 </script>
@@ -92,16 +92,16 @@
 >
 	<Dialog.Content>
 		<Dialog.Header>
-			<Dialog.Title>Repeat on levels</Dialog.Title>
+			<Dialog.Title>{t(msg("undo_repeat_levels"))}</Dialog.Title>
 			<Dialog.Description>
 				On level {level} and the levels checked here.
 			</Dialog.Description>
 		</Dialog.Header>
 		<Field.Set>
-			<Field.Legend variant="label">Levels</Field.Legend>
+			<Field.Legend variant="label">{t(msg("building_levels"))}</Field.Legend>
 			{#if offered.length === 0}
 				<p class="text-sm text-muted-foreground">
-					No other level is in view. Move the map over the building first.
+					{t(msg("repeat_no_other_level_is"))}
 				</p>
 			{/if}
 			<div class="flex max-h-60 flex-col gap-2 overflow-y-auto">
@@ -124,7 +124,7 @@
 			</div>
 		</Field.Set>
 		<Field.Set>
-			<Field.Legend variant="label">How</Field.Legend>
+			<Field.Legend variant="label">{t(msg("repeat_how"))}</Field.Legend>
 			<RadioGroup.Root
 				value={method}
 				onValueChange={(value) => (method = value as RepeatMethod)}
@@ -144,8 +144,8 @@
 			</RadioGroup.Root>
 		</Field.Set>
 		<Dialog.Footer>
-			<Button variant="outline" onclick={onclose}>Cancel</Button>
-			<Button onclick={apply}>Apply</Button>
+			<Button variant="outline" onclick={onclose}>{t(msg("cancel"))}</Button>
+			<Button onclick={apply}>{t(msg("repeat_apply"))}</Button>
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>

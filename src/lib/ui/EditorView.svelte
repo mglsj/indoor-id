@@ -7,6 +7,7 @@
 	import DoorOpen from "@lucide/svelte/icons/door-open";
 	import FileImage from "@lucide/svelte/icons/file-image";
 	import Grid2x2Check from "@lucide/svelte/icons/grid-2x2-check";
+	import Keyboard from "@lucide/svelte/icons/keyboard";
 	import Layers2 from "@lucide/svelte/icons/layers-2";
 	import MapPin from "@lucide/svelte/icons/map-pin";
 	import Move from "@lucide/svelte/icons/move";
@@ -19,11 +20,13 @@
 	import RulerDimensionLine from "@lucide/svelte/icons/ruler-dimension-line";
 	import Scaling from "@lucide/svelte/icons/scaling";
 	import Scissors from "@lucide/svelte/icons/scissors";
+	import ScissorsSquare from "@lucide/svelte/icons/scissors-square";
 	import Spline from "@lucide/svelte/icons/spline";
 	import Square from "@lucide/svelte/icons/square";
 	import SquareSquare from "@lucide/svelte/icons/square-square";
 	import SquaresSubtract from "@lucide/svelte/icons/squares-subtract";
 	import Trash from "@lucide/svelte/icons/trash";
+	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 	import Undo2 from "@lucide/svelte/icons/undo-2";
 	import Unlink from "@lucide/svelte/icons/unlink";
 	import Upload from "@lucide/svelte/icons/upload";
@@ -32,6 +35,7 @@
 	import type { Clipboard } from "#lib/actions/copy.ts";
 	import { splitAreas, splitTargets } from "#lib/actions/split-areas.ts";
 	import { translateNodes } from "#lib/actions/transform.ts";
+	import { JosmSource } from "#lib/api/josm.ts";
 	import { OsmApi } from "#lib/api/osm-api.ts";
 	import { OsmWikibase } from "#lib/api/osm-wikibase.ts";
 	import { RecentUploads } from "#lib/api/recent-uploads.ts";
@@ -40,10 +44,12 @@
 	import { Badge } from "#lib/components/shadcn/badge/index.ts";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
+	import * as DropdownMenu from "#lib/components/shadcn/dropdown-menu/index.ts";
 	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
 	import { featureDrag, nodesOf } from "#lib/edit/feature-drag.ts";
+	import { type MapAction, mapKeyFor } from "#lib/edit/keymap.ts";
 	import {
 		formatCombo,
 		isForMap,
@@ -118,6 +124,7 @@
 		scopeOf,
 	} from "#lib/edit/scope.ts";
 	import { type DrawTool, toolsFor } from "#lib/edit/scope-tools.ts";
+	import { tracePath } from "#lib/edit/trace.ts";
 	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 	import { tooLargeToEdit } from "#lib/edit/visibility.ts";
 	import { buildingName, buildingsUnder } from "#lib/floorplans/buildings.ts";
@@ -129,7 +136,9 @@
 		project,
 	} from "#lib/floorplans/georef.ts";
 	import { planDecoders } from "#lib/floorplans/import.ts";
-	import { type Message, msg, t } from "#lib/i18n/messages.ts";
+	import { type Message, MessageError, msg, t } from "#lib/i18n/messages.ts";
+	import { featureLevels } from "#lib/levels/feature-levels.ts";
+	import { isOnLevel } from "#lib/levels/levels.ts";
 	import type { Imagery } from "#lib/map/backgrounds.ts";
 	import { ConstructionLayer } from "#lib/map/construction-layer.ts";
 	import { EditOverlay } from "#lib/map/edit-overlay.ts";
@@ -154,9 +163,10 @@
 		projectLoc as project_,
 		unprojectPoint as unproject_,
 	} from "#lib/map/view.ts";
-	import type { EntityId, Loc, NodeId, WayId } from "#lib/osm/entity.ts";
+	import type { EntityId, Loc, NodeId, Way, WayId } from "#lib/osm/entity.ts";
 	import { extentOf, extentsIntersect, fromLocal } from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
+	import { hasInterestingTags } from "#lib/osm/tags.ts";
 	import { Autosave } from "#lib/persist/autosave.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
 	import { EditAutosave } from "#lib/state/autosave.svelte.ts";
@@ -170,6 +180,7 @@
 	} from "#lib/state/floorplans.svelte.ts";
 	import { type BuildingFrame, Frames } from "#lib/state/frames.svelte.ts";
 	import { Guides } from "#lib/state/guides.svelte.ts";
+	import { IdleIssues } from "#lib/state/idle-issues.svelte.ts";
 	import {
 		INFERENCE_OPTIONS,
 		PrecisionSettings,
@@ -196,8 +207,13 @@
 	import RepeatDialog from "#lib/ui/RepeatDialog.svelte";
 	import RestoreDialog from "#lib/ui/RestoreDialog.svelte";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
+	import ShortcutsDialog from "#lib/ui/ShortcutsDialog.svelte";
 	import SnapMenu, { type FrameControls } from "#lib/ui/SnapMenu.svelte";
 	import UnsavedPlanDialog from "#lib/ui/UnsavedPlanDialog.svelte";
+	import {
+		previewFeatures,
+		previewInIndoorEqual,
+	} from "#lib/view/indoor-equal.ts";
 	import { resolve } from "$app/paths";
 
 	interface Props {
@@ -207,7 +223,7 @@
 	let { config }: Props = $props();
 
 	// The configuration is read once: it doesn't change while the editor runs.
-	const { session, editor, websiteUrl } = untrack(() => {
+	const { session, editor, websiteUrl, josm } = untrack(() => {
 		const websiteUrl = config.oauth_url ?? config.osm_api_url;
 		const session = new Session({
 			oauthUrl: websiteUrl,
@@ -215,15 +231,24 @@
 			clientId: config.oauth_client_id,
 			redirectUri: new URL(resolve("/auth/callback"), location.href).href,
 		});
-		const api = new OsmApi({
-			baseUrl: config.osm_api_url,
-			getToken: () => session.token(),
-			createdBy: `IndoorID ${__GIT_HASH__}`,
-		});
+		// `?source=josm`: JOSM's active layer, read-only (P6).
+		const josm =
+			new URLSearchParams(location.search).get("source") === "josm"
+				? new JosmSource()
+				: null;
+		const api =
+			josm ??
+			new OsmApi({
+				baseUrl: config.osm_api_url,
+				getToken: () => session.token(),
+				createdBy: `IndoorID ${__GIT_HASH__}`,
+			});
 		const recentUploads = new RecentUploads();
 		const editor = new Editor({
 			api,
-			minZoom: config.data_min_zoom,
+			// JOSM's layer comes whole, at any zoom: one tile covering the world.
+			minZoom: josm ? 0 : config.data_min_zoom,
+			loader: josm ? { zoom: 0, tooLarge: () => false } : undefined,
 			// The viewer lays them over Overpass answers until Overpass catches up.
 			onupload: (changes) => recentUploads.record(changes),
 			catalog: {
@@ -238,7 +263,7 @@
 				},
 			},
 		});
-		return { session, editor, websiteUrl };
+		return { session, editor, websiteUrl, josm };
 	});
 	setEditor(editor);
 
@@ -272,15 +297,57 @@
 	// Edits are saved in this browser as they are made, and offered back on start.
 	const autosave = new EditAutosave(editor, new Autosave());
 	$effect(() => {
+		// Edits made on JOSM's data aren't OSM's to restore later.
+		if (josm) return;
 		void autosave.start();
 		return () => autosave.stop();
 	});
 	$effect(() => {
 		void editor.history.graph;
 		void editor.sync.failedChangeset;
-		autosave.changed();
+		if (!josm) autosave.changed();
 	});
 	let saving = $state(false);
+
+	/** Why JOSM's layer couldn't be read, shown until the page is loaded again. */
+	let josmProblem = $state.raw<Message | null>(null);
+	// With no place in the link, the camera goes to JOSM's data once the map is there.
+	const fitJosm = josm !== null && parseHash(location.hash) === null;
+	$effect(() => {
+		if (!josm || !map) return;
+		const shown = map;
+		josm.load().then(
+			(entities) => {
+				const extent = extentOf(
+					entities.flatMap((e) => (e.type === "node" ? [e.loc] : [])),
+				);
+				if (!fitJosm || !extent) return;
+				shown.fitBounds(
+					[
+						[extent.west, extent.south],
+						[extent.east, extent.north],
+					],
+					{ padding: 60, maxZoom: 19, duration: 0 },
+				);
+			},
+			(error: unknown) => {
+				josmProblem =
+					error instanceof MessageError ? error.msg : msg("josm_unreachable");
+			},
+		);
+	});
+
+	/** The issues of the edits, checked in idle time after each change (P6). */
+	const idleIssues = new IdleIssues();
+	$effect(() => {
+		// Each change of the graph schedules a check; a drawing's preview too.
+		void editor.graph;
+		untrack(() => idleIssues.schedule(() => editor.editIssues));
+		return () => idleIssues.stop();
+	});
+	const issueCount = $derived(
+		editor.history.editCount === 0 ? 0 : (idleIssues.issues?.length ?? 0),
+	);
 	// Plans saved in earlier visits come back once their images are decoded.
 	/**
 	 * Floor plan mode: the map only shows building outlines to place plans against, and OSM
@@ -617,6 +684,17 @@
 		if (id) editor.select(id);
 	}
 
+	/**
+	 * Whether tracing may follow a way on this level (P6): one drawn on it, or one with no
+	 * level of its own (a building's outline, a multipolygon's member).
+	 */
+	function tracesOn(way: Way, on: number): boolean {
+		const levels = featureLevels(way.tags, () =>
+			editor.graph.parentRelations(way.id).map((r) => r.tags),
+		);
+		return levels === null || isOnLevel(levels, on);
+	}
+
 	const DRAW_HINTS = {
 		point: msg("draw_point_hint"),
 		line: msg("draw_line_hint"),
@@ -747,6 +825,48 @@
 		} else performEdit(editor, result);
 	}
 
+	/** Shows the building entered, edits included, in indoor= (P6). */
+	function previewBuilding() {
+		const scope = editor.scope.current;
+		if (!scope) return;
+		const tagged: EntityId[] = [];
+		for (const entity of editor.graph.entities())
+			if (hasInterestingTags(entity.tags)) tagged.push(entity.id);
+		const ids = editor.scope.members(tagged);
+		const opened = previewInIndoorEqual(previewFeatures(editor.graph, ids), {
+			level,
+			bbox: scope.extent,
+		});
+		if (!opened) showNote(msg("preview_blocked"));
+	}
+
+	/** Where the right-click operations menu is open (P6), in map pixels; null when closed. */
+	let menuAt = $state.raw<{ x: number; y: number } | null>(null);
+
+	/** Opens the operations menu at a map point, once the selection there is set. */
+	function openMenu(point: { x: number; y: number }): boolean {
+		menuAt = point;
+		return true;
+	}
+
+	/** The menu's anchor: a point on the page where the right-click was. */
+	const menuAnchor = $derived.by(() => {
+		const at = menuAt;
+		const canvas = map?.getCanvas();
+		if (!at || !canvas) return null;
+		return {
+			getBoundingClientRect: () => {
+				const box = canvas.getBoundingClientRect();
+				return DOMRect.fromRect({
+					x: box.left + at.x,
+					y: box.top + at.y,
+					width: 0,
+					height: 0,
+				});
+			},
+		};
+	});
+
 	const OPERATION_ICONS: Record<Operation["id"], Component> = {
 		copy: Copy,
 		repeat: Layers2,
@@ -755,6 +875,7 @@
 		square: Square,
 		merge: Combine,
 		multipolygon: SquaresSubtract,
+		"cut-out": ScissorsSquare,
 		delete: Trash,
 		move: Move,
 		rotate: RotateCcw,
@@ -1090,6 +1211,9 @@
 								hover: (id) => editor.selection.setHover(id as EntityId | null),
 								draggable: (point) =>
 									grabAt(point) !== null || selectedAt(point),
+								isSelected: (id) =>
+									editor.selection.ids.includes(id as EntityId),
+								menu: (at) => openMenu(at.point),
 								vertexAt: (point) => {
 									const grab = overlay.grabAt(point);
 									return grab?.kind === "vertex" ? grab.id : null;
@@ -1139,6 +1263,14 @@
 									show: showFeedback,
 									inferences,
 									typed: offered.typed,
+								},
+								tracing: {
+									on: () => precision.tracing,
+									toggle: () => precision.toggleTracing(),
+									path: (from, to) =>
+										tracePath(editor.graph, from, to, (way) =>
+											tracesOn(way, level),
+										),
 								},
 							}),
 						);
@@ -1585,35 +1717,35 @@
 				],
 	);
 
-	/** Shortcuts that apply in every mode but floor plan mode (OSM edits can't be seen there). */
-	const SHORTCUTS = [
-		{ combo: "1", run: () => draw("point") },
-		{ combo: "2", run: () => draw("line") },
-		{ combo: "3", run: () => draw("area") },
-		{ combo: "4", run: () => draw("rectangle") },
-		{ combo: "X", run: () => draw("split") },
-		{ combo: "S", run: () => precision.toggle() },
-		{
-			combo: "G",
-			run: () => {
-				if (offered.grid) precision.toggleGrid();
-			},
+	/** What the map keys do (`edit/keymap.ts`), in every mode but floor plan mode. */
+	const MAP_ACTIONS: Record<MapAction, () => void> = {
+		"draw-point": () => draw("point"),
+		"draw-line": () => draw("line"),
+		"draw-area": () => draw("area"),
+		"draw-rectangle": () => draw("rectangle"),
+		"draw-split": () => draw("split"),
+		"draw-measure": () => draw("measure"),
+		"toggle-snapping": () => precision.toggle(),
+		"toggle-grid": () => {
+			if (offered.grid) precision.toggleGrid();
 		},
-		{ combo: "M", run: () => draw("measure") },
-		{ combo: "W", run: () => backgroundSettings?.toggleWireframe() },
-		{ combo: "Z", run: () => zoomToAll(editor.selection.ids) },
-		{ combo: "Mod+B", run: () => backgroundSettings?.swapPrevious() },
-		{ combo: "Mod+Z", run: () => editor.history.undo() },
-		{ combo: "Mod+Shift+Z", run: () => editor.history.redo() },
-		{ combo: "Mod+Y", run: () => editor.history.redo() },
-	];
+		"toggle-wireframe": () => backgroundSettings?.toggleWireframe(),
+		"zoom-to-selection": () => zoomToAll(editor.selection.ids),
+		"swap-background": () => backgroundSettings?.swapPrevious(),
+		undo: () => editor.history.undo(),
+		redo: () => editor.history.redo(),
+		help: () => (shortcutsOpen = true),
+	};
+
+	/** The shortcuts help (`?`, P6). */
+	let shortcutsOpen = $state(false);
 
 	/** The map's keys: the mode's first (Escape…), then undo and redo; none while typing. */
 	function onKeydown(event: KeyboardEvent) {
 		// Popovers and dialogs handle their own keys (Escape closes them); fields have their own
 		// undo.
 		if (floorplans.confirming) return;
-		const shortcut = SHORTCUTS.find((s) => matches(event, s.combo, mac));
+		const shortcut = mapKeyFor((combo) => matches(event, combo, mac));
 		if (!isForMap(event)) {
 			// Behind a dialog, the browser's own undo would still undo typing in a field.
 			if (shortcut && !event.defaultPrevented && !isTyping(event.target))
@@ -1640,7 +1772,7 @@
 		}
 		if (!shortcut) return;
 		event.preventDefault();
-		shortcut.run();
+		MAP_ACTIONS[shortcut.action]();
 	}
 
 	/** Leaving the page loses the edits not uploaded yet: the browser asks first. */
@@ -1685,6 +1817,7 @@
 {#snippet drawButton(
 	kind: DrawTool,
 	label: string,
+	action: string,
 	key: string,
 	Icon: Component,
 )}
@@ -1695,11 +1828,7 @@
 					{...props}
 					variant={drawing === kind ? "secondary" : "outline"}
 					size="icon"
-					aria-label={kind === "split"
-						? "Split rooms"
-						: kind === "measure"
-							? t(msg("measure_tool"))
-							: `Draw ${label.toLowerCase()}`}
+					aria-label={action}
 					aria-pressed={drawing === kind}
 					disabled={editor.history.locked}
 				>
@@ -1707,7 +1836,9 @@
 				</Button>
 			{/snippet}
 		</Tooltip.Trigger>
-		<Tooltip.Content side="bottom">{label} ({key})</Tooltip.Content>
+		<Tooltip.Content side="bottom"
+			>{t(msg("with_shortcut", { label, keys: key }))}</Tooltip.Content
+		>
 	</Tooltip.Root>
 {/snippet}
 
@@ -1831,54 +1962,122 @@
 			</div>
 		{/if}
 		{#if !planMode}
-			<!-- Map controls sit on an opaque surface: shadcn's dark outline styles are translucent. -->
-			<div class="rounded-md bg-background shadow-md">
-				<ButtonGroup.Root aria-label="Edit history">
-					{@render iconButton(
-						"Undo",
-						`Undo (${formatCombo("Mod+Z", mac)})`,
-						Undo2,
-						!editor.history.canUndo,
-						() => editor.history.undo(),
-					)}
-					{@render iconButton(
-						"Redo",
-						`Redo (${formatCombo("Mod+Shift+Z", mac)})`,
-						Redo2,
-						!editor.history.canRedo,
-						() => editor.history.redo(),
-					)}
-					<!-- Not while a drawing or drag is shown: the upload sends finished steps only. -->
-					<Button
-						variant="outline"
-						disabled={editor.history.editCount === 0 ||
-							editor.history.previewing}
-						onclick={() => (saving = true)}
-					>
-						<Upload data-icon="inline-start" />
-						Save
-						<Badge class="tabular-nums" data-testid="edit-count"
-							>{editor.history.editCount}</Badge
+			<!-- Map controls sit on an opaque surface: shadcn's dark outline styles are translucent.
+			     The shortcuts button shares the row: a row more would push the toolbar over the map. -->
+			<div class="flex gap-2">
+				<div class="rounded-md bg-background shadow-md">
+					<ButtonGroup.Root aria-label={t(msg("toolbar_history"))}>
+						{@render iconButton(
+							t(msg("undo")),
+							t(
+								msg("with_shortcut", {
+									label: t(msg("undo")),
+									keys: formatCombo("Mod+Z", mac),
+								}),
+							),
+							Undo2,
+							!editor.history.canUndo,
+							() => editor.history.undo(),
+						)}
+						{@render iconButton(
+							t(msg("redo")),
+							t(
+								msg("with_shortcut", {
+									label: t(msg("redo")),
+									keys: formatCombo("Mod+Shift+Z", mac),
+								}),
+							),
+							Redo2,
+							!editor.history.canRedo,
+							() => editor.history.redo(),
+						)}
+						<!-- Not while a drawing or drag is shown: the upload sends finished steps only. -->
+						<Button
+							variant="outline"
+							disabled={josm !== null ||
+								editor.history.editCount === 0 ||
+								editor.history.previewing}
+							title={josm ? t(msg("josm_save_disabled")) : undefined}
+							onclick={() => (saving = true)}
 						>
-						<span class="sr-only">edits</span>
-					</Button>
-				</ButtonGroup.Root>
+							<Upload data-icon="inline-start" />
+							{t(msg("save"))}
+							<Badge class="tabular-nums" data-testid="edit-count"
+								>{editor.history.editCount}</Badge
+							>
+							<span class="sr-only">{t(msg("save_edits_suffix"))}</span>
+						</Button>
+						{#if issueCount > 0}
+							<!-- Checked in idle time; the save dialog lists them (P6). -->
+							<Button
+								variant="outline"
+								aria-label={t(msg("issue_count", { count: issueCount }))}
+								data-testid="issue-count"
+								disabled={editor.history.previewing}
+								onclick={() => (saving = true)}
+							>
+								<TriangleAlert class="text-destructive" />
+								<span class="tabular-nums">{issueCount}</span>
+							</Button>
+						{/if}
+					</ButtonGroup.Root>
+				</div>
+				<div class="rounded-md bg-background shadow-md">
+					{@render iconButton(
+						t(msg("shortcuts_title")),
+						t(msg("shortcuts_button")),
+						Keyboard,
+						false,
+						() => (shortcutsOpen = true),
+					)}
+				</div>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
-				<ButtonGroup.Root aria-label="Draw">
-					{@render drawButton("point", "Point", "1", MapPin)}
-					{@render drawButton("line", "Line", "2", Spline)}
-					{@render drawButton("area", "Area", "3", Pentagon)}
+				<ButtonGroup.Root aria-label={t(msg("toolbar_draw"))}>
+					{@render drawButton(
+						"point",
+						t(msg("tool_point")),
+						t(msg("tool_point_action")),
+						"1",
+						MapPin,
+					)}
+					{@render drawButton(
+						"line",
+						t(msg("tool_line")),
+						t(msg("tool_line_action")),
+						"2",
+						Spline,
+					)}
+					{@render drawButton(
+						"area",
+						t(msg("tool_area")),
+						t(msg("tool_area_action")),
+						"3",
+						Pentagon,
+					)}
 					<!-- Building mode's tools (B.3). -->
 					{#if offered.draw.has("rectangle")}
 						{@render drawButton(
 							"rectangle",
-							"Rectangle",
+							t(msg("tool_rectangle")),
+							t(msg("tool_rectangle_action")),
 							"4",
 							RectangleHorizontal,
 						)}
-						{@render drawButton("split", "Split", "X", Scissors)}
-						{@render drawButton("measure", t(msg("measure_tool")), "M", Ruler)}
+						{@render drawButton(
+							"split",
+							t(msg("tool_split")),
+							t(msg("tool_split_action")),
+							"X",
+							Scissors,
+						)}
+						{@render drawButton(
+							"measure",
+							t(msg("measure_tool")),
+							t(msg("measure_tool")),
+							"M",
+							Ruler,
+						)}
 					{/if}
 				</ButtonGroup.Root>
 			</div>
@@ -1924,7 +2123,7 @@
 			</div>
 			{#if operations.length > 0}
 				<div class="rounded-md bg-background shadow-md">
-					<ButtonGroup.Root aria-label="Edit selection">
+					<ButtonGroup.Root aria-label={t(msg("toolbar_selection"))}>
 						{#each operations as { operation, disabled } (operation.id)}
 							{@render operationButton(operation, disabled)}
 						{/each}
@@ -1943,7 +2142,7 @@
 					onclick={() => (planMode ? closePlanMode() : setPlanMode(true))}
 				>
 					<FileImage data-icon="inline-start" />
-					Floor plans
+					{t(msg("floor_plans"))}
 				</Button>
 			</div>
 		{/if}
@@ -1988,6 +2187,7 @@
 					onshowlevel={(shown) => (level = shown)}
 					onsurroundings={(on) => (editor.scope.surroundings = on)}
 					ondone={leaveBuilding}
+					onpreview={previewBuilding}
 				/>
 			{:else}
 				<FloorPlansPanel
@@ -2006,7 +2206,7 @@
 			<PanelResizer
 				width={shownPanelWidth}
 				bounds={panelBounds}
-				label="Resize the side panel"
+				label={t(msg("panel_resize"))}
 				onresize={(width) => (panelWidth = width)}
 				oncommit={keepPanelWidth}
 			/>
@@ -2043,7 +2243,9 @@
 					? msg("draw_rectangle_side_hint")
 					: drawing === "measure" && measureVariant === "guide"
 						? msg("guide_hint")
-						: DRAW_HINTS[drawing],
+						: (drawing === "line" || drawing === "area") && precision.tracing
+							? msg("draw_tracing_hint", { hint: t(DRAW_HINTS[drawing]) })
+							: DRAW_HINTS[drawing],
 			),
 		)}
 	{/if}
@@ -2054,6 +2256,19 @@
 
 	{#if dragHint}
 		{@render statusNote("drag-hint", t(dragHint))}
+	{/if}
+
+	{#if josm}
+		<div
+			role="status"
+			data-testid="josm-banner"
+			class="absolute top-16 left-1/2 z-10 flex max-w-[90%] -translate-x-1/2 items-center gap-3 rounded-full bg-popover px-4 py-1.5 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+		>
+			<span>{t(josmProblem ?? msg("josm_banner"))}</span>
+			<Button size="sm" variant="outline" onclick={() => location.reload()}
+				>{t(msg("josm_reload"))}</Button
+			>
+		</div>
 	{/if}
 
 	{#if saving}
@@ -2073,6 +2288,40 @@
 		onrestore={() => void autosave.restore()}
 		ondiscard={() => void autosave.discard()}
 	/>
+
+	<!-- The operations on the selection, at a right-click (P6). -->
+	<DropdownMenu.Root
+		open={menuAt !== null && operations.length > 0}
+		onOpenChange={(open) => {
+			if (!open) menuAt = null;
+		}}
+	>
+		<DropdownMenu.Content
+			customAnchor={menuAnchor}
+			side="bottom"
+			align="start"
+			class="w-56"
+			aria-label={t(msg("operations_menu"))}
+		>
+			{#each operations as { operation, disabled } (operation.id)}
+				{@const Icon = OPERATION_ICONS[operation.id]}
+				<DropdownMenu.Item
+					aria-disabled={disabled !== null}
+					class={disabled ? "opacity-50" : ""}
+					title={disabled ? t(disabled) : undefined}
+					onSelect={() => runOperation(operation)}
+				>
+					<Icon />
+					{t(operation.label)}
+					<DropdownMenu.Shortcut>
+						{formatCombo(operation.keys[0] ?? "", mac)}
+					</DropdownMenu.Shortcut>
+				</DropdownMenu.Item>
+			{/each}
+		</DropdownMenu.Content>
+	</DropdownMenu.Root>
+
+	<ShortcutsDialog bind:open={shortcutsOpen} {mac} />
 
 	{#if repeating}
 		<RepeatDialog

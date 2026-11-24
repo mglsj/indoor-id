@@ -30,8 +30,8 @@
 		<Button
 			variant="ghost"
 			size="icon-sm"
-			aria-label="Close"
-			title="Close"
+			aria-label={t(msg("close"))}
+			title={t(msg("close"))}
 			onclick={() => editor.selectFloor(null)}
 		>
 			<X />

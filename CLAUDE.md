@@ -83,6 +83,9 @@ runs the same commands.
   `TagEditor` for the Tags section, whose text view e2e tests read with `tagsBox()`;
   `RelationsSection` and `MembersSection` on `actions/members.ts` and `osm/relations.ts`),
   `ui/SaveDialog.svelte`.
+  Reach (P6.5): `?source=josm` swaps the `OsmApi` for `api/josm.ts` (`JosmSource`, read-only,
+  JOSM Remote Control's `/export` parsed by `osm/osm-xml.ts`); `static/indoorid.user.js` is the
+  "Open in IndoorID" userscript, its link helpers tested from `reach/userscript.test.ts`.
   Presets come from `@openstreetmap/id-tagging-schema` plus `presets/overlay.json`, built by
   `scripts/build-presets.ts` on install into the gitignored `presets/generated/`; run
   `bun run presets` after changing the overlay or the schema version.
@@ -126,12 +129,15 @@ runs the same commands.
   `history.preview(action)` and ends with one `commit` (or `cancelPreview`): never `perform`
   on every move. Undo and redo are refused while a preview is shown (a drawing takes Mod+Z
   itself), and a level change calls `ModeManager.finish()`. Drawing: `edit/modes/draw.ts` (`drawWayMode` on `edit/draw-way.ts`,
-  `drawPointMode` on `edit/place-point.ts`: door, entrance or point from where it snaps).
+  `drawPointMode` on `edit/place-point.ts`: door, entrance, gate or point from where it snaps;
+  tracing along ways with `T`, `edit/trace.ts`). Issues for the toolbar are checked in idle
+  time (`state/idle-issues.svelte.ts`), not at each edit.
   Operations on the selection (P5.3.5): `edit/operations.ts` (`OPERATIONS`: `available`,
   `disabled` reason, `keys`, `run` giving an edit and what to select, run with `performEdit`)
   on `actions/copy.ts`, `disconnect.ts`, `orthogonalize.ts`, `merge-areas.ts`, `delete.ts`,
   `split-areas.ts` (with `edit/modes/split.ts`), `repeat-levels.ts` (`ui/RepeatDialog.svelte`),
-  `multipolygon.ts`; add a new one to that list, not as a button of its own. Several features
+  `multipolygon.ts`; add a new one to that list, not as a button of its own (the toolbar and
+  the right-click menu, `Mode.contextMenu`, both list it). Several features
   (P5.3.6): Shift+click and `edit/lasso.ts`, edited in `ui/MultiInspector.svelte`; a press on
   a selected feature moves the selection (`edit/feature-drag.ts`). Spatial checks (P5.3.9) are
   `validation/spatial.ts`; `BLOCKING_RULES` stop the upload; `Editor.editIssues` leaves out
@@ -185,8 +191,16 @@ runs the same commands.
 - Messages (R1.7): text shown to users is a `Message` made with `msg("key", {params})` from
   `i18n/messages.ts` and rendered with `t()` in components; errors shown to users are
   `MessageError`s. Add the English to `messages/en.json` (snake_case keys, `{param}`
-  placeholders), then `bun run messages` (it also runs on install) to update the typed
-  `i18n/generated/en.ts`.
+  placeholders), then `bun run messages` (it also runs on install): Paraglide compiles
+  `messages/*.json` into the gitignored `i18n/paraglide/`, which types `msg()`. Compiling
+  downloads its format plugin from jsDelivr (`project.inlang/settings.json`). Plurals: pass a
+  numeric `count` and write the message as variants (`issue_count` in `en.json`); never build
+  text with `count === 1 ? … : …`. Other languages (P6.6): `messages/{locale}.json`, checked
+  against English by `i18n/locales.test.ts`; the language is Paraglide's (`getLocale`,
+  header menu through `i18n/locale.ts`, which reloads). Unit tests switch it with
+  `overwriteGetLocale`. Preset and field names come from the schema's translations
+  (`presets/localize.ts`). Dates and relative times use `currentLanguage()`. The help page is
+  English only.
 - Autosave (P5.4a): `osm/history-json.ts` (`saveHistory`/`restoreHistory`: base versions and
   each step's changes, label and selection), `persist/autosave.ts` (`Autosave`: a record per
   tab, the heartbeat lock; tested on fake-indexeddb), `state/autosave.svelte.ts`
