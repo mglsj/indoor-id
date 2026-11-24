@@ -35,6 +35,7 @@
 	import type { Clipboard } from "#lib/actions/copy.ts";
 	import { splitAreas, splitTargets } from "#lib/actions/split-areas.ts";
 	import { translateNodes } from "#lib/actions/transform.ts";
+	import { JosmSource } from "#lib/api/josm.ts";
 	import { OsmApi } from "#lib/api/osm-api.ts";
 	import { OsmWikibase } from "#lib/api/osm-wikibase.ts";
 	import { RecentUploads } from "#lib/api/recent-uploads.ts";
@@ -135,7 +136,7 @@
 		project,
 	} from "#lib/floorplans/georef.ts";
 	import { planDecoders } from "#lib/floorplans/import.ts";
-	import { type Message, msg, t } from "#lib/i18n/messages.ts";
+	import { type Message, MessageError, msg, t } from "#lib/i18n/messages.ts";
 	import { featureLevels } from "#lib/levels/feature-levels.ts";
 	import { isOnLevel } from "#lib/levels/levels.ts";
 	import type { Imagery } from "#lib/map/backgrounds.ts";
@@ -222,7 +223,7 @@
 	let { config }: Props = $props();
 
 	// The configuration is read once: it doesn't change while the editor runs.
-	const { session, editor, websiteUrl } = untrack(() => {
+	const { session, editor, websiteUrl, josm } = untrack(() => {
 		const websiteUrl = config.oauth_url ?? config.osm_api_url;
 		const session = new Session({
 			oauthUrl: websiteUrl,
@@ -230,15 +231,24 @@
 			clientId: config.oauth_client_id,
 			redirectUri: new URL(resolve("/auth/callback"), location.href).href,
 		});
-		const api = new OsmApi({
-			baseUrl: config.osm_api_url,
-			getToken: () => session.token(),
-			createdBy: `IndoorID ${__GIT_HASH__}`,
-		});
+		// `?source=josm`: JOSM's active layer, read-only (P6).
+		const josm =
+			new URLSearchParams(location.search).get("source") === "josm"
+				? new JosmSource()
+				: null;
+		const api =
+			josm ??
+			new OsmApi({
+				baseUrl: config.osm_api_url,
+				getToken: () => session.token(),
+				createdBy: `IndoorID ${__GIT_HASH__}`,
+			});
 		const recentUploads = new RecentUploads();
 		const editor = new Editor({
 			api,
-			minZoom: config.data_min_zoom,
+			// JOSM's layer comes whole, at any zoom: one tile covering the world.
+			minZoom: josm ? 0 : config.data_min_zoom,
+			loader: josm ? { zoom: 0, tooLarge: () => false } : undefined,
 			// The viewer lays them over Overpass answers until Overpass catches up.
 			onupload: (changes) => recentUploads.record(changes),
 			catalog: {
@@ -253,7 +263,7 @@
 				},
 			},
 		});
-		return { session, editor, websiteUrl };
+		return { session, editor, websiteUrl, josm };
 	});
 	setEditor(editor);
 
@@ -287,15 +297,45 @@
 	// Edits are saved in this browser as they are made, and offered back on start.
 	const autosave = new EditAutosave(editor, new Autosave());
 	$effect(() => {
+		// Edits made on JOSM's data aren't OSM's to restore later.
+		if (josm) return;
 		void autosave.start();
 		return () => autosave.stop();
 	});
 	$effect(() => {
 		void editor.history.graph;
 		void editor.sync.failedChangeset;
-		autosave.changed();
+		if (!josm) autosave.changed();
 	});
 	let saving = $state(false);
+
+	/** Why JOSM's layer couldn't be read, shown until the page is loaded again. */
+	let josmProblem = $state.raw<Message | null>(null);
+	// With no place in the link, the camera goes to JOSM's data once the map is there.
+	const fitJosm = josm !== null && parseHash(location.hash) === null;
+	$effect(() => {
+		if (!josm || !map) return;
+		const shown = map;
+		josm.load().then(
+			(entities) => {
+				const extent = extentOf(
+					entities.flatMap((e) => (e.type === "node" ? [e.loc] : [])),
+				);
+				if (!fitJosm || !extent) return;
+				shown.fitBounds(
+					[
+						[extent.west, extent.south],
+						[extent.east, extent.north],
+					],
+					{ padding: 60, maxZoom: 19, duration: 0 },
+				);
+			},
+			(error: unknown) => {
+				josmProblem =
+					error instanceof MessageError ? error.msg : msg("josm_unreachable");
+			},
+		);
+	});
 
 	/** The issues of the edits, checked in idle time after each change (P6). */
 	const idleIssues = new IdleIssues();
@@ -1945,8 +1985,10 @@
 						<!-- Not while a drawing or drag is shown: the upload sends finished steps only. -->
 						<Button
 							variant="outline"
-							disabled={editor.history.editCount === 0 ||
+							disabled={josm !== null ||
+								editor.history.editCount === 0 ||
 								editor.history.previewing}
+							title={josm ? t(msg("josm_save_disabled")) : undefined}
 							onclick={() => (saving = true)}
 						>
 							<Upload data-icon="inline-start" />
@@ -2178,6 +2220,19 @@
 
 	{#if dragHint}
 		{@render statusNote("drag-hint", t(dragHint))}
+	{/if}
+
+	{#if josm}
+		<div
+			role="status"
+			data-testid="josm-banner"
+			class="absolute top-16 left-1/2 z-10 flex max-w-[90%] -translate-x-1/2 items-center gap-3 rounded-full bg-popover px-4 py-1.5 text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
+		>
+			<span>{t(josmProblem ?? msg("josm_banner"))}</span>
+			<Button size="sm" variant="outline" onclick={() => location.reload()}
+				>{t(msg("josm_reload"))}</Button
+			>
+		</div>
 	{/if}
 
 	{#if saving}

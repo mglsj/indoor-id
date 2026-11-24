@@ -2063,6 +2063,33 @@ Done ✅ 2026-11-24:
   indoor= expects isn't documented: OSM tags as properties is what its own files carry.
 - **README**: a "Using IndoorID" section pointing to the editor, the viewer and `/help`.
 
+### P6.5: Reach — userscript, read-only JOSM source — S–M — done
+
+Done ✅ 2026-11-24:
+
+- **Userscript** (`static/indoorid.user.js`, served at `/indoorid.user.js` and linked from the
+  help page's "From other tools"): adds "Open in IndoorID" to openstreetmap.org's Edit menu (a
+  floating button if the menu isn't found), and a button to OSMCha's changeset pages (the
+  changeset's bounding box from the OSM API, asked before the click so the new tab isn't taken
+  for a pop-up) and to indoor= (its `map=` and `level=` hash). IndoorID isn't hosted at a fixed
+  address yet, so the script asks for it once from the manager's menu (`GM_setValue`;
+  `localStorage` without a manager) and defaults to `http://localhost:5173/`; the help page
+  shows the running copy's address. Zooms under 17 open at 17, where data downloads. Its link
+  helpers are tested by evaluating the script in Vitest (`reach/userscript.test.ts`); e2e
+  checks the Edit menu entry on a stand-in page.
+- **`?source=josm`** (`api/josm.ts`, `osm/osm-xml.ts`): JOSM's active layer, unsaved edits
+  included, from Remote Control's `GET http://127.0.0.1:8111/export` (JOSM r19425, July 2025;
+  answers `.osm` XML with `Access-Control-Allow-Origin: *`; off until "Export data from JOSM"
+  is allowed). `JosmSource` is a `SyncApi`: the layer is read once and handed whole to the
+  first tile asked for (the loader uses one zoom-0 tile, from any zoom); `upload` throws
+  `josm_read_only`, and Save is disabled. Deleted features (`action="delete"`,
+  `visible="false"`) are left out; JOSM's new features keep their negative ids, and
+  `graph.newId` already counts below them. A banner says the data is JOSM's, or why it can't
+  be read (not running, permission off: 403, too old: 400, no data layer: empty answer), with
+  "Load again" (a page reload: data read again would clash with what is already in the graph).
+  With no place in the link the camera fits the layer. Autosave is off in this mode.
+  Not done: JOSM's unsaved changes aren't highlighted as edits (they load as server data).
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept

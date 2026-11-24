@@ -4,7 +4,10 @@
 	 * per task, linked from the shortcuts help and the header. English only for now; the
 	 * shortcuts themselves are listed by `ShortcutsDialog`, from the keymap.
 	 */
-	import { resolve } from "$app/paths";
+	import { asset, resolve } from "$app/paths";
+
+	/** This copy's address, for the userscript to link to. */
+	const editorAddress = new URL(resolve("/"), location.href).href;
 
 	const SECTIONS = [
 		{ id: "start", title: "Getting started" },
@@ -15,6 +18,7 @@
 		{ id: "plans", title: "Floor plans" },
 		{ id: "tags", title: "Choosing what a feature is" },
 		{ id: "upload", title: "Checking and uploading" },
+		{ id: "elsewhere", title: "From other tools" },
 		{ id: "keys", title: "Keyboard shortcuts" },
 	] as const;
 </script>
@@ -218,6 +222,35 @@
 			uploads all your edits in one changeset, exactly as edited. If someone
 			else changed the same features meanwhile, IndoorID merges what it can and
 			lists the rest for you to decide.
+		</p>
+	</section>
+
+	<section id="elsewhere" class="flex flex-col gap-2">
+		<h3 class="text-lg font-medium">From other tools</h3>
+		<p>
+			The
+			<a
+				class="underline underline-offset-2"
+				href={asset("indoorid.user.js")}
+				data-testid="userscript-link"
+				>Open in IndoorID userscript</a
+			>
+			adds <em>Open in IndoorID</em> to openstreetmap.org's Edit menu, and a
+			button to OSMCha's changesets and to indoor=. Install it with a userscript
+			manager such as Violentmonkey or Tampermonkey, then give it this copy's
+			address from the manager's menu (<em>Set IndoorID's address</em>):
+			<code class="rounded bg-muted px-1">{editorAddress}</code>.
+		</p>
+		<p>
+			To look at what you are editing in JOSM before you upload it, turn on
+			Remote Control in JOSM's preferences, allow <em>Export data from JOSM</em>
+			there (JOSM from July 2025 on), and open
+			<a
+				class="underline underline-offset-2"
+				href={`${resolve("/")}?source=josm`}
+				>IndoorID with ?source=josm</a
+			>. It shows JOSM's active layer, unsaved edits included, read-only: upload
+			from JOSM.
 		</p>
 	</section>
 

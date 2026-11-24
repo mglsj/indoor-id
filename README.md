@@ -19,6 +19,9 @@ If you are looking for an indoor data viewer (a map for browsing existing data),
 - **Viewer** (`/view`): browse indoor maps without an account, find places by name or number.
 - **Help** (`/help`): how to do each of these, step by step. In the editor, press `?` for the
   keyboard shortcuts.
+- **From other tools**: the [Open in IndoorID userscript](static/indoorid.user.js) adds a link
+  to openstreetmap.org, OSMCha and indoor=; `/?source=josm` shows JOSM's active layer,
+  read-only (see `/help#elsewhere`).
 
 ## Contributing
 

@@ -83,6 +83,9 @@ runs the same commands.
   `TagEditor` for the Tags section, whose text view e2e tests read with `tagsBox()`;
   `RelationsSection` and `MembersSection` on `actions/members.ts` and `osm/relations.ts`),
   `ui/SaveDialog.svelte`.
+  Reach (P6.5): `?source=josm` swaps the `OsmApi` for `api/josm.ts` (`JosmSource`, read-only,
+  JOSM Remote Control's `/export` parsed by `osm/osm-xml.ts`); `static/indoorid.user.js` is the
+  "Open in IndoorID" userscript, its link helpers tested from `reach/userscript.test.ts`.
   Presets come from `@openstreetmap/id-tagging-schema` plus `presets/overlay.json`, built by
   `scripts/build-presets.ts` on install into the gitignored `presets/generated/`; run
   `bun run presets` after changing the overlay or the schema version.

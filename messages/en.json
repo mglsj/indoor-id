@@ -406,5 +406,13 @@
 	"undo_straighten": "Straightened to 45°",
 	"operation_symmetric": "Make symmetric",
 	"undo_symmetric": "Made symmetric",
-	"operation_symmetric_none": "No mirror line pairs every corner with a twin"
+	"operation_symmetric_none": "No mirror line pairs every corner with a twin",
+	"josm_read_only": "Data from JOSM is read-only here: upload your edits from JOSM",
+	"josm_unreachable": "JOSM didn't answer at 127.0.0.1:8111: start JOSM and turn on Remote Control in its preferences",
+	"josm_permission": "JOSM refused to share its data: allow \"Export data from JOSM\" in its Remote Control preferences",
+	"josm_too_old": "This JOSM can't share its data: update it to a version from July 2025 or later",
+	"josm_no_layer": "JOSM has no data layer open: open or download one, then load again",
+	"josm_banner": "Showing JOSM's active layer, read-only",
+	"josm_reload": "Load again",
+	"josm_save_disabled": "Upload your edits from JOSM"
 }
