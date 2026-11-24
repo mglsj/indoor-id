@@ -1,0 +1,7 @@
+{
+	"$schema": "https://inlang.com/schema/inlang-message-format",
+	"nav_help": "Súgó",
+	"background": "Háttér",
+	"building_done": "Kész",
+	"building_kind_building": "Épület"
+}

@@ -3,6 +3,7 @@
 	import Pencil from "@lucide/svelte/icons/pencil";
 	import { linkifyWikiText, type TagDocs } from "#lib/api/osm-wikibase.ts";
 	import { Spinner } from "#lib/components/shadcn/spinner/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 
 	interface Props {
 		/** The documentation to show; null when the wiki has none. */
@@ -20,11 +21,13 @@
 	{#await docs}
 		<p class="flex items-center gap-2 text-muted-foreground">
 			<Spinner class="size-3.5" />
-			Loading documentation…
+			{t(msg("reference_loading_documentation"))}
 		</p>
 	{:then found}
 		{#if !found || (!found.description && !found.wiki)}
-			<p class="text-muted-foreground">There is no documentation available.</p>
+			<p class="text-muted-foreground">
+				{t(msg("reference_there_is_no_documentation"))}
+			</p>
 		{:else}
 			{#if found.imageUrl && !brokenImage}
 				<img
@@ -52,8 +55,8 @@
 					href={found.editUrl}
 					target="_blank"
 					rel="noopener noreferrer"
-					aria-label="Edit or translate the description"
-					title="Edit or translate the description"
+					aria-label={t(msg("reference_edit_or_translate_the"))}
+					title={t(msg("reference_edit_or_translate_the"))}
 					class="ml-1 inline-flex align-middle text-muted-foreground hover:text-foreground"
 					><Pencil class="size-3.5" /></a
 				>
@@ -66,11 +69,13 @@
 					class="inline-flex items-center gap-1 self-start font-medium underline-offset-4 hover:underline"
 				>
 					<BookOpen class="size-3.5" aria-hidden="true" />
-					View documentation
+					{t(msg("reference_view_documentation"))}
 				</a>
 			{/if}
 		{/if}
 	{:catch}
-		<p class="text-muted-foreground">The documentation could not be loaded.</p>
+		<p class="text-muted-foreground">
+			{t(msg("reference_the_documentation_could_not"))}
+		</p>
 	{/await}
 </div>

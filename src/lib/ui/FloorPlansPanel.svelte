@@ -6,7 +6,7 @@
 	import { ScrollArea } from "#lib/components/shadcn/scroll-area/index.ts";
 	import { Separator } from "#lib/components/shadcn/separator/index.ts";
 	import type { PlanDecoders } from "#lib/floorplans/import.ts";
-	import { type Message, t } from "#lib/i18n/messages.ts";
+	import { type Message, msg, t } from "#lib/i18n/messages.ts";
 	import type {
 		FloorPlans,
 		PlanBuilding,
@@ -54,20 +54,19 @@
 </script>
 
 <aside
-	aria-label="Floor plan editor"
+	aria-label={t(msg("plans_editor"))}
 	class="flex h-full w-full flex-col border-r bg-background shadow-lg"
 >
 	<header class="flex items-start gap-2 px-4 py-3">
 		<div class="min-w-0 flex-1">
-			<h2 class="text-base font-semibold">Floor plans</h2>
+			<h2 class="text-base font-semibold">{t(msg("floor_plans"))}</h2>
 			<p class="text-sm text-muted-foreground">
-				Place plans against the building outlines. Import PNG, JPEG, WebP, SVG
-				or PDF.
+				{t(msg("plans_intro"))}
 			</p>
 		</div>
 		<Button size="sm" variant="outline" onclick={onclose}>
 			<X data-icon="inline-start" />
-			Close
+			{t(msg("close"))}
 		</Button>
 	</header>
 	<Separator />

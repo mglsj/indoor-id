@@ -17,7 +17,7 @@
 		pdfPage,
 		writePlanFile,
 	} from "#lib/floorplans/plan-io.ts";
-	import { MessageError, msg } from "#lib/i18n/messages.ts";
+	import { MessageError, msg, t } from "#lib/i18n/messages.ts";
 	import type { FloorPlans, View } from "#lib/state/floorplans.svelte.ts";
 	import type { Guides } from "#lib/state/guides.svelte.ts";
 	import PdfPageDialog from "#lib/ui/PdfPageDialog.svelte";
@@ -133,13 +133,13 @@
 		{:else}
 			<Upload data-icon="inline-start" />
 		{/if}
-		Import
+		{t(msg("import"))}
 	</Button>
 	{#if floorplans.plans.length > 0}
 		<Button
 			size="icon-sm"
 			variant="outline"
-			aria-label="Export floor plans"
+			aria-label={t(msg("plans_export"))}
 			onclick={exportFile}
 		>
 			<Download />
@@ -149,7 +149,7 @@
 		bind:this={input}
 		type="file"
 		accept={ACCEPTED_FILES}
-		aria-label="Import a floor plan"
+		aria-label={t(msg("plans_import"))}
 		class="sr-only"
 		tabindex="-1"
 		onchange={onFileChange}

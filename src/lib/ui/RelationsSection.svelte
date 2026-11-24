@@ -5,6 +5,7 @@
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import { tick } from "svelte";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import { labelFor } from "#lib/map/classify.ts";
 	import type { Entity, Relation, RelationId } from "#lib/osm/entity.ts";
 	import { type Extent, extentsIntersect } from "#lib/osm/geometry.ts";
@@ -76,7 +77,7 @@
 			},
 		});
 		return [
-			{ key: NEW_RELATION, label: "New relation…" },
+			{ key: NEW_RELATION, label: t(msg("relations_new")) },
 			...choices.map(({ relation, value }) => ({
 				key: relation.id,
 				label: value,
@@ -113,9 +114,9 @@
 	}
 </script>
 
-<InspectorSection id="relations" title={`Relations (${count})`}>
+<InspectorSection id="relations" title={t(msg("relations_title", { count }))}>
 	<div class="flex flex-col gap-3">
-		<ul aria-label="Relations" class="flex flex-col gap-3">
+		<ul aria-label={t(msg("relations_relations"))} class="flex flex-col gap-3">
 			{#each rows as { relation, index, role } (`${relation.id}-${index}`)}
 				{@const name = labelFor(relation.tags)}
 				{@const text = label(relation)}
@@ -128,7 +129,8 @@
 							onclick={() => editor.select(relation.id)}
 						>
 							<span class="font-medium"
-								>{editor.presetOf(relation)?.name ?? "Relation"}</span
+								>{editor.presetOf(relation)?.name ??
+									t(msg("entity_relation"))}</span
 							>
 							{#if name}
 								{" "}<span>{name}</span>
@@ -138,8 +140,10 @@
 							<Button
 								variant="ghost"
 								size="icon-xs"
-								aria-label={`Download the members of ${text}`}
-								title="Download the members"
+								aria-label={t(
+									msg("relations_download_members", { item: text }),
+								)}
+								title={t(msg("members_download"))}
 								onclick={() => editor.sync.loadRelation(relation.id)}
 							>
 								<Download />
@@ -149,8 +153,8 @@
 							<Button
 								variant="ghost"
 								size="icon-xs"
-								aria-label={`Zoom to ${text}`}
-								title="Zoom to"
+								aria-label={t(msg("zoom_to_item", { item: text }))}
+								title={t(msg("zoom_to"))}
 								onclick={() => onzoom(relation.id)}
 							>
 								<Focus />
@@ -159,8 +163,8 @@
 						<Button
 							variant="ghost"
 							size="icon-xs"
-							aria-label={`Remove from ${text}`}
-							title="Remove"
+							aria-label={t(msg("relations_remove_from", { item: text }))}
+							title={t(msg("remove"))}
 							class="text-muted-foreground hover:text-destructive"
 							onclick={() => removeMembers(editor, relation.id, [index])}
 						>
@@ -173,7 +177,7 @@
 						context={roleContext(roles(relation))}
 						locked={false}
 						raw
-						ariaLabel={`Role in ${text}`}
+						ariaLabel={t(msg("relations_role_in", { item: text }))}
 						onchange={(typed) => changeRole(relation, index, typed)}
 					/>
 				</li>
@@ -186,8 +190,8 @@
 					<SearchCombo
 						id={chooseId}
 						value=""
-						placeholder="Choose a parent relation"
-						ariaLabel="Choose a parent relation"
+						placeholder={t(msg("relations_choose_a_parent_relation"))}
+						ariaLabel={t(msg("relations_choose_a_parent_relation"))}
 						{search}
 						onchoose={choose}
 						class="flex-1"
@@ -195,8 +199,8 @@
 					<Button
 						variant="ghost"
 						size="icon-xs"
-						aria-label="Cancel"
-						title="Cancel"
+						aria-label={t(msg("cancel"))}
+						title={t(msg("cancel"))}
 						class="text-muted-foreground hover:text-destructive"
 						onclick={() => (adding = false)}
 					>
@@ -209,7 +213,7 @@
 					context={roleContext(roles(null))}
 					locked={false}
 					raw
-					ariaLabel="Role in the new relation"
+					ariaLabel={t(msg("relations_role_new"))}
 					onchange={(typed) => (addedRole = cleanValue(typed ?? ""))}
 				/>
 			</div>
@@ -222,7 +226,7 @@
 			onclick={startAdding}
 		>
 			<Plus data-icon="inline-start" />
-			Add to a relation
+			{t(msg("relations_add_to_a_relation"))}
 		</Button>
 	</div>
 </InspectorSection>

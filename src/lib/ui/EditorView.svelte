@@ -1817,6 +1817,7 @@
 {#snippet drawButton(
 	kind: DrawTool,
 	label: string,
+	action: string,
 	key: string,
 	Icon: Component,
 )}
@@ -1827,11 +1828,7 @@
 					{...props}
 					variant={drawing === kind ? "secondary" : "outline"}
 					size="icon"
-					aria-label={kind === "split"
-						? "Split rooms"
-						: kind === "measure"
-							? t(msg("measure_tool"))
-							: `Draw ${label.toLowerCase()}`}
+					aria-label={action}
 					aria-pressed={drawing === kind}
 					disabled={editor.history.locked}
 				>
@@ -1839,7 +1836,9 @@
 				</Button>
 			{/snippet}
 		</Tooltip.Trigger>
-		<Tooltip.Content side="bottom">{label} ({key})</Tooltip.Content>
+		<Tooltip.Content side="bottom"
+			>{t(msg("with_shortcut", { label, keys: key }))}</Tooltip.Content
+		>
 	</Tooltip.Root>
 {/snippet}
 
@@ -1967,17 +1966,27 @@
 			     The shortcuts button shares the row: a row more would push the toolbar over the map. -->
 			<div class="flex gap-2">
 				<div class="rounded-md bg-background shadow-md">
-					<ButtonGroup.Root aria-label="Edit history">
+					<ButtonGroup.Root aria-label={t(msg("toolbar_history"))}>
 						{@render iconButton(
-							"Undo",
-							`Undo (${formatCombo("Mod+Z", mac)})`,
+							t(msg("undo")),
+							t(
+								msg("with_shortcut", {
+									label: t(msg("undo")),
+									keys: formatCombo("Mod+Z", mac),
+								}),
+							),
 							Undo2,
 							!editor.history.canUndo,
 							() => editor.history.undo(),
 						)}
 						{@render iconButton(
-							"Redo",
-							`Redo (${formatCombo("Mod+Shift+Z", mac)})`,
+							t(msg("redo")),
+							t(
+								msg("with_shortcut", {
+									label: t(msg("redo")),
+									keys: formatCombo("Mod+Shift+Z", mac),
+								}),
+							),
 							Redo2,
 							!editor.history.canRedo,
 							() => editor.history.redo(),
@@ -1992,21 +2001,17 @@
 							onclick={() => (saving = true)}
 						>
 							<Upload data-icon="inline-start" />
-							Save
+							{t(msg("save"))}
 							<Badge class="tabular-nums" data-testid="edit-count"
 								>{editor.history.editCount}</Badge
 							>
-							<span class="sr-only">edits</span>
+							<span class="sr-only">{t(msg("save_edits_suffix"))}</span>
 						</Button>
 						{#if issueCount > 0}
 							<!-- Checked in idle time; the save dialog lists them (P6). -->
 							<Button
 								variant="outline"
-								aria-label={t(
-									issueCount === 1
-										? msg("issue_count_one")
-										: msg("issue_count", { count: issueCount }),
-								)}
+								aria-label={t(msg("issue_count", { count: issueCount }))}
 								data-testid="issue-count"
 								disabled={editor.history.previewing}
 								onclick={() => (saving = true)}
@@ -2028,20 +2033,51 @@
 				</div>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
-				<ButtonGroup.Root aria-label="Draw">
-					{@render drawButton("point", "Point", "1", MapPin)}
-					{@render drawButton("line", "Line", "2", Spline)}
-					{@render drawButton("area", "Area", "3", Pentagon)}
+				<ButtonGroup.Root aria-label={t(msg("toolbar_draw"))}>
+					{@render drawButton(
+						"point",
+						t(msg("tool_point")),
+						t(msg("tool_point_action")),
+						"1",
+						MapPin,
+					)}
+					{@render drawButton(
+						"line",
+						t(msg("tool_line")),
+						t(msg("tool_line_action")),
+						"2",
+						Spline,
+					)}
+					{@render drawButton(
+						"area",
+						t(msg("tool_area")),
+						t(msg("tool_area_action")),
+						"3",
+						Pentagon,
+					)}
 					<!-- Building mode's tools (B.3). -->
 					{#if offered.draw.has("rectangle")}
 						{@render drawButton(
 							"rectangle",
-							"Rectangle",
+							t(msg("tool_rectangle")),
+							t(msg("tool_rectangle_action")),
 							"4",
 							RectangleHorizontal,
 						)}
-						{@render drawButton("split", "Split", "X", Scissors)}
-						{@render drawButton("measure", t(msg("measure_tool")), "M", Ruler)}
+						{@render drawButton(
+							"split",
+							t(msg("tool_split")),
+							t(msg("tool_split_action")),
+							"X",
+							Scissors,
+						)}
+						{@render drawButton(
+							"measure",
+							t(msg("measure_tool")),
+							t(msg("measure_tool")),
+							"M",
+							Ruler,
+						)}
 					{/if}
 				</ButtonGroup.Root>
 			</div>
@@ -2087,7 +2123,7 @@
 			</div>
 			{#if operations.length > 0}
 				<div class="rounded-md bg-background shadow-md">
-					<ButtonGroup.Root aria-label="Edit selection">
+					<ButtonGroup.Root aria-label={t(msg("toolbar_selection"))}>
 						{#each operations as { operation, disabled } (operation.id)}
 							{@render operationButton(operation, disabled)}
 						{/each}
@@ -2106,7 +2142,7 @@
 					onclick={() => (planMode ? closePlanMode() : setPlanMode(true))}
 				>
 					<FileImage data-icon="inline-start" />
-					Floor plans
+					{t(msg("floor_plans"))}
 				</Button>
 			</div>
 		{/if}
@@ -2170,7 +2206,7 @@
 			<PanelResizer
 				width={shownPanelWidth}
 				bounds={panelBounds}
-				label="Resize the side panel"
+				label={t(msg("panel_resize"))}
 				onresize={(width) => (panelWidth = width)}
 				oncommit={keepPanelWidth}
 			/>
@@ -2265,7 +2301,7 @@
 			side="bottom"
 			align="start"
 			class="w-56"
-			aria-label="Operations"
+			aria-label={t(msg("operations_menu"))}
 		>
 			{#each operations as { operation, disabled } (operation.id)}
 				{@const Icon = OPERATION_ICONS[operation.id]}

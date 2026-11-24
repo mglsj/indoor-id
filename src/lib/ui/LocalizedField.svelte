@@ -59,8 +59,8 @@
 	const languageField = (row: string): Field => ({
 		id: `${field.id}-lang-${row}`,
 		type: "combo",
-		label: "Language",
-		placeholder: "Language",
+		label: t(msg("language")),
+		placeholder: t(msg("language")),
 		options: languageOptions().map((l) => ({
 			value: l.code,
 			label: l.label,
@@ -91,8 +91,8 @@
 {#snippet addButton()}
 	<InputGroup.Button
 		size="icon-xs"
-		aria-label="Add a translation"
-		title="Add a translation"
+		aria-label={t(msg("localized_add"))}
+		title={t(msg("localized_add"))}
 		disabled={locked}
 		onclick={add}
 	>
@@ -147,7 +147,9 @@
 	<div
 		class="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] items-center gap-1.5"
 	>
-		<label for={fieldInputId(langField)} class="sr-only">Language</label>
+		<label for={fieldInputId(langField)} class="sr-only"
+			>{t(msg("language"))}</label
+		>
 		<ComboField
 			field={langField}
 			value={lang || undefined}
@@ -163,11 +165,16 @@
 			dir="auto"
 			lang={lang || undefined}
 			aria-label={lang
-				? `${field.label} in ${languageName(lang)}`
-				: "Translated name"}
+				? t(
+						msg("localized_in", {
+							field: field.label,
+							language: languageName(lang),
+						}),
+					)
+				: t(msg("localized_translated_name"))}
 			placeholder={rowMixed
 				? t(msg("field_multiple_values"))
-				: "Translated name"}
+				: t(msg("localized_translated_name"))}
 			readonly={locked}
 			onchange={(event) => onvalue(cleanValue(event.currentTarget.value))}
 		/>
@@ -175,8 +182,8 @@
 			variant="ghost"
 			size="icon-xs"
 			aria-label={lang
-				? `Remove the ${languageName(lang)} name`
-				: "Remove translation"}
+				? t(msg("localized_remove_language", { language: languageName(lang) }))
+				: t(msg("localized_remove"))}
 			class="text-muted-foreground hover:text-destructive"
 			disabled={locked}
 			onclick={onremove}

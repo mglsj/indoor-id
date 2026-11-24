@@ -16,7 +16,7 @@
 		positionOf,
 		type TransformKind,
 	} from "#lib/floorplans/georef.ts";
-	import { type Message, t } from "#lib/i18n/messages.ts";
+	import { type Message, msg, t } from "#lib/i18n/messages.ts";
 	import {
 		type FloorPlans,
 		MIN_POINTS,
@@ -48,7 +48,10 @@
 	const buildingChoices = $derived.by(() => {
 		const assigned = floorplans.editing?.building;
 		return assigned && !buildings.some((b) => b.id === assigned)
-			? [...buildings, { id: assigned, name: `Building ${assigned}` }]
+			? [
+					...buildings,
+					{ id: assigned, name: t(msg("plan_building_id", { id: assigned })) },
+				]
 			: buildings;
 	});
 
@@ -149,24 +152,24 @@
 		switch (tool?.kind) {
 			case "points":
 				return tool.pending
-					? "Now click where that spot is on the map. Clicks near an OSM node or side, such as a building's corner or wall, snap to it."
-					: "Click a spot on the plan, such as a corner, then where it is on the map.";
+					? t(msg("plan_hint_points_map"))
+					: t(msg("plan_hint_points_plan"));
 			case "measure":
 				return tool.points.length < 2
-					? "Click two spots on the plan whose real distance you know."
-					: "Give the real distance between the two spots.";
+					? t(msg("plan_hint_measure_pick"))
+					: t(msg("plan_hint_measure_type"));
 			case "rotate":
 				return tool.pin
-					? "Turn the plan around the picked spot."
-					: "Click the spot on the plan to turn around.";
+					? t(msg("plan_hint_rotate_turn"))
+					: t(msg("plan_hint_rotate_pick"));
 			default:
-				return "Drag the plan to move it, a corner to resize it, the round handle above it to turn it. While dragging a corner: Shift stretches, Ctrl (⌘) resizes from the centre, Alt moves that corner alone. Shift turns in 15° steps. For precise placement, type its position or pick a tool.";
+				return t(msg("plan_hint_drag"));
 		}
 	});
 	const FIT_KINDS: { kind: TransformKind; label: string }[] = [
-		{ kind: "similarity", label: "Similarity" },
-		{ kind: "affine", label: "Affine" },
-		{ kind: "projective", label: "Perspective" },
+		{ kind: "similarity", label: t(msg("plan_fit_similarity")) },
+		{ kind: "affine", label: t(msg("plan_fit_affine")) },
+		{ kind: "projective", label: t(msg("plan_fit_perspective")) },
 	];
 
 	function scale(event: SubmitEvent) {
@@ -184,25 +187,27 @@
 {#if floorplans.editing}
 	{@const plan = floorplans.editing}
 	<section
-		aria-label={`Editing ${plan.name}`}
+		aria-label={t(msg("plan_editing", { plan: plan.name }))}
 		class="flex flex-col gap-4 rounded-md border p-3"
 	>
 		<div class="flex items-center gap-2">
 			<h3 class="min-w-0 flex-1 truncate text-sm font-medium">
-				Editing {plan.name}
+				{t(msg("plan_editing", { plan: plan.name }))}
 			</h3>
 			<Button size="sm" variant="outline" onclick={() => floorplans.cancel()}
-				>Cancel</Button
+				>{t(msg("cancel"))}</Button
 			>
-			<Button size="sm" onclick={() => floorplans.done()}>Done</Button>
+			<Button size="sm" onclick={() => floorplans.done()}
+				>{t(msg("building_done"))}</Button
+			>
 		</div>
 		<Field.Field>
-			<Field.Label for="plan-level">Level</Field.Label>
+			<Field.Label for="plan-level">{t(msg("level_control"))}</Field.Label>
 			<Input
 				id="plan-level"
 				type="text"
 				autocomplete="off"
-				placeholder="Every level"
+				placeholder={t(msg("plan_every_level"))}
 				value={plan.level ?? ""}
 				onchange={(event) =>
 					floorplans.update(plan.id, {
@@ -210,13 +215,15 @@
 					})}
 			/>
 			<Field.Description>
-				The plan only shows on this level, like 0 or -1.
+				{t(msg("plan_the_plan_only_shows"))}
 			</Field.Description>
 		</Field.Field>
 
 		{#if buildingChoices.length > 0}
 			<Field.Set>
-				<Field.Legend variant="label">Building</Field.Legend>
+				<Field.Legend variant="label"
+					>{t(msg("building_kind_building"))}</Field.Legend
+				>
 				<RadioGroup.Root
 					value={plan.building ?? ""}
 					onValueChange={(value) => floorplans.setBuilding(value || null)}
@@ -235,13 +242,13 @@
 					{/each}
 				</RadioGroup.Root>
 				<Field.Description>
-					The building the plan is of, named in the plan list.
+					{t(msg("plan_the_building_the_plan"))}
 				</Field.Description>
 			</Field.Set>
 		{/if}
 
 		<Field.Field>
-			<Field.Label for="plan-opacity">Opacity</Field.Label>
+			<Field.Label for="plan-opacity">{t(msg("plan_opacity"))}</Field.Label>
 			<Slider
 				id="plan-opacity"
 				type="single"
@@ -257,7 +264,7 @@
 		{#if cadLayers.length > 0}
 			{@const hidden = new Set(plan.hiddenLayers)}
 			<Field.Set>
-				<Field.Legend variant="label">Layers</Field.Legend>
+				<Field.Legend variant="label">{t(msg("plans_layers"))}</Field.Legend>
 				<Field.Description>
 					The drawing's CAD layers, {cadLayers.length - hidden.size} of
 					{cadLayers.length}
@@ -265,8 +272,8 @@
 				</Field.Description>
 				<Input
 					type="search"
-					placeholder="Find a layer"
-					aria-label="Find a layer"
+					placeholder={t(msg("plan_find_a_layer"))}
+					aria-label={t(msg("plan_find_a_layer"))}
 					autocomplete="off"
 					bind:value={layerQuery}
 				/>
@@ -276,14 +283,14 @@
 						variant="outline"
 						disabled={listedLayers.length === 0}
 						onclick={() => setListedShown(true)}
-						>Show all</Button
+						>{t(msg("plan_show_all"))}</Button
 					>
 					<Button
 						size="sm"
 						variant="outline"
 						disabled={listedLayers.length === 0}
 						onclick={() => setListedShown(false)}
-						>Hide all</Button
+						>{t(msg("plan_hide_all"))}</Button
 					>
 				</div>
 				<ScrollArea class="*:data-[slot=scroll-area-viewport]:max-h-60">
@@ -302,7 +309,7 @@
 							</li>
 						{:else}
 							<li class="text-sm text-muted-foreground">
-								No layer has that name.
+								{t(msg("plan_no_layer_has_that"))}
 							</li>
 						{/each}
 					</ul>
@@ -312,10 +319,12 @@
 
 		{#if position && shown}
 			<Field.Set>
-				<Field.Legend variant="label">Position</Field.Legend>
+				<Field.Legend variant="label">{t(msg("plan_position"))}</Field.Legend>
 				<div class="grid grid-cols-2 gap-3">
 					<Field.Field>
-						<Field.Label for="plan-latitude">Latitude</Field.Label>
+						<Field.Label for="plan-latitude"
+							>{t(msg("plan_latitude"))}</Field.Label
+						>
 						<Input
 							id="plan-latitude"
 							type="number"
@@ -335,7 +344,9 @@
 						/>
 					</Field.Field>
 					<Field.Field>
-						<Field.Label for="plan-longitude">Longitude</Field.Label>
+						<Field.Label for="plan-longitude"
+							>{t(msg("plan_longitude"))}</Field.Label
+						>
 						<Input
 							id="plan-longitude"
 							type="number"
@@ -355,7 +366,9 @@
 						/>
 					</Field.Field>
 					<Field.Field>
-						<Field.Label for="plan-rotation">Rotation (°)</Field.Label>
+						<Field.Label for="plan-rotation"
+							>{t(msg("plan_rotation"))}</Field.Label
+						>
 						<Input
 							id="plan-rotation"
 							type="number"
@@ -370,7 +383,7 @@
 						/>
 					</Field.Field>
 					<Field.Field>
-						<Field.Label for="plan-width">Width (m)</Field.Label>
+						<Field.Label for="plan-width">{t(msg("plan_width_m"))}</Field.Label>
 						<Input
 							id="plan-width"
 							type="number"
@@ -387,18 +400,16 @@
 					</Field.Field>
 				</div>
 				<Field.Description>
-					The centre, the direction the plan's top faces (clockwise from north)
-					and its real width. A value typed moves the plan around its centre;
-					its control points go.
+					{t(msg("plan_the_centre_the_direction"))}
 				</Field.Description>
 			</Field.Set>
 
 			<form class="flex flex-col gap-2" onsubmit={offset}>
 				<Field.Set>
-					<Field.Legend variant="label">Move by</Field.Legend>
+					<Field.Legend variant="label">{t(msg("plan_move_by"))}</Field.Legend>
 					<div class="grid grid-cols-[1fr_1fr_auto] items-end gap-3">
 						<Field.Field>
-							<Field.Label for="plan-east">East (m)</Field.Label>
+							<Field.Label for="plan-east">{t(msg("plan_east_m"))}</Field.Label>
 							<Input
 								id="plan-east"
 								type="number"
@@ -407,7 +418,9 @@
 							/>
 						</Field.Field>
 						<Field.Field>
-							<Field.Label for="plan-north">North (m)</Field.Label>
+							<Field.Label for="plan-north"
+								>{t(msg("plan_north_m"))}</Field.Label
+							>
 							<Input
 								id="plan-north"
 								type="number"
@@ -415,17 +428,19 @@
 								bind:value={north}
 							/>
 						</Field.Field>
-						<Button type="submit" variant="outline" size="sm">Move</Button>
+						<Button type="submit" variant="outline" size="sm"
+							>{t(msg("plan_move"))}</Button
+						>
 					</div>
 					<Field.Description>
-						Negative values move it west or south.
+						{t(msg("plan_negative_values_move_it"))}
 					</Field.Description>
 				</Field.Set>
 			</form>
 		{/if}
 
 		<Field.Field>
-			<Field.Label id="plan-tool-label">Align</Field.Label>
+			<Field.Label id="plan-tool-label">{t(msg("plan_align"))}</Field.Label>
 			<ToggleGroup.Root
 				type="single"
 				variant="outline"
@@ -437,13 +452,13 @@
 					floorplans.setTool((kind || null) as Tool["kind"] | null)}
 			>
 				<ToggleGroup.Item value="points" class="flex-1"
-					>Control points
+					>{t(msg("plan_control_points"))}
 				</ToggleGroup.Item>
 				<ToggleGroup.Item value="measure" class="flex-1"
-					>Measure
+					>{t(msg("measure_mode_measure"))}
 				</ToggleGroup.Item>
 				<ToggleGroup.Item value="rotate" class="flex-1"
-					>Rotate
+					>{t(msg("operation_rotate"))}
 				</ToggleGroup.Item>
 			</ToggleGroup.Root>
 			<Field.Description>{hint}</Field.Description>
@@ -456,7 +471,7 @@
 					onclick={() => floorplans.clearPoints()}
 				>
 					<Eraser data-icon="inline-start" />
-					Clear
+					{t(msg("plan_clear"))}
 				</Button>
 			{/if}
 		</Field.Field>
@@ -470,7 +485,10 @@
 
 		{#if tool?.kind === "points"}
 			{#if plan.controlPoints.length > 0}
-				<ol aria-label="Control points" class="flex flex-col gap-1 text-sm">
+				<ol
+					aria-label={t(msg("plan_control_points"))}
+					class="flex flex-col gap-1 text-sm"
+				>
 					{#each plan.controlPoints as _, i (i)}
 						<li class="flex items-center gap-2">
 							<span class="w-5 text-muted-foreground tabular-nums"
@@ -480,12 +498,12 @@
 							<span class="flex-1 tabular-nums">
 								{fit
 									? `${(fit.residuals[i] ?? 0).toFixed(2)} m`
-									: "Moves the plan"}
+									: t(msg("plan_point_moves"))}
 							</span>
 							<Button
 								variant="ghost"
 								size="icon-xs"
-								aria-label={`Remove control point ${i + 1}`}
+								aria-label={t(msg("plan_remove_point", { point: i + 1 }))}
 								onclick={() => floorplans.removeControlPoint(i)}
 							>
 								<X />
@@ -495,7 +513,7 @@
 				</ol>
 			{/if}
 			<Field.Field>
-				<Field.Label id="plan-fit-label">Fit</Field.Label>
+				<Field.Label id="plan-fit-label">{t(msg("plan_fit"))}</Field.Label>
 				<ToggleGroup.Root
 					type="single"
 					variant="outline"
@@ -525,7 +543,9 @@
 		{:else if tool?.kind === "measure" && tool.points.length === 2}
 			<form class="flex items-end gap-2" onsubmit={scale}>
 				<Field.Field>
-					<Field.Label for="plan-distance">Real distance (m)</Field.Label>
+					<Field.Label for="plan-distance"
+						>{t(msg("plan_real_distance_m"))}</Field.Label
+					>
 					<Input
 						id="plan-distance"
 						type="number"
@@ -535,12 +555,14 @@
 						bind:value={distance}
 					/>
 				</Field.Field>
-				<Button type="submit">Scale</Button>
+				<Button type="submit">{t(msg("operation_scale"))}</Button>
 			</form>
 		{:else if tool?.kind === "rotate" && tool.pin}
 			<form class="flex items-end gap-2" onsubmit={rotate}>
 				<Field.Field>
-					<Field.Label for="plan-angle">Angle (°, clockwise)</Field.Label>
+					<Field.Label for="plan-angle"
+						>{t(msg("plan_angle_clockwise"))}</Field.Label
+					>
 					<Input
 						id="plan-angle"
 						type="number"
@@ -549,7 +571,7 @@
 						bind:value={angle}
 					/>
 				</Field.Field>
-				<Button type="submit">Rotate</Button>
+				<Button type="submit">{t(msg("operation_rotate"))}</Button>
 			</form>
 		{/if}
 	</section>

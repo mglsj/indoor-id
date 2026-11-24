@@ -2090,6 +2090,40 @@ Done ✅ 2026-11-24:
   With no place in the link the camera fits the layer. Autosave is off in this mode.
   Not done: JOSM's unsaved changes aren't highlighted as edits (they load as server data).
 
+### P6.6: Translations — M — done (machinery)
+
+Done ✅ 2026-11-24:
+
+- **Paraglide 3** (`@inlang/paraglide-js` 3.2.2), as planned and confirmed on a decision card
+  after the trade-offs were raised: Paraglide bundles every locale's messages into the build
+  (per-locale builds are experimental and don't work with SvelteKit yet), and compiling
+  downloads its message-format plugin from jsDelivr (`project.inlang/settings.json`, pinned at
+  4.6.1). `bun run messages` (also on install) runs `paraglide-js compile` into the gitignored
+  `src/lib/i18n/paraglide/` (locale modules; strategy `localStorage`, `preferredLanguage`,
+  `baseLocale`). The `msg()`/`t()` seam stays: `msg` is typed from Paraglide's message
+  functions (`scripts/build-messages.ts` is gone), `t` calls `m[key](params)`; every message
+  is used, so looking them up by key costs nothing. A message missing from a translation is
+  Paraglide's English. `i18n/locale.ts`: `<html lang>` set from `+layout.ts`, the language
+  menu's names (`Intl.DisplayNames`), `setLocale` reloading the page (edits are autosaved).
+  `i18n/locales.ts` checks every translation's keys and params against English (unit test).
+- **Plurals** as message variants (`Intl.PluralRules` through Paraglide): `issue_count`,
+  `save_features_changed`, `load_failed`, `restore_description`. The restore dialog now says
+  "1 feature changed".
+- **Strings moved to messages**: about 260 hard-coded English strings in components (the
+  toolbar, the inspectors, fields, floor plan panels, dialogs, the map's load status); 672
+  messages in all. The help page stays English. e2e tests find controls by the same English
+  names.
+- **Feature types and fields** from iD's tagging schema translations: `build-presets.ts` writes
+  `generated/translations/{locale}.json` for each locale in the inlang settings (what was kept:
+  preset names, aliases and terms; field labels, placeholders, options, access rows, address
+  parts; category names), loaded with the presets in that language (`presets/localize.ts`); a
+  preset is still found by its English name.
+- **Dates**: relative times and the restore dialog's date in the language.
+- **Seeded translations**: OsmInEdit's locale files share only four strings with IndoorID's
+  (Help, Background, Done, Building): those are in. `measure_area` matched "Area" but OsmInEdit
+  meant the feature type (fr "Zone"), not the measure, so it was left out. The rest is for
+  translators.
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept

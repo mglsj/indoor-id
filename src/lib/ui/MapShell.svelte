@@ -278,11 +278,11 @@
 	const statusMessage = $derived.by(() => {
 		switch (editor.sync.status.kind) {
 			case "loading":
-				return "Loading OpenStreetMap data…";
+				return t(msg("load_osm"));
 			case "zoom-in":
-				return "Zoom in to load indoor data here";
+				return t(msg("load_zoom_in"));
 			case "error":
-				return `Some data could not be loaded (${editor.sync.status.failed} area${editor.sync.status.failed > 1 ? "s" : ""}). Move the map to retry.`;
+				return t(msg("load_failed", { count: editor.sync.status.failed }));
 			default:
 				return null;
 		}

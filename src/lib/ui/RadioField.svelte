@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Input } from "#lib/components/shadcn/input/index.ts";
 	import * as RadioGroup from "#lib/components/shadcn/radio-group/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import type { Tags } from "#lib/osm/tags.ts";
 	import {
 		radioChoice,
@@ -91,7 +92,7 @@
 	<div class="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
 		{#if typeField}
 			<label for={fieldInputId(typeField)} class="text-sm text-muted-foreground"
-				>Type</label
+				>{t(msg("radio_type"))}</label
 			>
 			<ComboField
 				field={typeField}
@@ -103,7 +104,7 @@
 		{/if}
 		{#if showLayer}
 			<label for={`${id}-layer`} class="text-sm text-muted-foreground"
-				>Layer</label
+				>{t(msg("radio_layer"))}</label
 			>
 			<Input
 				id={`${id}-layer`}

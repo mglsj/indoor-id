@@ -8,6 +8,7 @@
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import { Textarea } from "#lib/components/shadcn/textarea/index.ts";
 	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import { reconcileRows, renameTag, type TagRow } from "#lib/osm/tag-rows.ts";
 	import { formatTagText, parseTagText } from "#lib/osm/tag-text.ts";
 	import type { Tags } from "#lib/osm/tags.ts";
@@ -98,8 +99,8 @@
 	const keyField = (row: TagRow): Field => ({
 		id: `tag-key-${row.id}`,
 		type: "combo",
-		label: "Key",
-		placeholder: row.key ? undefined : "Add new tag",
+		label: t(msg("tags_key")),
+		placeholder: row.key ? undefined : t(msg("tags_add_new")),
 		options: [],
 		terms: [],
 		universal: false,
@@ -112,8 +113,10 @@
 	const valueField = (row: TagRow): Field => ({
 		...keyField(row),
 		id: `tag-value-${row.id}`,
-		label: "Value",
-		placeholder: mixed.has(row.key) ? "Multiple values" : undefined,
+		label: t(msg("tags_value")),
+		placeholder: mixed.has(row.key)
+			? t(msg("field_multiple_values"))
+			: undefined,
 	});
 	const keyContext: FieldContext = {
 		deprecated: () => [],
@@ -243,20 +246,28 @@
 		variant="outline"
 		value={view}
 		onValueChange={setView}
-		aria-label="Tag view"
+		aria-label={t(msg("tags_tag_view"))}
 		class="self-end"
 	>
-		<ToggleGroup.Item value="list" aria-label="List view" title="List">
+		<ToggleGroup.Item
+			value="list"
+			aria-label={t(msg("tags_list_view"))}
+			title={t(msg("tags_list"))}
+		>
 			<List />
 		</ToggleGroup.Item>
-		<ToggleGroup.Item value="text" aria-label="Text view" title="Text">
+		<ToggleGroup.Item
+			value="text"
+			aria-label={t(msg("tags_text_view"))}
+			title={t(msg("tags_text"))}
+		>
 			<TextCursor />
 		</ToggleGroup.Item>
 	</ToggleGroup.Root>
 
 	{#if view === "text"}
 		<!-- Sorted by key, unlike the list (and iD's text view, which follows the list). -->
-		<label for="raw-tags" class="sr-only">Tags</label>
+		<label for="raw-tags" class="sr-only">{t(msg("view_tags"))}</label>
 		<Textarea
 			id="raw-tags"
 			rows={Math.max(3, shown.length + 1)}
@@ -267,7 +278,7 @@
 			onchange={(event) => changeText(event.currentTarget.value)}
 		/>
 	{:else}
-		<ul aria-label="Tags" class="flex flex-col gap-1">
+		<ul aria-label={t(msg("view_tags"))} class="flex flex-col gap-1">
 			{#each shown as row (row.id)}
 				<li class="flex flex-col gap-1">
 					<div
@@ -280,7 +291,9 @@
 								context={keyContext}
 								locked={false}
 								raw
-								ariaLabel={row.key ? `Key ${row.key}` : "New tag key"}
+								ariaLabel={row.key
+									? t(msg("tags_key_of", { key: row.key }))
+									: t(msg("tags_new_key"))}
 								onchange={(typed) => changeKey(row, typed)}
 							/>
 						</div>
@@ -294,8 +307,8 @@
 								locked={false}
 								raw
 								ariaLabel={row.key || pendingKey
-									? `Value of ${row.key || pendingKey}`
-									: "New tag value"}
+									? t(msg("tags_value_of", { key: row.key || pendingKey }))
+									: t(msg("tags_new_value"))}
 								onchange={(typed) => changeValue(row, typed)}
 							/>
 						</div>
@@ -315,8 +328,8 @@
 							<Button
 								variant="ghost"
 								size="icon-xs"
-								aria-label={`Remove tag ${row.key}`}
-								title="Remove"
+								aria-label={t(msg("tags_remove", { key: row.key }))}
+								title={t(msg("remove"))}
 								class="text-muted-foreground hover:text-destructive"
 								onclick={() => remove(row)}
 							>

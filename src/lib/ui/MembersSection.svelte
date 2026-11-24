@@ -5,6 +5,7 @@
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import { tick } from "svelte";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import { labelFor } from "#lib/map/classify.ts";
 	import { type EntityId, entityType, type Relation } from "#lib/osm/entity.ts";
 	import { type MemberRow, memberRows } from "#lib/osm/relations.ts";
@@ -31,7 +32,11 @@
 	let { relation, onshow, onzoom }: Props = $props();
 	const editor = getEditor();
 
-	const TYPE_NAMES = { node: "Node", way: "Way", relation: "Relation" };
+	const TYPE_NAMES = {
+		node: t(msg("entity_node")),
+		way: t(msg("entity_way")),
+		relation: t(msg("entity_relation")),
+	};
 
 	/** Rows keyed by member and occurrence, so a row keeps its inputs when it moves. */
 	const rows = $derived.by(() => {
@@ -44,11 +49,17 @@
 	});
 
 	function labelOf(row: MemberRow): string {
-		if (!row.entity) return `${TYPE_NAMES[entityType(row.ref)]} ${row.ref}`;
+		if (!row.entity)
+			return t(
+				msg("feature_label", {
+					type: TYPE_NAMES[entityType(row.ref)],
+					label: row.ref,
+				}),
+			);
 		const type =
 			editor.presetOf(row.entity)?.name ?? TYPE_NAMES[row.entity.type];
 		const name = labelFor(row.entity.tags);
-		return name ? `${type} ${name}` : type;
+		return name ? t(msg("feature_label", { type, label: name })) : type;
 	}
 
 	/** A member's geometry for taginfo; guessed from its type when it isn't loaded (as iD). */
@@ -97,8 +108,11 @@
 	let target = $state<number | null>(null);
 </script>
 
-<InspectorSection id="members" title={`Members (${relation.members.length})`}>
-	<ul aria-label="Members" class="flex flex-col gap-3">
+<InspectorSection
+	id="members"
+	title={t(msg("members_title", { count: relation.members.length }))}
+>
+	<ul aria-label={t(msg("members"))} class="flex flex-col gap-3">
 		{#each rows as row, i (row.key)}
 			{@const text = labelOf(row)}
 			<li
@@ -124,8 +138,8 @@
 						type="button"
 						tabindex="-1"
 						draggable="true"
-						aria-label={`Move ${text}`}
-						title="Drag to reorder, or Alt+↑ / Alt+↓ in the role"
+						aria-label={t(msg("move_item", { item: text }))}
+						title={t(msg("members_reorder"))}
 						class="flex size-6 shrink-0 cursor-grab items-center justify-center text-muted-foreground"
 						ondragstart={(event) => {
 							dragged = i;
@@ -148,8 +162,8 @@
 							<Button
 								variant="ghost"
 								size="icon-xs"
-								aria-label={`Zoom to ${text}`}
-								title="Zoom to"
+								aria-label={t(msg("zoom_to_item", { item: text }))}
+								title={t(msg("zoom_to"))}
 								onclick={() => onzoom(row.ref)}
 							>
 								<Focus />
@@ -158,13 +172,15 @@
 					{:else}
 						<span class="min-w-0 flex-1 truncate text-sm" title={text}>
 							{text}
-							<span class="text-muted-foreground">(incomplete)</span>
+							<span class="text-muted-foreground"
+								>{t(msg("members_incomplete"))}</span
+							>
 						</span>
 						<Button
 							variant="ghost"
 							size="icon-xs"
-							aria-label="Download the members"
-							title="Download the members"
+							aria-label={t(msg("members_download"))}
+							title={t(msg("members_download"))}
 							onclick={() => editor.sync.loadRelation(relation.id)}
 						>
 							<Download />
@@ -173,8 +189,8 @@
 					<Button
 						variant="ghost"
 						size="icon-xs"
-						aria-label={`Remove ${text}`}
-						title="Remove"
+						aria-label={t(msg("remove_item", { item: text }))}
+						title={t(msg("remove"))}
 						class="text-muted-foreground hover:text-destructive"
 						onclick={() => removeMembers(editor, relation.id, [row.index])}
 					>
@@ -187,7 +203,7 @@
 					context={roleContext(roles(row))}
 					locked={false}
 					raw
-					ariaLabel={`Role of ${text}`}
+					ariaLabel={t(msg("members_role_of", { item: text }))}
 					onchange={(typed) => changeRole(row, typed)}
 				/>
 			</li>

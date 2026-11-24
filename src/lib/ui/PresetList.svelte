@@ -3,6 +3,7 @@
 	import { SvelteSet } from "svelte/reactivity";
 	import type { TagDocs } from "#lib/api/osm-wikibase.ts";
 	import * as Command from "#lib/components/shadcn/command/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import type {
 		Preset,
 		PresetCategory,
@@ -137,19 +138,19 @@
 
 <Command.Root
 	shouldFilter={false}
-	label="Search feature types"
+	label={t(msg("preset_search_feature_types"))}
 	bind:value={highlighted}
 	class="min-h-0 flex-1 rounded-none!"
 >
 	<Command.Input
 		bind:value={query}
-		placeholder="Search feature types"
+		placeholder={t(msg("preset_search_feature_types"))}
 		autocomplete="off"
 		{onkeydown}
 		{@attach (input) => input.focus()}
 	/>
 	<Command.List class="max-h-none flex-1">
-		<Command.Empty>No feature type found</Command.Empty>
+		<Command.Empty>{t(msg("preset_no_feature_type_found"))}</Command.Empty>
 		<Command.Group>
 			{#each items as item (item.id)}
 				{#if isCategory(item)}

@@ -195,17 +195,23 @@
 		switch (error.kind) {
 			case "conflict":
 				return t(
-					msg("upload_error_conflict", { ids: named(error, "the same data") }),
+					msg("upload_error_conflict", {
+						ids: named(error, t(msg("upload_error_same_data"))),
+					}),
 				);
 			case "precondition":
 			case "gone":
-				return t(msg("upload_error_gone", { ids: named(error, "some data") }));
+				return t(
+					msg("upload_error_gone", {
+						ids: named(error, t(msg("upload_error_some_data"))),
+					}),
+				);
 			case "auth":
-				return "OpenStreetMap refused your login. Log in again, then upload.";
+				return t(msg("upload_error_auth"));
 			case "rate-limit":
-				return "OpenStreetMap is limiting requests right now. Wait a moment and try again.";
+				return t(msg("upload_error_rate_limit"));
 			case "network":
-				return "OpenStreetMap could not be reached. Check your connection and try again.";
+				return t(msg("upload_error_network"));
 			case "uploaded":
 				return t(
 					msg("upload_already_uploaded", {
@@ -233,12 +239,10 @@
 		}}
 	>
 		<Dialog.Header>
-			<Dialog.Title>Upload your edits</Dialog.Title>
+			<Dialog.Title>{t(msg("save_upload_your_edits"))}</Dialog.Title>
 			{#if phase.kind !== "done"}
 				<Dialog.Description>
-					{editor.history.editCount}
-					feature{editor.history.editCount === 1 ? "" : "s"}
-					changed.
+					{t(msg("save_features_changed", { count: editor.history.editCount }))}
 				</Dialog.Description>
 			{/if}
 		</Dialog.Header>
@@ -246,21 +250,21 @@
 		{#if phase.kind === "up-to-date"}
 			<p role="status">{t(msg("upload_up_to_date"))}</p>
 			<Dialog.Footer>
-				<Button onclick={() => (open = false)}>Close</Button>
+				<Button onclick={() => (open = false)}>{t(msg("view_close"))}</Button>
 			</Dialog.Footer>
 		{:else if phase.kind === "done"}
 			<p role="status">
-				Uploaded in
+				{t(msg("save_uploaded_in"))}
 				<a
 					class="text-primary underline underline-offset-4"
 					href={`${websiteUrl.replace(/\/+$/, "")}/changeset/${phase.changesetId}`}
 					target="_blank"
 					rel="noopener"
-					>changeset {phase.changesetId}</a
-				>. Thank you!
+					>{t(msg("save_changeset_link", { changeset: phase.changesetId }))}</a
+				>{t(msg("save_thanks"))}
 			</p>
 			{#if phase.notDeleted.length > 0}
-				<Alert.Root role="note" aria-label="Deletions kept">
+				<Alert.Root role="note" aria-label={t(msg("save_deletions_kept"))}>
 					<TriangleAlert />
 					<Alert.Description>
 						{t(
@@ -273,13 +277,18 @@
 				</Alert.Root>
 			{/if}
 			<Dialog.Footer>
-				<Button onclick={() => (open = false)}>Close</Button>
+				<Button onclick={() => (open = false)}>{t(msg("view_close"))}</Button>
 			</Dialog.Footer>
 		{:else}
 			{#if issues.length > 0 || scoped.elsewhere > 0}
-				<Alert.Root role="note" aria-label="Issues in your edits">
+				<Alert.Root
+					role="note"
+					aria-label={t(msg("save_issues_in_your_edits"))}
+				>
 					<TriangleAlert />
-					<Alert.Title>Please check before uploading</Alert.Title>
+					<Alert.Title
+						>{t(msg("save_please_check_before_uploading"))}</Alert.Title
+					>
 					<Alert.Description>
 						<ul class="list-disc pl-4">
 							{#each issues as issue (issue.id)}
@@ -302,18 +311,22 @@
 			<form class="flex flex-col gap-6" onsubmit={upload}>
 				<Field.Group>
 					<Field.Field>
-						<Field.Label for="changeset-comment">Comment</Field.Label>
+						<Field.Label for="changeset-comment"
+							>{t(msg("save_comment"))}</Field.Label
+						>
 						<Textarea
 							id="changeset-comment"
 							bind:value={comment}
 							required
 							rows={2}
 							maxlength={255}
-							placeholder="What did you change? e.g. Add room numbers on the 2nd floor"
+							placeholder={t(msg("save_what_did_you_change"))}
 						/>
 					</Field.Field>
 					<Field.Field>
-						<Field.Label for="changeset-source">Source</Field.Label>
+						<Field.Label for="changeset-source"
+							>{t(msg("save_source"))}</Field.Label
+						>
 						<Input
 							id="changeset-source"
 							type="text"
@@ -324,13 +337,12 @@
 					<Field.Field orientation="horizontal">
 						<Checkbox id="changeset-review" bind:checked={reviewRequested} />
 						<Field.Label for="changeset-review" class="font-normal">
-							Ask for someone to review my edits
+							{t(msg("save_ask_for_someone_to"))}
 						</Field.Label>
 					</Field.Field>
 					<Field.Description>
 						{#if !session.configured}
-							Login is not configured for this IndoorID instance
-							(oauth_client_id).
+							{t(msg("save_login_is_not_configured"))}
 						{:else if session.loggedIn}
 							Logged in{session.userName ? ` as ${session.userName}` : ""}.
 							<Button
@@ -339,10 +351,10 @@
 								class="px-0"
 								onclick={() => session.logout()}
 							>
-								Log out
+								{t(msg("save_log_out"))}
 							</Button>
 						{:else}
-							You will be asked to log in to OpenStreetMap.
+							{t(msg("save_you_will_be_asked"))}
 						{/if}
 					</Field.Description>
 				</Field.Group>
@@ -419,7 +431,7 @@
 					<Alert.Root variant="destructive">
 						<CircleAlert />
 						<Alert.Description>
-							Fix the errors above to upload: OSM would get them broken.
+							{t(msg("save_fix_the_errors_above"))}
 						</Alert.Description>
 					</Alert.Root>
 				{/if}
@@ -459,7 +471,7 @@
 						disabled={phase.kind === "uploading"}
 						onclick={cancel}
 					>
-						Cancel
+						{t(msg("cancel"))}
 					</Button>
 					<Button
 						type="submit"
@@ -471,12 +483,12 @@
 					>
 						{#if phase.kind === "signing-in"}
 							<Spinner data-icon="inline-start" />
-							Logging in…
+							{t(msg("save_logging_in"))}
 						{:else if busy}
 							<Spinner data-icon="inline-start" />
-							Uploading…
+							{t(msg("save_uploading"))}
 						{:else}
-							Upload
+							{t(msg("save_upload"))}
 						{/if}
 					</Button>
 				</Dialog.Footer>

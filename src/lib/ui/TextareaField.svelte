@@ -56,7 +56,7 @@
 		value={current.value}
 		placeholder={current.mixed
 			? t(msg("field_multiple_values"))
-			: (field.placeholder ?? "Unknown")}
+			: (field.placeholder ?? t(msg("field_unknown")))}
 		readonly={locked}
 		oninput={(event) => {
 			typed = event.currentTarget.value;

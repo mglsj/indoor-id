@@ -2,6 +2,7 @@
 	import Lock from "@lucide/svelte/icons/lock";
 	import type { Snippet } from "svelte";
 	import * as Field from "#lib/components/shadcn/field/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import type { Tags } from "#lib/osm/tags.ts";
 	import type { Field as PresetField } from "#lib/presets/presets.ts";
 	import { fieldReference } from "#lib/presets/wiki.ts";
@@ -107,7 +108,7 @@
 		{#if locked}
 			<Lock
 				role="img"
-				aria-label={`${field.label} is locked: the feature is linked to Wikidata. Its tags can still be edited in Tags.`}
+				aria-label={t(msg("field_locked_wikidata", { field: field.label }))}
 				class="size-3.5 text-muted-foreground"
 			/>
 		{/if}

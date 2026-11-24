@@ -191,8 +191,16 @@ runs the same commands.
 - Messages (R1.7): text shown to users is a `Message` made with `msg("key", {params})` from
   `i18n/messages.ts` and rendered with `t()` in components; errors shown to users are
   `MessageError`s. Add the English to `messages/en.json` (snake_case keys, `{param}`
-  placeholders), then `bun run messages` (it also runs on install) to update the typed
-  `i18n/generated/en.ts`.
+  placeholders), then `bun run messages` (it also runs on install): Paraglide compiles
+  `messages/*.json` into the gitignored `i18n/paraglide/`, which types `msg()`. Compiling
+  downloads its format plugin from jsDelivr (`project.inlang/settings.json`). Plurals: pass a
+  numeric `count` and write the message as variants (`issue_count` in `en.json`); never build
+  text with `count === 1 ? … : …`. Other languages (P6.6): `messages/{locale}.json`, checked
+  against English by `i18n/locales.test.ts`; the language is Paraglide's (`getLocale`,
+  header menu through `i18n/locale.ts`, which reloads). Unit tests switch it with
+  `overwriteGetLocale`. Preset and field names come from the schema's translations
+  (`presets/localize.ts`). Dates and relative times use `currentLanguage()`. The help page is
+  English only.
 - Autosave (P5.4a): `osm/history-json.ts` (`saveHistory`/`restoreHistory`: base versions and
   each step's changes, label and selection), `persist/autosave.ts` (`Autosave`: a record per
   tab, the heartbeat lock; tested on fake-indexeddb), `state/autosave.svelte.ts`

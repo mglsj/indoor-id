@@ -49,7 +49,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | P5.4b  | Rebase before upload, conflicts            | Done         |
 | W2     | Wiki conformance, November research        | Done         |
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
-| P6     | Parity and polish                          | P6.1–5 done  |
+| P6     | Parity and polish                          | P6.1–6 done  |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -67,7 +67,7 @@ Finished phases (what was built, measured and decided) are in [docs/history.md](
 | Presets     | `@openstreetmap/id-tagging-schema` filtered at build time, plus a local indoor overlay; `fuse.js`                   |
 | Storage     | IndexedDB via `idb` (floor plans, autosaved edits, settings)                                                        |
 | Floor plans | `pdfjs-dist` (lazy loaded); MapLibre `image` source with `setWarp("perspective")`                                   |
-| i18n        | Paraglide (key/value JSON, compatible with Transifex)                                                               |
+| i18n        | Paraglide 3 (inlang message files, compatible with Transifex)                                                       |
 | Tests       | Vitest (unit), Playwright 1.63.0 (e2e, matches cloud sessions' Chromium)                                            |
 
 Decisions already discussed:
@@ -187,8 +187,9 @@ check in the background every few edits (osm-simple3d-editor `9ed266f`).
 
 ### P6: Parity and polish — M
 
-- Translations with Paraglide (one module per locale), starting from OsmInEdit's (en, fr, de,
-  it, hu, cs, es); preset and field names from the schema; plurals and dates from `Intl`.
+- ~~Translations~~: the machinery is done ✅ (P6.6, 2026-11-24); see "P6.6" in
+  [docs/history.md](docs/history.md). Left: the UI strings in cs, de, es, fr, hu and it (a few
+  from OsmInEdit so far), and the help page.
 - ~~Shortcuts help, help pages, indoor= preview, README and usage docs~~: done ✅ (P6.4,
   2026-11-24); see "P6.4" in [docs/history.md](docs/history.md).
 - ~~Reach: userscripts and a read-only `?source=josm`~~: done ✅ (P6.5, 2026-11-24); see

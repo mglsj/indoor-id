@@ -77,4 +77,17 @@ anyone can edit it, so expect names and shapes that don't match reality.
 
 ## Translations
 
-Translations use [Paraglide](https://inlang.com/m/gerre34r/library-inlang-paraglideJs) message files in `messages/`. Only English is in place so far; other languages come with the P6 phase of the [plan](plan.md).
+The interface's text is in `messages/{locale}.json`, compiled by
+[Paraglide](https://paraglidejs.com) (`bun run messages`, also run on install; it downloads its
+message-format plugin from jsDelivr). `en.json` is the source, and each other language has the
+same snake_case keys with the same `{param}` placeholders. Plural forms are message variants, as
+`issue_count` in `en.json` shows, by the categories of
+[`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules).
+A message missing from a translation shows in English. `bun run test:unit` checks every
+translation against `en.json`.
+
+The languages offered are `locales` in `project.inlang/settings.json` (English, Czech, German,
+Spanish, French, Hungarian and Italian, those of OsmInEdit). To add one, add it there and create
+its `messages/{locale}.json`. Feature types and fields are named from iD's tagging schema, which
+is translated on [Transifex](https://app.transifex.com/openstreetmap/id-editor/) already. The help
+page is English only.

@@ -8,6 +8,7 @@
 	import * as Command from "#lib/components/shadcn/command/index.ts";
 	import * as Field from "#lib/components/shadcn/field/index.ts";
 	import * as Popover from "#lib/components/shadcn/popover/index.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import type { Entity, EntityId } from "#lib/osm/entity.ts";
 	import type { Tags } from "#lib/osm/tags.ts";
 	import { addressSuggestions } from "#lib/presets/address.ts";
@@ -176,8 +177,8 @@
 						<Button
 							variant="ghost"
 							size="icon-xs"
-							aria-label={`Revert ${field.label}`}
-							title="Revert to the downloaded value"
+							aria-label={t(msg("field_revert", { field: field.label }))}
+							title={t(msg("field_revert_title"))}
 							onclick={() => revert(field)}
 						>
 							<Undo2 />
@@ -187,8 +188,8 @@
 						<Button
 							variant="ghost"
 							size="icon-xs"
-							aria-label={`Remove ${field.label}`}
-							title="Remove"
+							aria-label={t(msg("field_remove", { field: field.label }))}
+							title={t(msg("remove"))}
 							class="text-muted-foreground hover:text-destructive"
 							onclick={() => remove(field)}
 						>
@@ -209,18 +210,23 @@
 					{...props}
 					variant="outline"
 					class="mt-4 w-full justify-start font-normal"
-					aria-label="Add field"
+					aria-label={t(msg("field_add"))}
 				>
 					<Plus />
-					<span class="truncate text-muted-foreground">Add field: {hint}</span>
+					<span class="truncate text-muted-foreground"
+						>{t(msg("field_add_hint", { fields: hint }))}</span
+					>
 				</Button>
 			{/snippet}
 		</Popover.Trigger>
 		<Popover.Content class="w-(--bits-popover-anchor-width) p-0" align="start">
-			<Command.Root shouldFilter={false} label="Search fields">
-				<Command.Input bind:value={query} placeholder="Search fields" />
+			<Command.Root shouldFilter={false} label={t(msg("field_search"))}>
+				<Command.Input
+					bind:value={query}
+					placeholder={t(msg("field_search"))}
+				/>
 				<Command.List>
-					<Command.Empty>No field found</Command.Empty>
+					<Command.Empty>{t(msg("field_none_found"))}</Command.Empty>
 					<Command.Group>
 						{#each found as field (field.id)}
 							<Command.Item value={field.id} onSelect={() => add(field)}>

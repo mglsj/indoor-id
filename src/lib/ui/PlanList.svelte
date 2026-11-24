@@ -13,6 +13,7 @@
 	import { Input } from "#lib/components/shadcn/input/index.ts";
 	import * as Popover from "#lib/components/shadcn/popover/index.ts";
 	import { BUILDING_COLOR, PLAN_COLORS } from "#lib/floorplans/colors.ts";
+	import { msg, t } from "#lib/i18n/messages.ts";
 	import { levelToShow } from "#lib/levels/levels.ts";
 	import {
 		BUILDINGS,
@@ -108,7 +109,7 @@
 	></span>
 {/snippet}
 
-<ul aria-label="Layers" class="flex flex-col">
+<ul aria-label={t(msg("plans_layers"))} class="flex flex-col">
 	{#each rows as row, i (keyOf(row))}
 		{@const key = keyOf(row)}
 		{@const editing =
@@ -137,8 +138,15 @@
 				draggable="true"
 				data-grip={key}
 				class="flex h-8 w-4 shrink-0 cursor-grab items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
-				aria-label={`Move ${row.kind === "plan" ? row.plan.name : "buildings"}`}
-				title="Drag to reorder, or Alt+↑ / Alt+↓"
+				aria-label={t(
+					msg("move_item", {
+						item:
+							row.kind === "plan"
+								? row.plan.name
+								: t(msg("plans_buildings_item")),
+					}),
+				)}
+				title={t(msg("plans_reorder"))}
 				ondragstart={(event) => {
 					dragging = key;
 					event.dataTransfer?.setData("text/plain", key);
@@ -156,7 +164,7 @@
 				<Button
 					variant="ghost"
 					size="icon-sm"
-					aria-label="Show buildings"
+					aria-label={t(msg("plans_show_buildings"))}
 					aria-pressed={floorplans.buildings.visible}
 					onclick={() =>
 						floorplans.setBuildingsVisible(!floorplans.buildings.visible)}
@@ -176,10 +184,12 @@
 					<Building2 class="size-5 text-muted-foreground" />
 				</span>
 				<span class="min-w-0 flex-1 text-sm">
-					<span class="block truncate font-medium">Buildings</span>
+					<span class="block truncate font-medium"
+						>{t(msg("plans_buildings"))}</span
+					>
 					{" "}
 					<span class="block text-xs text-muted-foreground"
-						>Outlines from OpenStreetMap</span
+						>{t(msg("plans_buildings_hint"))}</span
 					>
 				</span>
 			{:else}
@@ -187,7 +197,7 @@
 				<Button
 					variant="ghost"
 					size="icon-sm"
-					aria-label={`Show ${plan.name}`}
+					aria-label={t(msg("show_item", { item: plan.name }))}
 					aria-pressed={plan.visible}
 					onclick={() => floorplans.setVisible(plan.id, !plan.visible)}
 				>
@@ -204,13 +214,15 @@
 					>
 						<Popover.Trigger
 							class="flex size-6 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-							aria-label={`Colour of ${plan.name}`}
+							aria-label={t(msg("plans_colour_of", { plan: plan.name }))}
 						>
 							{@render swatch(plan.color)}
 						</Popover.Trigger>
 						<Popover.Content align="start" class="w-auto p-2">
 							<fieldset class="grid grid-cols-4 gap-1">
-								<legend class="sr-only">Colours for {plan.name}</legend>
+								<legend class="sr-only">
+									{t(msg("plans_colours_for", { plan: plan.name }))}
+								</legend>
 								{#each PLAN_COLORS as color (color.value)}
 									<button
 										type="button"
@@ -245,7 +257,7 @@
 					>
 					<span class="min-w-0 flex-1 text-sm">
 						<Input
-							aria-label="Name"
+							aria-label={t(msg("plans_name"))}
 							autocomplete="off"
 							class="h-7 px-2 font-medium"
 							value={plan.name}
@@ -264,7 +276,7 @@
 					<button
 						type="button"
 						class="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-						title="Show this plan's level"
+						title={t(msg("plans_show_level"))}
 						onclick={() => showLevelOf(plan)}
 					>
 						<img
@@ -286,16 +298,16 @@
 				<Badge
 					variant="outline"
 					class="shrink-0 tabular-nums"
-					title="Level the plan shows on"
+					title={t(msg("plans_level_title"))}
 				>
-					<span class="sr-only">Level</span>
-					{plan.level ?? "All"}
+					<span class="sr-only">{t(msg("level_control"))}</span>
+					{plan.level ?? t(msg("plans_all_levels"))}
 				</Badge>
 				{#if !editing}
 					<Button
 						variant="ghost"
 						size="icon-sm"
-						aria-label={`Edit ${plan.name}`}
+						aria-label={t(msg("edit_item", { item: plan.name }))}
 						onclick={() =>
 							floorplans.whenSaved(() => {
 								floorplans.edit(plan.id);
@@ -309,7 +321,7 @@
 					variant="ghost"
 					size="icon-sm"
 					class="text-destructive hover:text-destructive"
-					aria-label={`Remove ${plan.name}`}
+					aria-label={t(msg("remove_item", { item: plan.name }))}
 					onclick={() => (removing = plan)}
 				>
 					<Trash2 />
@@ -319,10 +331,10 @@
 	{/each}
 </ul>
 {#if floorplans.plans.length === 0}
-	<p class="text-sm text-muted-foreground">No floor plan yet.</p>
+	<p class="text-sm text-muted-foreground">{t(msg("plans_none"))}</p>
 {:else if !floorplans.editing}
 	<p class="text-sm text-muted-foreground">
-		Plans are locked: press Edit on one to move, align or change it.
+		{t(msg("plans_locked"))}
 	</p>
 {/if}
 
@@ -334,14 +346,17 @@
 >
 	<AlertDialog.Content>
 		<AlertDialog.Header>
-			<AlertDialog.Title>Remove {removing?.name}?</AlertDialog.Title>
+			<AlertDialog.Title
+				>{t(
+					msg("plans_remove_title", { plan: removing?.name ?? "" }),
+				)}</AlertDialog.Title
+			>
 			<AlertDialog.Description>
-				The plan and its image are deleted from this browser. Export the plans
-				first to keep a copy.
+				{t(msg("plans_remove_description"))}
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Cancel>{t(msg("cancel"))}</AlertDialog.Cancel>
 			<AlertDialog.Action
 				variant="destructive"
 				onclick={() => {
@@ -349,7 +364,7 @@
 					removing = null;
 				}}
 			>
-				Remove
+				{t(msg("remove"))}
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
