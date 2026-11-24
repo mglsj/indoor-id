@@ -77,3 +77,17 @@ export function levelToShow(value: string | null, shown: number): number {
 	if (!levels || levels.length === 0 || isOnLevel(levels, shown)) return shown;
 	return Math.min(...levels.map((l) => l.min));
 }
+
+/** Every level of a value, sorted, with ranges of whole levels listed; null if it can't be. */
+export function listLevels(value: string): number[] | null {
+	const ranges = parseLevels(value);
+	if (!ranges) return null;
+	const levels: number[] = [];
+	for (const { min, max } of ranges) {
+		if (min === max) levels.push(min);
+		else if (Number.isInteger(min) && Number.isInteger(max)) {
+			for (let l = min; l <= max; l++) levels.push(l);
+		} else return null;
+	}
+	return levels;
+}

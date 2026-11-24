@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { msg } from "#lib/i18n/messages.ts";
 import type { Entity, EntityId } from "#lib/osm/entity.ts";
-import { node, way } from "#lib/osm/fixtures.ts";
+import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { LOCAL_UPGRADES, type UpgradeRule, upgradeTags } from "./upgrades.ts";
 import { validate } from "./validate.ts";
@@ -93,6 +93,11 @@ describe("validate: outdated tags", () => {
 		[
 			{ indoor: "stairs", highway: "steps" },
 			{ indoor: "yes", highway: "steps" },
+		],
+		[{ indoor: "room", room: "column" }, { indoor: "column" }],
+		[
+			{ indoor: "area", room: "column", level: "0" },
+			{ indoor: "column", level: "0" },
 		],
 		[{ door: "loadingdock" }, { door: "yes", amenity: "loading_dock" }],
 		[{ entrance: "gate" }, { barrier: "gate" }],
@@ -501,6 +506,37 @@ describe("validate: doors and entrances", () => {
 		expect(issue?.message).toEqual(msg("issue_door_on_wall_area"));
 	});
 
+	it("accepts a door on a wall area that is also on a room's outline (the approved proposal)", () => {
+		const entities = [
+			node("n1", {}, [0, 0]),
+			node("n2", {}, [0.00001, 0]),
+			node("n3", {}, [0.00001, 0.00001]),
+			node("n4", {}, [-0.00001, 0.00001]),
+			node("n9", { door: "hinged", level: "0" }, [0, 0.00001]),
+			way("w1", ["n1", "n2", "n3", "n9", "n1"], {
+				indoor: "wall",
+				area: "yes",
+				level: "0",
+			}),
+			way("w2", ["n1", "n9", "n4", "n1"], { indoor: "room", level: "0" }),
+		];
+		expect(rulesOf(entities, "n9")).toEqual([]);
+	});
+
+	it("takes a closed indoor=wall without area=yes for a wall line, doors and all", () => {
+		const entities = [
+			node("n1", {}, [0, 0]),
+			node("n2", {}, [0.00001, 0]),
+			node("n3", {}, [0.00001, 0.00001]),
+			node("n9", { door: "hinged", level: "0" }, [0, 0.00001]),
+			way("w1", ["n1", "n2", "n3", "n9", "n1"], {
+				indoor: "wall",
+				level: "0",
+			}),
+		];
+		expect(rulesOf(entities, "n9")).toEqual([]);
+	});
+
 	it("flags a door on the outer wall without entrance=*, fixed with entrance=yes", () => {
 		const entities = building(
 			{ building: "yes" },
@@ -572,6 +608,69 @@ describe("validate: doors and entrances", () => {
 			door: "yes",
 			level: "0",
 		});
+	});
+
+	it("flags any entrance=* inside the building, not only entrance=yes", () => {
+		const entities = building(
+			{ building: "yes" },
+			{ indoor: "room", level: "0" },
+			node(
+				"n9",
+				{ entrance: "main", door: "hinged", level: "0" },
+				[0.0001, 0.00005],
+			),
+		);
+		entities.push(
+			way("w3", ["n201", "n9", "n202"], { indoor: "wall", level: "0" }),
+		);
+		expect(rulesOf(entities, "n9")).toEqual(["entrance-inside"]);
+	});
+
+	it("accepts an entrance on the outline of its own level (a skybridge's)", () => {
+		const entities = building(
+			{ building: "yes" },
+			{ indoor: "level", level: "1" },
+			node(
+				"n9",
+				{ entrance: "yes", door: "yes", level: "1" },
+				[0.0001, 0.00005],
+			),
+		);
+		entities.push(
+			way("w3", ["n201", "n9", "n202"], { indoor: "wall", level: "1" }),
+		);
+		expect(rulesOf(entities, "n9")).toEqual([]);
+		const other = entities.map((e) =>
+			e.id === "n9" ? { ...e, tags: { ...e.tags, level: "0" } } : e,
+		);
+		expect(rulesOf(other, "n9")).toContain("entrance-inside");
+	});
+
+	it("accepts an entrance on a courtyard's ring, the tags on the outer way", () => {
+		const entities = building(
+			{ building: "yes" },
+			{},
+			node("n9", { entrance: "yes" }, [0.0001, 0.00005]),
+			relation("r1", [
+				{ ref: "w1", role: "outer" },
+				{ ref: "w2", role: "inner" },
+			]),
+		);
+		const w2 = entities.find((e) => e.id === "w2");
+		if (w2?.type !== "way") throw new Error("No w2");
+		const onRing = {
+			...w2,
+			nodes: ["n201", "n9", "n202", "n203", "n204", "n201"],
+		} as typeof w2;
+		entities[entities.indexOf(w2)] = onRing;
+		expect(rulesOf(entities, "n9")).toEqual([]);
+		// The same node on a plain indoor wall is inside.
+		entities[entities.indexOf(onRing)] = {
+			...onRing,
+			tags: { indoor: "wall" },
+		};
+		entities.pop();
+		expect(rulesOf(entities, "n9")).toContain("entrance-inside");
 	});
 
 	it("accepts entrance=yes on the outline, or within 0.5 m of it", () => {

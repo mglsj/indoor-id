@@ -11,14 +11,23 @@ import {
 	formatLevels,
 	isOnLevel,
 	type Levels,
+	listLevels,
 	normalizeLevels,
 	parseLevels,
 } from "#lib/levels/levels.ts";
-import type { Entity, EntityId, Loc, Node, Way } from "#lib/osm/entity.ts";
+import type {
+	Entity,
+	EntityId,
+	Loc,
+	Node,
+	Relation,
+	Way,
+} from "#lib/osm/entity.ts";
 import { isClosed, pointInRing, wayLocs } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
 import type { Tags } from "#lib/osm/tags.ts";
+import { conformanceIssues } from "./conformance.ts";
 import { Outlines } from "./outlines.ts";
 import { spatialIssues } from "./spatial.ts";
 import { describeTags, type UpgradeRule, upgradeTags } from "./upgrades.ts";
@@ -48,7 +57,17 @@ export type IssueRule =
 	| "unsquare-room"
 	| "close-nodes"
 	| "disconnected-path"
-	| "open-multipolygon";
+	| "open-multipolygon"
+	| "escalator-levels"
+	| "flight-incline"
+	| "escalator-shape"
+	| "escalator-end"
+	| "flight-over-levels"
+	| "room-amenity"
+	| "sliver"
+	| "small-level-outline"
+	| "platform-no-level"
+	| "duplicate-node";
 
 /** Rules whose issues the upload refuses: the server would take broken data. */
 export const BLOCKING_RULES: ReadonlySet<IssueRule> = new Set([
@@ -97,6 +116,7 @@ export function validate(
 			...oneBasedLevels(entity, outlines),
 			...nonExistentLevel(graph, entity, outlines),
 			...spatialIssues(graph, entity, outlines),
+			...conformanceIssues(graph, entity, outlines),
 			...openMultipolygon(graph, entity),
 		);
 	}
@@ -218,7 +238,8 @@ function doorIssues(graph: Graph, entity: Entity, outlines: Outlines): Issue[] {
 				issue("door-not-on-wall", entity, msg("issue_door_not_on_wall")),
 			);
 		} else if (ways.every(isWallArea)) {
-			// SIT puts doors on wall lines: routing can't go through an area.
+			// The approved Proposal:Allow area=yes for indoor=wall allows a door in a wall
+			// area only when it is also on a room's outline; flagged, never cut (W2).
 			issues.push(
 				issue("door-not-on-wall", entity, msg("issue_door_on_wall_area")),
 			);
@@ -248,7 +269,12 @@ function doorIssues(graph: Graph, entity: Entity, outlines: Outlines): Issue[] {
 			);
 		}
 	}
-	if (tags.entrance === "yes" && isInsideBuilding(entity.loc, outlines)) {
+	if (
+		tags.entrance !== undefined &&
+		tags.entrance !== "no" &&
+		!onBuildingWay(graph, entity) &&
+		isInsideBuilding(entity.loc, outlines, nodeLevels(graph, entity))
+	) {
 		const { entrance: _, ...rest } = tags;
 		const door = tags.door ?? "yes";
 		issues.push(
@@ -266,12 +292,52 @@ function isWallArea(way: Way): boolean {
 	return way.tags.indoor === "wall" && way.tags.area === "yes" && isClosed(way);
 }
 
-/** Inside a building, and more than `ENTRANCE_METRES` from every building's outline. */
-function isInsideBuilding(loc: Loc, outlines: Outlines): boolean {
+/**
+ * Inside a building, and more than `ENTRANCE_METRES` from every building's outline and from
+ * the `indoor=level` outlines of its levels (W2: an entrance onto a skybridge or a terrace is
+ * on its level's outer wall).
+ */
+function isInsideBuilding(
+	loc: Loc,
+	outlines: Outlines,
+	levels: Levels | null,
+): boolean {
 	return (
 		outlines.at(loc).some((o) => o.building) &&
-		!outlines.near(loc, ENTRANCE_METRES).some((o) => o.building)
+		!outlines
+			.near(loc, ENTRANCE_METRES)
+			.some(
+				(o) =>
+					o.building ||
+					(o.indoor === "level" &&
+						(!levels || !o.levels || overlap(levels, o.levels))),
+			)
 	);
+}
+
+/**
+ * Whether a node is on a building's or building part's own way, or on a ring of a building
+ * multipolygon (a courtyard's inner ring, also with the tags on the outer way, old style):
+ * its outer wall, wherever that is.
+ */
+function onBuildingWay(graph: Graph, node: Node): boolean {
+	const isBuilding = (tags: Tags) =>
+		(tags.building !== undefined && tags.building !== "no") ||
+		(tags["building:part"] !== undefined && tags["building:part"] !== "no");
+	const buildingRelation = (r: Relation) =>
+		r.tags.type === "multipolygon" &&
+		(isBuilding(r.tags) ||
+			r.members.some((m) => {
+				const member = graph.entity(m.ref);
+				return member?.type === "way" && isBuilding(member.tags);
+			}));
+	return graph
+		.parentWays(node.id)
+		.some(
+			(w) =>
+				isBuilding(w.tags) ||
+				graph.parentRelations(w.id).some(buildingRelation),
+		);
 }
 
 /** A node's own levels, or those of its ways (a door takes its wall's). */
@@ -552,20 +618,6 @@ function roomOnSeveralLevels(graph: Graph, entity: Entity): Issue[] {
 			},
 		),
 	];
-}
-
-/** Every level of a value, sorted, with ranges of whole levels listed; null if it can't be. */
-function listLevels(value: string): number[] | null {
-	const ranges = parseLevels(value);
-	if (!ranges) return null;
-	const levels: number[] = [];
-	for (const { min, max } of ranges) {
-		if (min === max) levels.push(min);
-		else if (Number.isInteger(min) && Number.isInteger(max)) {
-			for (let l = min; l <= max; l++) levels.push(l);
-		} else return null;
-	}
-	return levels;
 }
 
 function only(tags: Tags, keep: (key: string) => boolean): Tags {

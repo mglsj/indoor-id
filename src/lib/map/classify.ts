@@ -63,7 +63,13 @@ export function classify(tags: Tags, geometry: GeometryType): FeatureKind {
 			return "room";
 		}
 		if (isSpace(tags)) return "space";
-		if (tags.building !== undefined || tags["building:part"] !== undefined) {
+		// A building part that is also an indoor space is drawn as indoor, on its level (W2;
+		// `building-part-indoor` still warns about it).
+		const indoor = tags.indoor !== undefined && tags.indoor !== "no";
+		if (
+			tags.building !== undefined ||
+			(tags["building:part"] !== undefined && !indoor)
+		) {
 			return "building";
 		}
 		return "area";
