@@ -99,12 +99,21 @@ function extentOfEntity(graph: Graph, entity: Entity): Extent | null {
 	return null;
 }
 
-/** An entity, its parents and its children (a way's nodes, a relation's members) in `graph`. */
+/**
+ * An entity, its parents, its children (a way's nodes, a relation's members) and the ways
+ * joined to a way, in `graph`.
+ */
 function* related(graph: Graph, id: EntityId): Generator<EntityId> {
 	yield id;
 	const entity: Entity | undefined = graph.entity(id);
 	if (!entity) return;
-	if (entity.type === "way") yield* entity.nodes;
+	if (entity.type === "way") {
+		yield* entity.nodes;
+		// Ways joined to it: what they share decides `wall-twice` and `jitter` (W3).
+		for (const node of new Set(entity.nodes)) {
+			for (const way of graph.parentWays(node)) yield way.id;
+		}
+	}
 	if (entity.type === "relation") for (const m of entity.members) yield m.ref;
 	if (entity.type === "node") {
 		for (const parent of graph.parentWays(entity.id)) yield parent.id;

@@ -4,7 +4,7 @@ import type { Entity, EntityId } from "#lib/osm/entity.ts";
 import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { LOCAL_UPGRADES, type UpgradeRule, upgradeTags } from "./upgrades.ts";
-import { validate } from "./validate.ts";
+import { type IssueRule, validate } from "./validate.ts";
 
 /** A few rules in the format of iD's deprecated.json. */
 const SCHEMA: UpgradeRule[] = [
@@ -24,8 +24,20 @@ function roomWith(tags: Record<string, string>): Entity[] {
 	];
 }
 
+/** W3's rules, tested in recheck.test.ts and buildings.test.ts: the fixtures here aren't joined. */
+const W3: ReadonlySet<IssueRule> = new Set([
+	"wall-twice",
+	"jitter",
+	"door-on-side",
+	"building-overlap",
+	"building-inside",
+	"unglued-wall",
+]);
+
 function issuesOf(entities: Entity[], id: EntityId) {
-	return validate(Graph.fromEntities(entities), [id], RULES);
+	return validate(Graph.fromEntities(entities), [id], RULES).filter(
+		(i) => !W3.has(i.rule),
+	);
 }
 
 /** Tags of the entity after applying the first issue's fix. */

@@ -247,7 +247,11 @@ function sharesSide(a: Way, b: Way): boolean {
 }
 
 /** The fix joining `node` to the nearest side of `way`: onto its corner, or into the side. */
-function joinFix(graph: Graph, node: Node, way: Way): Issue["fix"] | undefined {
+export function joinFix(
+	graph: Graph,
+	node: Node,
+	way: Way,
+): Issue["fix"] | undefined {
 	const point = toMercator(node.loc);
 	let best: { a: NodeId; b: NodeId; at: Vec; d: number } | null = null;
 	for (let i = 1; i < way.nodes.length; i++) {
