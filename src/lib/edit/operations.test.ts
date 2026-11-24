@@ -165,6 +165,39 @@ describe("OPERATIONS", () => {
 	});
 });
 
+describe("cut out of the level outline (P6)", () => {
+	/** A level 0 outline w9 around both rooms, and an atrium w3 drawn inside room w1. */
+	const withOutline = () =>
+		Graph.fromEntities([
+			...graph().entities(),
+			node("n91", {}, [-0.001, -0.001]),
+			node("n92", {}, [0.003, -0.001]),
+			node("n93", {}, [0.003, 0.002]),
+			node("n94", {}, [-0.001, 0.002]),
+			way("w9", ["n91", "n92", "n93", "n94", "n91"], {
+				indoor: "level",
+				level: "0",
+			}),
+		]);
+
+	it("is offered for one closed way inside the level outline, and selects the outline after", () => {
+		const g = withOutline();
+		const cut = operation("cut-out");
+		expect(cut.available(context(["w1"], { graph: g }))).toBe(true);
+		expect(cut.available(context(["w1"], { graph: g, level: 1 }))).toBe(false);
+		expect(cut.available(context(["w1", "w2"], { graph: g }))).toBe(false);
+		expect(cut.available(context(["w1"]))).toBe(false);
+		const result = cut.run(context(["w1"], { graph: g }));
+		if (result.kind !== "edit") throw new Error("an edit");
+		const done = result.edit(g);
+		const [made] = done.select ?? [];
+		expect(done.graph.entity(made ?? "r0")).toMatchObject({
+			type: "relation",
+			tags: { type: "multipolygon", indoor: "level", level: "0" },
+		});
+	});
+});
+
 describe("operations on features not in view (iD's too_large)", () => {
 	/** w1 spans 0–0.001 in both directions. */
 	const half = { west: 0.0005, south: -1, east: 1, north: 1 };

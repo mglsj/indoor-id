@@ -19,6 +19,7 @@
 	import RulerDimensionLine from "@lucide/svelte/icons/ruler-dimension-line";
 	import Scaling from "@lucide/svelte/icons/scaling";
 	import Scissors from "@lucide/svelte/icons/scissors";
+	import ScissorsSquare from "@lucide/svelte/icons/scissors-square";
 	import Spline from "@lucide/svelte/icons/spline";
 	import Square from "@lucide/svelte/icons/square";
 	import SquareSquare from "@lucide/svelte/icons/square-square";
@@ -811,6 +812,7 @@
 		square: Square,
 		merge: Combine,
 		multipolygon: SquaresSubtract,
+		"cut-out": ScissorsSquare,
 		delete: Trash,
 		move: Move,
 		rotate: RotateCcw,

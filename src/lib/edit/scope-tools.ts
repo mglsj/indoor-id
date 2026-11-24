@@ -49,6 +49,7 @@ const ALL_DRAW: readonly DrawTool[] = [
 const INDOOR_OPERATIONS: ReadonlySet<Operation["id"]> = new Set([
 	"merge",
 	"repeat",
+	"cut-out",
 	"side",
 	"offset",
 	"square-frame",

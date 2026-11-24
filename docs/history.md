@@ -2032,6 +2032,16 @@ Done ✅ 2026-11-24:
   visited as reached, at most 5,000); closing an area on its first corner traces too.
   Backspace takes the traced nodes back with the click.
 
+### P6.3: Cut out of the level outline — S — done
+
+Done ✅ 2026-11-24 (osm-simple3d-editor `6e898c1`): the operation "Cut out of the level outline"
+(`Shift+H`, building mode only) on one closed way drawn inside the `indoor=level` outline of the
+shown level (a way, or a multipolygon's outer ring; the smallest when several hold it). The
+outline becomes a multipolygon with the way as its hole, or gets one more hole, through
+`makeMultipolygon` (the hole loses the `level` and `area=yes` the drawing gave it); the
+outline's multipolygon is selected after. `actions/cut-out.ts` (`levelOutlineAround`,
+`cutOutOfLevel`). It is the quick way to draw the atriums and voids 3D.3 reads.
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept

@@ -49,7 +49,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | P5.4b  | Rebase before upload, conflicts            | Done         |
 | W2     | Wiki conformance, November research        | Done         |
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
-| P6     | Parity and polish                          | P6.1–2 done  |
+| P6     | Parity and polish                          | P6.1–3 done  |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -202,8 +202,8 @@ check in the background every few edits (osm-simple3d-editor `9ed266f`).
   mode there).
 - ~~From the 2026-11-24 recheck~~: done ✅ (P6.1, 2026-11-24); see "P6.1" in
   [docs/history.md](docs/history.md).
-- "Cut out of the level outline" (osm-simple3d-editor `6e898c1`): a quick way to draw the
-  atrium holes 3D.3 reads. Offset with its inner-ring mode (`76eadf2`) moved to C.6.
+- ~~"Cut out of the level outline"~~: done ✅ (P6.3, 2026-11-24); see "P6.3" in
+  [docs/history.md](docs/history.md).
 - Release 0.1 alpha: an e2e checklist of the features it ships with, and an announcement as a
   new editor. As of 2026-11-11 nobody on the OSM forum has discussed IndoorID; announcing it
   could come as early as V.

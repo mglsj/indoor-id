@@ -21,6 +21,8 @@
 	"undo_add_entrance": "Add an entrance",
 	"undo_add_gate": "Add a gate",
 	"draw_tracing_hint": "Tracing is on (T): a click on a corner after a corner follows the outlines between them. {hint}",
+	"operation_cut_out": "Cut out of the level outline",
+	"undo_cut_out": "Cut out of the level outline",
 	"issue_count_one": "1 issue in your edits",
 	"issue_count": "{count} issues in your edits",
 	"undo_add_line": "Add a line",
