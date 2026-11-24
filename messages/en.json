@@ -19,6 +19,7 @@
 	"undo_add_point": "Add a point",
 	"undo_add_door": "Add a door",
 	"undo_add_entrance": "Add an entrance",
+	"undo_add_gate": "Add a gate",
 	"undo_add_line": "Add a line",
 	"undo_add_area": "Add an area",
 	"undo_delete": "Delete a feature",

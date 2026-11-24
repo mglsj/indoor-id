@@ -1974,6 +1974,35 @@ From research addendum C (forum t/148767 posts 170–215, osm-simple3d-editor `0
 - Not done: the background run of the upload check every 10 edits (`9ed266f`): the check is
   cheap at upload time, and the validator already shows what it can fix.
 
+### P6.1: Recheck items from the 2026-11-24 research — S — done
+
+The four P6 items research addendum C added (osm-simple3d-editor `02c2bfd` → `a547bee`, forum
+t/148767 #176, #198). Done ✅ 2026-11-24:
+
+- **Repeat on levels** (`27d4a4d`): `currentRepeat` offers "One feature on several levels"
+  (`level=0;1;2`) first for walls and columns (`indoor=wall|column`, `man_made=pillar`,
+  `building:part=column`) that have no copies yet; rooms and the rest still default to a copy
+  on each level, and a wall already copied keeps showing its copies.
+- **Indoor fences** (`094fc0a`, #198): `barrier=fence` with `level`, `repeat_on` or `indoor=*`
+  is the kind `railing`, drawn in the wall colour, thinner than a wall (0.4 px at z17 to 2 px
+  at z22). A closed one is a line, never an area (`isArea`). A gate or turnstile
+  (`barrier=gate|turnstile|full-height_turnstile|swing_gate|lift_gate|sliding_gate|wicket_gate|entrance`)
+  is drawn as a door when it is indoors by its tags, or a vertex of an indoor fence (it then
+  takes the fence's levels, as a door takes its wall's); outdoors it stays a point of
+  interest. The point tool on an indoor fence adds `barrier=gate`, which the user can retype
+  as a turnstile ("Add a gate").
+- **Entrance labels in the viewer** (`a58c319`): `entranceLabel` gives an entrance its name,
+  else its `ref` over its `addr:flats` (`1-36;40` shown as `1–36, 40`), as the feature
+  property `@entrance`; the viewer's labels prefer it, the editor keeps `name`/`ref`. Not
+  done: predicting flats from neighbouring entrances (`9ddc842`).
+- **Which building indoor data belongs to** (`1d64ad6`): `inScope` keeps a way with every
+  node inside or on a wall, or with at least as many nodes strictly inside as outside (nodes
+  on a wall count for neither): a platform with one corner in a station is no longer the
+  station's, a space split evenly across two buildings is still in both. `scopeFor` (entering
+  from a click in map mode) picks, of the scopes holding the feature, the one with most of its
+  corners strictly inside, then the smallest; buildings before level outlines. It scans the
+  loaded ways once instead of once per corner.
+
 ## I: iD's area fill, colours and safeguards (November 2026)
 
 Asked by the user after C: large areas filled whole hid the imagery, and work inside an area kept

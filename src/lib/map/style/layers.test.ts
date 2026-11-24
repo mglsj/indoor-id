@@ -284,6 +284,60 @@ describe("indoorLayers: edits and labels", () => {
 	});
 });
 
+describe("indoorLayers: entrances and railings (P6)", () => {
+	const labels = (presentation: "edit" | "view") => {
+		const layer = indoorLayers(0, { presentation }).find(
+			(l) => l.id === "indoor-labels",
+		);
+		if (layer?.type !== "symbol" || !layer.filter) throw new Error("no labels");
+		return layer;
+	};
+	const text = (presentation: "edit" | "view") =>
+		labels(presentation).layout?.["text-field"];
+	it("labels an entrance with its ref and flats in the viewer only", () => {
+		expect(text("view")).toEqual([
+			"coalesce",
+			["get", "@entrance"],
+			["get", "@label"],
+			"",
+		]);
+		expect(text("edit")).toEqual(["coalesce", ["get", "@label"], ""]);
+		const flatsOnly = featureFilter(
+			labels("view").filter,
+			"layers.indoor-labels.filter",
+		);
+		expect(
+			flatsOnly.filter(
+				{ zoom: 19 },
+				{
+					type: GEOMETRY.Point,
+					properties: { "@kind": "door", "@lv": ";0;", "@entrance": "1–18" },
+				},
+			),
+		).toBe(true);
+	});
+
+	it("draws a railing as a line, thinner than a wall", () => {
+		expect(
+			drawnBy(0, "LineString", { "@kind": "railing", "@lv": ";0;" }),
+		).toEqual(["indoor-lines"]);
+		const lines = indoorLayers(0).find((l) => l.id === "indoor-lines");
+		const width = expression.createExpression(
+			(lines?.paint as Record<string, unknown> | undefined)?.["line-width"],
+			"width",
+		);
+		if (width.result !== "success") throw new Error("bad line-width");
+		const at = (kind: string) =>
+			Number(
+				width.value.evaluate({ zoom: 22 }, {
+					type: GEOMETRY.LineString,
+					properties: { "@kind": kind },
+				} as never),
+			);
+		expect(at("railing")).toBeLessThan(at("wall"));
+	});
+});
+
 describe("indoorLayers: rooms by use", () => {
 	const fill = (presentation: "edit" | "view") =>
 		JSON.stringify(

@@ -3,6 +3,7 @@ import {
 	arrowOf,
 	classify,
 	doorWidth,
+	entranceLabel,
 	iconFor,
 	labelFor,
 	trackGauge,
@@ -40,6 +41,12 @@ describe("classify", () => {
 		[{ amenity: "toilets" }, "Point", "poi"],
 		[{ amenity: "toilets", indoor: "room" }, "Polygon", "room"],
 		[{ barrier: "fence" }, "LineString", "line"],
+		[{ barrier: "fence", level: "0" }, "LineString", "railing"],
+		[{ barrier: "fence", indoor: "yes" }, "LineString", "railing"],
+		[{ barrier: "turnstile", level: "-1" }, "Point", "door"],
+		[{ barrier: "gate", indoor: "yes" }, "Point", "door"],
+		[{ barrier: "turnstile" }, "Point", "poi"],
+		[{ barrier: "bollard", level: "0" }, "Point", "poi"],
 		[{ landuse: "retail" }, "Polygon", "area"],
 	] as const)("%j as %s is a %s", (tags, geometry, kind) => {
 		expect(classify(tags, geometry)).toBe(kind);
@@ -176,5 +183,21 @@ describe("trackGauge", () => {
 		expect(trackGauge({ railway: "rail", gauge: "standard" })).toBe(1.435);
 		expect(trackGauge({ railway: "platform" })).toBeNull();
 		expect(trackGauge({ highway: "footway" })).toBeNull();
+	});
+});
+
+describe("entranceLabel (P6, the viewer)", () => {
+	it.each([
+		[{ entrance: "staircase", ref: "3", "addr:flats": "1-36" }, "3\n1–36"],
+		[{ entrance: "yes", "addr:flats": "37-72;80" }, "37–72, 80"],
+		[{ entrance: "main", ref: "A" }, "A"],
+		[{ entrance: "main", name: "North", ref: "A" }, "North"],
+	])("labels %j %j", (tags, label) => {
+		expect(entranceLabel(tags)).toBe(label);
+	});
+
+	it("labels only entrances that say something", () => {
+		expect(entranceLabel({ entrance: "yes" })).toBeNull();
+		expect(entranceLabel({ door: "yes", ref: "101" })).toBeNull();
 	});
 });

@@ -1,11 +1,12 @@
 /**
  * Repeat on levels (P5.3.5), as osm-simple3d-editor's: a point or way on the level shown is
  * put on other levels too, one of three ways:
- * - `copies` (the default): a copy on each level, with the same tags but `level`, reusing the
+ * - `copies` (the default for rooms and most features): a copy on each level, with the same tags but `level`, reusing the
  *   nodes found at the same positions on that level (the copy shares corners with the rooms
  *   and walls there, and with untagged outlines);
  * - `repeat_on`: the feature stays one, `repeat_on` lists the other levels;
- * - `level`: the feature stays one, `level` lists them all (`0;1;2`).
+ * - `level` (the default for walls and columns, P6, osm-simple3d-editor `27d4a4d`): the
+ *   feature stays one, `level` lists them all (`0;1;2`).
  * Copies already there (same tags but `level`, same positions) count as done; a level left
  * out loses its copy. Switching methods replaces the copies or the tags of the other one.
  */
@@ -82,7 +83,22 @@ export function currentRepeat(
 		const copy = findCopy(graph, entity, other, near(other));
 		if (copy) copies.set(other, copy);
 	}
-	return { method: "copies", levels: [...copies.keys()], copies };
+	const method =
+		copies.size === 0 && spansLevels(entity.tags) ? "level" : "copies";
+	return { method, levels: [...copies.keys()], copies };
+}
+
+/**
+ * Whether a feature is best repeated as one feature on several levels: a wall or column
+ * running through floors is one structure, where a room on each floor is its own space.
+ */
+function spansLevels(tags: Tags): boolean {
+	return (
+		tags.indoor === "wall" ||
+		tags.indoor === "column" ||
+		tags.man_made === "pillar" ||
+		tags["building:part"] === "column"
+	);
 }
 
 /** Puts the feature on `level` and on `wanted.levels` as `wanted.method` says. */

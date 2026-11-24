@@ -4,7 +4,8 @@
  * it makes a door (`indoor=door` + `door=yes`) in every way with that side; on a building's
  * outline, an entrance (`entrance=yes` + `door=yes`, on the shown level) in the building's
  * ways and the indoor ways sharing that side; on an untagged corner of those ways, that corner
- * becomes the door or entrance. Anywhere else it makes a point on the shown level, whose type
+ * becomes the door or entrance. On an indoor fence (P6) it makes a gate (`barrier=gate`), which
+ * the user can make a turnstile. Anywhere else it makes a point on the shown level, whose type
  * the user picks next.
  */
 
@@ -12,6 +13,7 @@ import { changeTags } from "#lib/actions/change-tags.ts";
 import { addNode, insertNodeInSegment } from "#lib/actions/geometry.ts";
 import type { SnapTarget } from "#lib/edit/precision/snap.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
+import { isIndoorFence } from "#lib/map/classify.ts";
 import type { Loc, NodeId, Way } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
@@ -23,17 +25,21 @@ export interface PlacedPoint {
 	readonly action: Action;
 	readonly annotation: Message;
 	/** What was made: the user picks a POI's type next. */
-	readonly kind: "door" | "entrance" | "point";
+	readonly kind: "door" | "entrance" | "gate" | "point";
 }
 
-type Role = "door" | "entrance" | null;
+type Role = "door" | "entrance" | "gate" | null;
 
-/** The role of a point on these ways: an entrance on a building, a door on an indoor way. */
+/**
+ * The role of a point on these ways: an entrance on a building, a gate in an indoor fence, a
+ * door on another indoor way.
+ */
 function roleOn(ways: readonly Way[]): Role {
 	if (
 		ways.some((w) => w.tags.building !== undefined && w.tags.building !== "no")
 	)
 		return "entrance";
+	if (ways.some((w) => isIndoorFence(w.tags))) return "gate";
 	if (ways.some((w) => w.tags.indoor !== undefined)) return "door";
 	return null;
 }
@@ -45,6 +51,9 @@ function roleTags(role: Role, level: number): Tags {
 			return { indoor: "door", door: "yes" };
 		case "entrance":
 			return { entrance: "yes", door: "yes", level: String(level) };
+		case "gate":
+			// As a door, it takes its fence's level.
+			return { barrier: "gate" };
 		default:
 			return { level: String(level) };
 	}
@@ -53,6 +62,7 @@ function roleTags(role: Role, level: number): Tags {
 const ANNOTATIONS = {
 	door: msg("undo_add_door"),
 	entrance: msg("undo_add_entrance"),
+	gate: msg("undo_add_gate"),
 	point: msg("undo_add_point"),
 };
 

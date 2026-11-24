@@ -51,6 +51,45 @@ describe("buildFeatures", () => {
 		expect(room?.properties).toMatchObject({ indoor: "room", level: "0" });
 	});
 
+	it("draws an indoor fence as a railing, a turnstile on it as an opening (P6)", () => {
+		const gallery = [
+			...square(1, 0, 0),
+			way("w1", ring(1), { barrier: "fence", indoor: "yes", level: "1" }),
+			node("n15", { barrier: "turnstile" }, [0, -1]),
+			way("w2", ["n11", "n15", "n12"], { barrier: "fence", level: "1" }),
+		];
+		const fence = feature(gallery, "w1");
+		expect(fence?.geometry.type).toBe("LineString");
+		expect(fence?.properties["@kind"]).toBe("railing");
+		// On its fence's level, though it has none of its own.
+		const turnstile = feature(gallery, "n15");
+		expect(turnstile?.properties["@kind"]).toBe("door");
+		expect(turnstile?.properties["@lv"]).toBe(";1;");
+		// A gate on a fence outdoors stays a point of interest.
+		const outdoors = [
+			...square(1, 0, 0),
+			node("n15", { barrier: "gate" }, [0, -1]),
+			way("w2", ["n11", "n15", "n12"], { barrier: "fence" }),
+		];
+		expect(feature(outdoors, "n15")?.properties["@kind"]).toBe("poi");
+	});
+
+	it("labels an entrance by its ref and flats for the viewer (P6)", () => {
+		const entrance = feature(
+			[
+				node("n1", {
+					entrance: "staircase",
+					ref: "2",
+					"addr:flats": "19-36",
+					level: "0",
+				}),
+			],
+			"n1",
+		);
+		expect(entrance?.properties["@entrance"]).toBe("2\n19–36");
+		expect(entrance?.properties["@label"]).toBe("2");
+	});
+
 	it("draws a closed wall as a line, unless tagged area=yes", () => {
 		const wall = [...square(1, 0, 0), way("w1", ring(1), { indoor: "wall" })];
 		expect(feature(wall, "w1")?.geometry.type).toBe("LineString");

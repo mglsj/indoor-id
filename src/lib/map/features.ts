@@ -27,9 +27,12 @@ import {
 	arrowOf,
 	classify,
 	doorWidth,
+	entranceLabel,
 	type GeometryType,
 	iconFor,
 	isBuildingOutline,
+	isIndoorFence,
+	isOpeningBarrier,
 	isRestricted,
 	labelFor,
 	trackGauge,
@@ -93,15 +96,28 @@ export function draftOf(
 	const geometry = geometryOf(graph, entity);
 	if (!geometry) return null;
 	const preset = presets?.match(entity.tags, entityGeometry(graph, entity));
+	const drawing = drawingProperties(entity.tags, geometry, icons, preset);
+	if (drawing["@kind"] === "poi" && isGateInFence(graph, entity)) {
+		drawing["@kind"] = "door";
+	}
 	return {
 		id: entity.id,
 		geometry,
-		properties: {
-			...entity.tags,
-			...drawingProperties(entity.tags, geometry, icons, preset),
-		},
+		properties: { ...entity.tags, ...drawing },
 		...levelsOf(graph, entity),
 	};
+}
+
+/**
+ * A gate or turnstile without levels of its own on an indoor fence: an opening in it, on the
+ * fence's levels, as a door in a wall is (P6).
+ */
+function isGateInFence(graph: Graph, entity: Entity): boolean {
+	return (
+		entity.type === "node" &&
+		isOpeningBarrier(entity.tags) &&
+		graph.parentWays(entity.id).some((way) => isIndoorFence(way.tags))
+	);
 }
 
 /**
@@ -157,7 +173,8 @@ const WORLD_AT_17 = 512 * 2 ** 17;
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6378137;
 
 /**
- * Properties the style uses: `@kind`, and when relevant `@icon`, `@label`, `@restricted`,
+ * Properties the style uses: `@kind`, and when relevant `@icon`, `@label`, `@entrance` (an
+ * entrance's label in the viewer, P6), `@restricted`,
  * `@building` for the building outlines floor plans are placed against, `@part` for building
  * parts (drawn as buildings, in a colour of their own), `@arrow` for lines
  * with a direction (P5.3.8), `@door-r17`, a door's half width in pixels at zoom 17, and
@@ -176,6 +193,8 @@ function drawingProperties(
 	if (icon) props["@icon"] = icon;
 	const label = labelFor(tags);
 	if (label) props["@label"] = label;
+	const entrance = type === "Point" ? entranceLabel(tags) : null;
+	if (entrance) props["@entrance"] = entrance;
 	if (isRestricted(tags)) props["@restricted"] = "yes";
 	if (isBuildingOutline(tags, type)) props["@building"] = "yes";
 	else if (kind === "building" && tags["building:part"] !== undefined) {
