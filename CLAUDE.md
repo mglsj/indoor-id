@@ -126,6 +126,8 @@ runs the same commands.
   `edit/modes/*`). Add map interactions as a mode, not as `map.on(...)` in a component.
   The editor's mode is `edit/mode-factory.ts`: `modeKindOf` (what is on) and `modeFor(kind, host)`
   (a new mode adds a kind there and its options to `ModeHost`).
+  The editor's own layers (overlay, feedback, guides, grid, floor plans) are made and fed in
+  `map/editor-layers.svelte.ts` (`attachEditorLayers`, called in the effect holding the map).
   Shortcuts use `edit/keys.ts` (`matches`, `formatCombo`, `isTyping`). Map layers insert
   before a slot from `map/layer-slots.ts` (`slotId("plans")`), never before another owner's
   layer.

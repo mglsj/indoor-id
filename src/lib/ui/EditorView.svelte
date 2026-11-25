@@ -104,17 +104,10 @@
 	import { shortLabel } from "#lib/levels/level-names.ts";
 	import { isOnLevel } from "#lib/levels/levels.ts";
 	import type { Imagery } from "#lib/map/backgrounds.ts";
-	import { ConstructionLayer } from "#lib/map/construction-layer.ts";
-	import { EditOverlay } from "#lib/map/edit-overlay.ts";
+	import { attachEditorLayers } from "#lib/map/editor-layers.svelte.ts";
 	import type { Segment } from "#lib/map/feature-store.ts";
-	import {
-		FloorPlanLayers,
-		PlanToolLayer,
-		planFrames,
-		toolFeatures,
-	} from "#lib/map/floorplan-layers.ts";
-	import { GridLayer, type GridStyle } from "#lib/map/grid-layer.ts";
-	import { GuideLayer } from "#lib/map/guide-layer.ts";
+	import { planFrames, toolFeatures } from "#lib/map/floorplan-layers.ts";
+	import type { GridStyle } from "#lib/map/grid-layer.ts";
 	import { parseHash, type MapView as View } from "#lib/map/hash.ts";
 	import type { IndoorMap } from "#lib/map/indoor-map.ts";
 	import {
@@ -869,53 +862,11 @@
 		const instance = map;
 		const indoorLayers = indoor;
 		if (!instance || !indoorLayers) return;
-		$effect(() => indoorLayers.setPlanMode(planMode));
-		$effect(() =>
-			indoorLayers.setBuildingsVisible(floorplans.buildings.visible),
-		);
-		const overlay = new EditOverlay(instance);
-		$effect(() => overlay.setSelectionColor(looks.selectionColor));
-		const guides = new GuideLayer(instance);
-		$effect(() => guides.show(feedback));
-		// Arrow keys nudge the selection (C.6): the map's keyboard panning waits for none.
-		$effect(() => {
-			if (editor.selection.ids.length > 0) instance.keyboard.disable();
-			else instance.keyboard.enable();
-		});
-		const constructionLayer = new ConstructionLayer(instance);
-		$effect(() =>
-			constructionLayer.setGuides(
-				planMode || !offered.guides ? [] : construction.on(level),
-				highlightedGuide,
-			),
-		);
-		const grid = new GridLayer(instance, gridStyle(looks));
-		$effect(() => grid.setStyle(gridStyle(looks)));
-		$effect(() => {
-			void camera;
-			const frame = planMode ? null : gridFrame;
-			if (!frame) {
-				grid.setLines([]);
-				return;
-			}
-			const { clientWidth: w, clientHeight: h } = instance.getContainer();
-			const view = [
-				{ x: 0, y: 0 },
-				{ x: w, y: 0 },
-				{ x: w, y: h },
-				{ x: 0, y: h },
-			].map(unprojectPoint);
-			grid.setLines(
-				gridLines(
-					frame,
-					view,
-					{ minor: precision.gridMinor, major: precision.gridMajor },
-					untrack(pixelsPerMetre),
-				),
-			);
-		});
-		$effect(() =>
-			overlay.setData(
+		const editorLayers = attachEditorLayers(instance, indoorLayers, {
+			floorplans,
+			planMode: () => planMode,
+			level: () => level,
+			overlay: () =>
 				planMode
 					? { type: "FeatureCollection", features: [] }
 					: {
@@ -936,8 +887,46 @@
 								...cutFeature(cut),
 							],
 						},
-			),
-		);
+			selectionColor: () => looks.selectionColor,
+			feedback: () => feedback,
+			nudging: () => editor.selection.ids.length > 0,
+			guides: () => (planMode || !offered.guides ? [] : construction.on(level)),
+			highlightedGuide: () => highlightedGuide,
+			gridStyle: () => gridStyle(looks),
+			gridLines: () => {
+				void camera;
+				const frame = planMode ? null : gridFrame;
+				if (!frame) return [];
+				const { clientWidth: w, clientHeight: h } = instance.getContainer();
+				const view = [
+					{ x: 0, y: 0 },
+					{ x: w, y: 0 },
+					{ x: w, y: h },
+					{ x: 0, y: h },
+				].map(unprojectPoint);
+				return gridLines(
+					frame,
+					view,
+					{ minor: precision.gridMinor, major: precision.gridMajor },
+					untrack(pixelsPerMetre),
+				);
+			},
+			// Frames tell the plans apart in floor plan mode; tool marks show whenever a tool is on.
+			planMarks: () => ({
+				type: "FeatureCollection",
+				features: [
+					...(plansOpen ? planFrames(floorplans.plans, level).features : []),
+					...toolFeatures(
+						floorplans.editing,
+						floorplans.tool,
+						planMode,
+						pointer,
+					).features,
+				],
+			}),
+			ontiles: (count) => (planTiles = count),
+		});
+		const { overlay } = editorLayers;
 		/** What a press at a screen point drags: an overlay vertex or midpoint, the selected point. */
 		const grabAt = (point: { x: number; y: number }): NodeGrab | null => {
 			if (editor.history.locked) return null;
@@ -1017,32 +1006,6 @@
 		 */
 		const selectOrEnter = (id: EntityId | null, at?: MapPoint) =>
 			scopeControl.selectOrEnter(id, at);
-
-		const layers = new FloorPlanLayers(instance, floorplans.tiles);
-		const stopTiles = layers.onTiles((count) => (planTiles = count));
-		const marks = new PlanToolLayer(instance);
-		$effect(() => layers.setLayers(floorplans.layers));
-		// A copy: reading every entry follows content added or dropped.
-		$effect(() => layers.setContents(new Map(floorplans.contents)));
-		$effect(() => layers.setLevel(level));
-		// Plan content is kept for the level shown (and the plan in Edit) only.
-		$effect(() => floorplans.showLevel(level));
-		// Frames tell the plans apart in floor plan mode; tool marks show whenever a tool is on.
-		$effect(() => {
-			const frames = plansOpen
-				? planFrames(floorplans.plans, level).features
-				: [];
-			const tools = toolFeatures(
-				floorplans.editing,
-				floorplans.tool,
-				planMode,
-				pointer,
-			).features;
-			marks.setData({
-				type: "FeatureCollection",
-				features: [...frames, ...tools],
-			});
-		});
 
 		/** What a click, a press or a key does while browsing (B.1, B.2, P5.3). */
 		const browseOptions = (): BrowseOptions => ({
@@ -1203,13 +1166,7 @@
 		return () => {
 			modes = undefined;
 			manager.remove();
-			stopTiles();
-			overlay.remove();
-			guides.remove();
-			grid.remove();
-			constructionLayer.remove();
-			marks.remove();
-			layers.remove();
+			editorLayers.remove();
 		};
 	});
 
