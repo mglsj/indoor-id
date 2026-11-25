@@ -116,16 +116,18 @@ export function midpoint(a: Point, b: Point): [number, number] {
 /** The Earth's mean radius, for distances on the ground. */
 const MEAN_RADIUS = 6_371_008.8;
 
-/** Metres east and north of `origin`, flat around it (fine within a few hundred metres). */
-export function local(
-	origin: Point,
-	[lon = 0, lat = 0]: Point,
-): [number, number] {
-	const [lon0 = 0, lat0 = 0] = origin;
-	return [
-		(lon - lon0) * RAD * MEAN_RADIUS * Math.cos(lat0 * RAD),
-		(lat - lat0) * RAD * MEAN_RADIUS,
-	];
+/**
+ * Metres east and north of `origin`, flat around it (fine within a few hundred metres): Web
+ * Mercator scaled to the ground at the origin. A straight line here is straight as the map
+ * draws it, however far it reaches, so lines worked out here (guides, crossings, snaps) sit
+ * exactly on the lines drawn. A flat lon/lat frame bends away from them: an angled guide drawn
+ * 2 km either way passed 15 cm beside its own origin at 52°N.
+ */
+export function local(origin: Point, p: Point): [number, number] {
+	const [x0, y0] = toMercator(origin);
+	const [x, y] = toMercator(p);
+	const k = groundScale(origin);
+	return [(x - x0) * k, (y - y0) * k];
 }
 
 /** The position `east` and `north` metres from `origin`: the inverse of `local`. */
@@ -133,11 +135,14 @@ export function fromLocal(
 	origin: Point,
 	[east, north]: readonly [number, number],
 ): [number, number] {
-	const [lon0 = 0, lat0 = 0] = origin;
-	return [
-		lon0 + east / (RAD * MEAN_RADIUS * Math.cos(lat0 * RAD)),
-		lat0 + north / (RAD * MEAN_RADIUS),
-	];
+	const [x0, y0] = toMercator(origin);
+	const k = groundScale(origin);
+	return fromMercator([x0 + east / k, y0 + north / k]);
+}
+
+/** Ground metres per Web Mercator metre at `origin`. */
+function groundScale([, lat = 0]: Point): number {
+	return (Math.cos(lat * RAD) * MEAN_RADIUS) / EARTH_RADIUS;
 }
 
 /** Metres from `point` to the nearest point of the segment `a`–`b`. */

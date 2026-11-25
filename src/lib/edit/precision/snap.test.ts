@@ -1,14 +1,23 @@
 import { describe, expect, it } from "vitest";
 import type { Segment } from "#lib/map/feature-store.ts";
 import type { Loc } from "#lib/osm/entity.ts";
-import { areaAround, snapAt } from "./snap.ts";
+import {
+	fromLocal,
+	fromMercator,
+	local,
+	toMercator,
+} from "#lib/osm/geometry.ts";
+import { guideEnds } from "./construction.ts";
+import { areaAround, type DirectionLine, snapAt } from "./snap.ts";
 
-/** A flat screen: one degree is 100 px, y down. Near the equator Mercator is close to it. */
-const project = ([lon, lat]: Loc) => ({ x: lon * 100, y: -lat * 100 });
-const unproject = ({ x, y }: { x: number; y: number }): Loc => [
-	x / 100,
-	-y / 100,
-];
+/** Web Mercator as the map draws it, one degree of longitude 100 px, y down. */
+const PX = 100 / ((6378137 * Math.PI) / 180);
+const project = (loc: Loc) => {
+	const [x, y] = toMercator(loc);
+	return { x: x * PX, y: -y * PX };
+};
+const unproject = ({ x, y }: { x: number; y: number }): Loc =>
+	fromMercator([x / PX, -y / PX]);
 
 /** A side along the x axis, from 0 to 1° (0 to 100 px). */
 const side: Segment = {
@@ -61,12 +70,18 @@ describe("snapAt", () => {
 
 describe("areaAround", () => {
 	it("gives the ground under the square of 8 px around the point", () => {
-		expect(areaAround({ x: 100, y: -100 }, unproject)).toEqual({
-			west: 0.92,
-			south: 0.92,
-			east: 1.08,
-			north: 1.08,
-		});
+		const point = project([1, 1]);
+		const area = areaAround(point, unproject);
+		expect(area.west).toBeCloseTo(0.92, 9);
+		expect(area.east).toBeCloseTo(1.08, 9);
+		expect(area.south).toBeCloseTo(
+			unproject({ ...point, y: point.y + 8 })[1],
+			9,
+		);
+		expect(area.north).toBeCloseTo(
+			unproject({ ...point, y: point.y - 8 })[1],
+			9,
+		);
 	});
 });
 
@@ -321,7 +336,7 @@ describe("snapAt with construction guides (C.5)", () => {
 	const guide = { origin: [0.5, 0] as Loc, angle: 90 };
 
 	it("snaps onto a guide like onto a side", () => {
-		const target = snapAt({ x: 53, y: -40 }, { guides: [guide] }, project);
+		const target = snapAt(project([0.53, 0.4]), { guides: [guide] }, project);
 		expect(target?.kind).toBe("guide");
 		expect(target?.loc[0]).toBeCloseTo(0.5, 6);
 		expect(target?.loc[1]).toBeCloseTo(0.4, 6);
@@ -365,5 +380,80 @@ describe("snapAt with construction guides (C.5)", () => {
 		expect(lined?.kind).toBe("intersection");
 		expect(lined?.loc[0]).toBeCloseTo(0.5, 4);
 		expect(lined?.loc[1]).toBeCloseTo(0.5, 4);
+	});
+});
+
+describe("snapAt with angled guides far from the equator", () => {
+	// A square grid of guides turned 30° at 52.5°N, as placed with the guide tool, 4 m apart.
+	const O: Loc = [13.4, 52.5];
+	const rad = (30 * Math.PI) / 180;
+	const along = (u: number, v: number) =>
+		fromLocal(O, [
+			u * Math.cos(rad) - v * Math.sin(rad),
+			u * Math.sin(rad) + v * Math.cos(rad),
+		]);
+	const guides = [0, 4, 8].flatMap((k) => [
+		{ origin: along(0, k), angle: 30 },
+		{ origin: along(k, 0), angle: 120 },
+	]);
+	// Zoom 22: about 7 px per metre on screen.
+	const scale = (2 ** 22 * 256) / (2 * Math.PI * 6378137);
+	const screen = (loc: Loc) => {
+		const [x, y] = toMercator(loc);
+		return { x: x * scale, y: -y * scale };
+	};
+
+	/** Where two guides cross as the map draws them: straight lines 2 km long, in Mercator. */
+	const drawnCrossing = (g: DirectionLine, h: DirectionLine): Loc => {
+		const [g0, g1] = guideEnds(g, 2000);
+		const [h0, h1] = guideEnds(h, 2000);
+		const [ax, ay] = toMercator(g0);
+		const [bx, by] = toMercator(g1);
+		const [cx, cy] = toMercator(h0);
+		const [dx, dy] = toMercator(h1);
+		const [ex, ey] = [bx - ax, by - ay];
+		const [fx, fy] = [dx - cx, dy - cy];
+		const t = ((cx - ax) * fy - (cy - ay) * fx) / (ex * fy - ey * fx);
+		return fromMercator([ax + t * ex, ay + t * ey]);
+	};
+
+	it("puts the corners of a room exactly on the crossings drawn", () => {
+		for (const [i, j] of [
+			[0, 1],
+			[0, 5],
+			[2, 5],
+			[4, 3],
+		] as const) {
+			const drawn = drawnCrossing(
+				guides[i] as DirectionLine,
+				guides[j] as DirectionLine,
+			);
+			const p = screen(drawn);
+			const target = snapAt(
+				{ x: p.x + 2, y: p.y - 1 },
+				{ guides },
+				screen,
+				8,
+				drawn,
+			);
+			expect(target?.kind).toBe("intersection");
+			const [east, north] = local(drawn, target?.loc ?? O);
+			expect(Math.hypot(east, north)).toBeLessThan(0.0005);
+		}
+	});
+
+	it("gives square corners", () => {
+		const corner = (u: number, v: number) => {
+			const p = screen(along(u, v));
+			return snapAt({ x: p.x + 1, y: p.y + 1 }, { guides }, screen)?.loc as Loc;
+		};
+		const [ax, ay] = local(O, corner(0, 0));
+		const [bx, by] = local(O, corner(8, 0));
+		const [cx, cy] = local(O, corner(8, 4));
+		const cos =
+			((bx - ax) * (cx - bx) + (by - ay) * (cy - by)) /
+			Math.hypot(bx - ax, by - ay) /
+			Math.hypot(cx - bx, cy - by);
+		expect(Math.abs(cos)).toBeLessThan(1e-6);
 	});
 });
