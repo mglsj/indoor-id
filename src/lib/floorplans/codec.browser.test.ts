@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { MessageError } from "#lib/i18n/messages.ts";
 import { workerCodec } from "./codec.ts";
 import type { PlanImage } from "./content.ts";
+import { probeSupport } from "./tile-codec.ts";
 import { VectorBuilder } from "./vector.ts";
 
 const codec = workerCodec();
@@ -45,7 +46,8 @@ function same(a: Uint8ClampedArray, b: Uint8ClampedArray): boolean {
 const scales = (image: PlanImage) => image.levels.map((l) => l.scale);
 
 describe("workerCodec (the plan worker, in Chromium)", () => {
-	it("cuts a file into a pyramid of tiles, then encodes them as lossless WebP", async () => {
+	it("cuts a file into a pyramid of tiles, then encodes them losslessly (JPEG XL where the browser reads it, else WebP)", async () => {
+		const { decodesJxl } = await probeSupport();
 		const file = await png(2400, 300);
 		const { image, width, height } = await codec.decodeFile(file);
 		expect([width, height, image.width, image.height]).toEqual([
@@ -67,7 +69,7 @@ describe("workerCodec (the plan worker, in Chromium)", () => {
 		const encoded = await image.encoded;
 		expect(encoded.levels.map((l) => l.scale)).toEqual([1, 2, 4, 8, 16]);
 		for (const { tile, blob } of encoded.levels[0]?.tiles ?? []) {
-			expect(blob.type).toBe("image/webp");
+			expect(blob.type).toBe(decodesJxl ? "image/jxl" : "image/webp");
 			const expected = pixels(source, tile.x, tile.y, tile.width, tile.height);
 			expect(same(pixels(await codec.decode(blob)), expected)).toBe(true);
 		}

@@ -33,7 +33,6 @@ on 2026-10-29 so the plan only holds what comes next. OsmInEdit's code: commit `
 - Nearly every dependency (CRA, react-leaflet 2, leaflet-draw, Bootstrap 4, ...) is
   unmaintained, so modernising in place would have touched almost every file anyway.
 
-
 ## Phases
 
 Each phase ends with lint, check, unit and e2e tests green, and a status update in this file.
@@ -178,6 +177,7 @@ Feedback from placing real plans (Vindhya Bhavan, 4-page A3 PDF). Decisions agre
 user are marked ✔; the rest follow from them.
 
 **Align tool fixes**
+
 - Crosshair cursor whenever an align tool is on. Today the class on the canvas container loses
   to MapLibre's `.maplibregl-canvas-container.maplibregl-interactive { cursor: grab }`, so the
   cursor is set on the canvas element itself, like plan dragging does.
@@ -187,6 +187,7 @@ user are marked ✔; the rest follow from them.
   rotate pick; the plan stays where the points put it ✔.
 
 **Layer list** (the sidebar list becomes the floor plan mode's layer stack)
+
 - Top of the list is drawn on top. Rows reorder by a drag grip, or Alt+↑/↓ with the grip
   focused ✔; the map's layer order follows.
 - A Buildings entry (the pink outlines) sits in the same list: it can be moved between plans
@@ -207,6 +208,7 @@ user are marked ✔; the rest follow from them.
 - The header button that leaves floor plan mode becomes Close ✔.
 
 **Edit sessions**
+
 - Plans are locked by default: they can't be dragged, aligned or changed. A row's Edit
   unlocks that plan (one at a time); name, level, opacity, colour, placement and the align
   tools all need Edit ✔. A locked row only has show/hide, Edit and delete.
@@ -220,10 +222,12 @@ user are marked ✔; the rest follow from them.
   through `ui/UnsavedPlanDialog.svelte`: Save, Discard or Keep editing.
 
 **PDF import**
+
 - The page picker takes several pages. Each becomes its own plan, `file, page N`, all in the
   same spot on the level shown ✔ (changed by the user from one level apart).
 
 **Slices and test seams** (to agree before writing tests)
+
 1. ✅ Align fixes. Unit: `toolFeatures` with a pointer position (dashed segment, then solid
    pair); `FloorPlans.clearPoints()`. E2E: canvas cursor is `crosshair` for each tool; the
    measure line's colour is drawn under the pointer; Clear empties the control point list and
@@ -252,6 +256,7 @@ with the user are marked ✔. Each slice agrees its test seams before tests are 
 #### P5.0 Quick performance fixes — done
 
 Measured on a synthetic area of 10,000 rooms (50,000 entities, 3.2 MB of GeoJSON).
+
 - Downloaded tiles are merged one by one, each followed by a full feature rebuild (71–116 ms,
   up to 64 tiles): buffer tile results and merge once per animation frame
   (`api/map-loader.ts`, `state/editor.svelte.ts`).
@@ -284,6 +289,7 @@ multi-selection come with P5.3.
 
 The inspector is rebuilt to follow iD's entity editor (`modules/ui/inspector.js`,
 `entity_editor.js`, `sections/*`, `fields/*`), with shadcn components.
+
 - **Layout**: a header ("Edit feature", or "Edit features" for several; back to "Change
   feature type"; close, shown as ✓ once something changed) and collapsible sections, each
   remembering whether it is open ✔: "Features (N)" (multi-selection only), "Feature Type"
@@ -608,7 +614,6 @@ flagged; walls and rooms not sharing nodes are not checked (P5.3.9).
   cloud sessions run 22 (works).
 - Still open from the review above: conflicts can't be resolved, history can't be saved, a
   lost upload response makes a retry duplicate data (all P5.4); no `beforeunload` guard (R3.1).
-
 
 ## Roadmap phases R0 to P5.3
 
@@ -1717,6 +1722,7 @@ indoor features under the pointer. Buildings that touch (a station complex, foru
 entered together later; B.0 keeps the scope a list of outlines so that stays possible.
 
 Conventions from the forum thread (t/148767, posts 1–169) that B must keep:
+
 - Indoor features belong to a building by **geometry and `level` only**, never by relation
   membership (the abandoned IndoorOSM did that). Scope membership is by position, from
   `validation/outlines.ts`.
