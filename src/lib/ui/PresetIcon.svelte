@@ -14,7 +14,17 @@
 </script>
 
 {#if url}
-	<img src={url} alt="" width={size} height={size} class="shrink-0 dark:invert">
+	<!-- Sized by style: Tailwind's base sets `height: auto`, which let tall icons (Temaki's
+	     latrine, 22 × 48) stretch their row. -->
+	<img
+		src={url}
+		alt=""
+		width={size}
+		height={size}
+		style:width="{size}px"
+		style:height="{size}px"
+		class="shrink-0 object-contain dark:invert"
+	>
 {:else}
 	<!-- A placeholder, so names line up in lists (A.5). -->
 	<span

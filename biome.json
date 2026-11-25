@@ -16,6 +16,7 @@
 			"!playwright-report",
 			"!skills-lock.json",
 			"!src/lib/map/style/icons",
+			"!src/lib/presets/id-icons",
 			"!tests/e2e/files",
 			"!.claude"
 		]

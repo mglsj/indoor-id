@@ -1,8 +1,7 @@
 /**
  * Extracts the presets IndoorID needs from iD's tagging schema
  * (@openstreetmap/id-tagging-schema, ISC) into src/lib/presets/generated/, with English
- * labels resolved, and copies the Maki and Temaki icons (CC0) they and the categories use
- * into its `icons/`.
+ * labels resolved, and copies the icons they and the categories use into its `icons/`.
  * Runs on `bun install` (the `prepare` script); the output is not committed.
  *
  * Usage: bun scripts/build-presets.ts
@@ -74,6 +73,13 @@ function isKept(id: string, preset: Json): boolean {
 	return KEPT_GROUPS.has(id.split("/")[0] ?? "") || KEPT_PRESETS.test(id);
 }
 
+/** iD's geometry icons, for the fallback presets (vendored in `src/lib/presets/id-icons/`). */
+const FALLBACK_ICONS: Record<string, string> = {
+	point: "iD-icon-point",
+	line: "iD-icon-line",
+	area: "iD-icon-area",
+};
+
 const outPresets: Json[] = [];
 const usedFields = new Set<string>();
 
@@ -85,7 +91,8 @@ for (const [id, preset] of Object.entries(presets)) {
 		name: (text.name as string | undefined) ?? id,
 		aliases: (text.aliases as string[] | undefined) ?? [],
 		terms: (text.terms as string[] | undefined) ?? [],
-		icon: preset.icon,
+		// The fallbacks have no icon in the schema; iD shows its geometry icons for them.
+		icon: preset.icon ?? FALLBACK_ICONS[id],
 		geometry: preset.geometry,
 		tags: preset.tags,
 		addTags: preset.addTags,
@@ -266,28 +273,84 @@ for (const locale of locales) {
 	);
 }
 
-/** Icon sets bundled for the map, by the prefix of iD's icon names (`maki-toilet`). */
+/**
+ * Icon sets bundled for the presets and the map, by the prefix of iD's icon names
+ * (`maki-toilet`), as iD bundles them: Maki and Temaki (CC0), Pinhead (CC0), Röntgen (CC BY
+ * 4.0), the few of iD's own (ISC, vendored in `src/lib/presets/id-icons/`) and Font Awesome
+ * (CC BY 4.0, below). Attribution is in LICENSE.md and `thirdPartyNotices()`.
+ */
 const ICON_SETS: Record<string, string> = {
 	maki: "node_modules/@mapbox/maki/icons",
 	temaki: "node_modules/@rapideditor/temaki/icons",
+	pinhead: "node_modules/@waysidemapping/pinhead/dist/icons",
+	roentgen: "node_modules/@enzet/roentgen/icons",
+	iD: "src/lib/presets/id-icons",
 };
+
+/** A Font Awesome icon definition: width, height, ligatures, unicode, path data. */
+type FaIcon = [number, number, unknown[], string, string | string[]];
+interface FaDefinition {
+	iconName: string;
+	icon: FaIcon;
+}
+
+/**
+ * Font Awesome icons by name and alias: iD's names are Font Awesome 5's (`fas-beer`,
+ * `fas-tachometer-alt`), aliases of the current ones.
+ */
+async function fontAwesome(pkg: string): Promise<Map<string, FaIcon>> {
+	const module = (await import(pkg)) as Record<string, unknown>;
+	const icons = new Map<string, FaIcon>();
+	for (const value of Object.values(module)) {
+		const definition = value as Partial<FaDefinition> | undefined;
+		if (!definition?.iconName || !Array.isArray(definition.icon)) continue;
+		const [, , aliases] = definition.icon;
+		for (const name of [definition.iconName, ...aliases]) {
+			if (typeof name === "string" && !icons.has(name)) {
+				icons.set(name, definition.icon);
+			}
+		}
+	}
+	return icons;
+}
+
+const FA_SETS: Record<string, Map<string, FaIcon>> = {
+	fas: await fontAwesome("@fortawesome/free-solid-svg-icons"),
+	far: await fontAwesome("@fortawesome/free-regular-svg-icons"),
+};
+
+function faSvg([width, height, , , path]: FaIcon): string {
+	const d = Array.isArray(path) ? path.join(" ") : path;
+	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}"><path fill="currentColor" d="${d}"/></svg>`;
+}
+
 const iconsOut = join(out, "icons");
 rmSync(iconsOut, { recursive: true, force: true });
 mkdirSync(iconsOut);
 let icons = 0;
+const missing: string[] = [];
 for (const icon of new Set(
 	[...outPresets, ...outCategories].map((p) => p.icon),
 )) {
 	if (typeof icon !== "string") continue;
 	const [, set, name] = icon.match(/^(\w+)-(.+)$/) ?? [];
-	const dir = set && ICON_SETS[set];
-	if (!dir) continue;
-	const file = join(root, dir, `${name}.svg`);
-	if (!existsSync(file)) continue;
+	if (!set || !name) continue;
+	const fa = FA_SETS[set]?.get(name);
+	if (fa) {
+		writeFileSync(join(iconsOut, `${icon}.svg`), faSvg(fa));
+		icons++;
+		continue;
+	}
+	const dir = ICON_SETS[set];
+	const file = dir && join(root, dir, `${name}.svg`);
+	if (!file || !existsSync(file)) {
+		missing.push(icon);
+		continue;
+	}
 	copyFileSync(file, join(iconsOut, `${icon}.svg`));
 	icons++;
 }
 
 console.log(
-	`Presets: ${outPresets.length} presets, ${outFields.length} fields (${countryFields} for some countries left out), ${outCategories.length} categories, ${icons} icons → src/lib/presets/generated/`,
+	`Presets: ${outPresets.length} presets, ${outFields.length} fields (${countryFields} for some countries left out), ${outCategories.length} categories, ${icons} icons (not found: ${missing.join(", ") || "none"}) → src/lib/presets/generated/`,
 );
