@@ -45,8 +45,14 @@ overlapping buildings, the pre-upload check), and the 3D phase ports more of it;
 >
 > THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-Preset icons come from [Maki](https://github.com/mapbox/maki) and
-[Temaki](https://github.com/rapideditor/temaki) (CC0, no notice required).
+Preset icons come from the sets iD uses: [Maki](https://github.com/mapbox/maki),
+[Temaki](https://github.com/rapideditor/temaki) and
+[Pinhead](https://github.com/waysidemapping/pinhead) (CC0, no notice required);
+[Font Awesome Free](https://fontawesome.com) icons by Fonticons, Inc., under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); [Röntgen](https://github.com/enzet/Roentgen)
+icons (c) Sergey Vartanov, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); and a
+few of iD's own (`src/lib/presets/id-icons/`), under iD's ISC license above. The icons are
+unchanged, except that Font Awesome's are written out from their JS definitions as SVG files.
 
 The interface font is [Inter](https://github.com/rsms/inter) (`@fontsource-variable/inter`),
 Copyright 2016 The Inter Project Authors, under the SIL Open Font License 1.1; the license text

@@ -33,7 +33,8 @@ runs the same commands.
 - `src/lib/ui/` components, `src/lib/map/` map helpers, `src/routes/` pages, `static/` copied
   as-is (`config.json`, help images), `tests/e2e/` browser tests. Map icons load on demand
   (`style/icons.ts`): OsmInEdit's set in `src/lib/map/style/icons/` (`key_value.svg|png`) and the
-  presets' Maki/Temaki icons (`maki-toilet.svg`) copied into `presets/generated/icons/`.
+  presets' icons (`maki-toilet.svg`: Maki, Temaki, Pinhead, Röntgen, Font Awesome and iD's own,
+  as iD bundles them) copied into `presets/generated/icons/`.
 - Data model (P1): `osm/` (entities, immutable `Graph`, `History`, osmChange), `actions/`
   (pure `graph => graph` functions), `levels/` (level values as ranges; `level-names.ts`: what the switcher lists, `level:ref`, `building:levels:ref`, `non_existent_levels`), `api/` (`OsmApi`).
   Get ids for new entities from `graph.newId(type)`; never mutate entities or graphs.

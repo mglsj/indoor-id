@@ -31,6 +31,10 @@ function thirdPartyNotices(): Plugin {
 	const extra = [
 		"node_modules/@fontsource-variable/inter/LICENSE",
 		"node_modules/@jsquash/jxl/LICENSE",
+		// Preset icons, copied as SVG files by scripts/build-presets.ts.
+		"node_modules/@fortawesome/free-solid-svg-icons/LICENSE.txt",
+		"node_modules/@enzet/roentgen/LICENSE",
+		"node_modules/@waysidemapping/pinhead/LICENSE",
 	];
 	return {
 		name: "indoorid-third-party-notices",
