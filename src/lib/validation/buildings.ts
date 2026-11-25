@@ -4,9 +4,9 @@
  * follow osm-simple3d-editor's `findOverlaps` (ISC, `0c7f032`, `3a65872`; forum t/148767
  * #192–194), on building outlines drawn as ways.
  */
-import { type Geom, intersection } from "polyclip-ts";
 import { changeTags } from "#lib/actions/change-tags.ts";
 import { msg } from "#lib/i18n/messages.ts";
+import { clipPolygons } from "#lib/osm/clip.ts";
 import type { Entity, Loc, Node, NodeId, Way } from "#lib/osm/entity.ts";
 import { distanceToLine, extentsIntersect, local } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
@@ -41,7 +41,7 @@ export function buildingIssues(
 	if (!origin) return [];
 	const toLocal = (ring: readonly Loc[]) =>
 		ring.map((loc) => local(origin, loc));
-	const mine: Geom = [toLocal(self.ring)];
+	const mine = [toLocal(self.ring)];
 	const mineArea = ringArea(toLocal(self.ring));
 	const { west, south, east, north } = self.extent;
 	const issues: Issue[] = [];
@@ -60,8 +60,9 @@ export function buildingIssues(
 			issues.push(...unglued(graph, entity, way, other));
 			continue;
 		}
-		const theirs: Geom = [toLocal(other.ring)];
-		const common = intersection(mine, theirs);
+		const theirs = [toLocal(other.ring)];
+		// Metres to the millimetre.
+		const common = clipPolygons("intersection", [mine], [theirs], 1000);
 		const area = common.reduce(
 			(sum, polygon) =>
 				sum +

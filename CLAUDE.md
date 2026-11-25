@@ -234,7 +234,8 @@ runs the same commands.
   `ui/SaveDialog.svelte`. E2E `serveOsm()` also answers the multi-fetch from its elements;
   route `**/api/0.6/ways.json?*` again to serve someone else's edit.
 - Unmapped floor (P5.4a): `edit/unmapped-floor.ts` (`unmappedFloorAt`: a level outline or
-  building minus the spaces on the level, with `polyclip-ts`; `mapFloor`: draws it through the
+  building minus the spaces on the level, with `osm/clip.ts` (Clipper2, the app's one clipping
+  library); `mapFloor`: draws it through the
   neighbours' nodes), held in `Editor.floor` (not a selection, not in the history), shown by
   `ui/FloorPanel.svelte`; `commands.mapFloor` makes it a feature in one step. Pure modules (`osm`, `levels`, `view`,
   `actions`, `presets`, `validation`, `floorplans/georef`, `floorplans/plan-file`,

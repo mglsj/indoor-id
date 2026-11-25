@@ -64,7 +64,7 @@ Finished phases (what was built, measured and decided) are in [docs/history.md](
 | App         | SvelteKit 3 + `adapter-static`, every route `ssr = false` / `prerender = true`; Svelte 5 runes; TypeScript 6 strict |
 | Map         | MapLibre GL JS 6 (WebGL), imported only via `#lib/map/maplibre.ts`                                                  |
 | UI          | Tailwind CSS 4, shadcn-svelte components (vega style, on bits-ui 2), `@lucide/svelte`                               |
-| Editing     | Custom engine modelled on iD's modes and behaviours, `rbush` spatial index, `polyclip-ts` (unmapped floor)          |
+| Editing     | Custom engine modelled on iD's modes and behaviours, `rbush` spatial index, `clipper2-ts` (unmapped floor, bands)   |
 | OSM         | `osm-auth` 3 (OAuth 2 PKCE, no secret, no backend); small `fetch` client for the API v0.6                           |
 | Presets     | `@openstreetmap/id-tagging-schema` filtered at build time, plus a local indoor overlay; `fuse.js`                   |
 | Storage     | IndexedDB via `idb` (floor plans, autosaved edits, settings)                                                        |
