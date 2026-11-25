@@ -270,6 +270,11 @@ report's). One PR per slice, each with a test that fails before the fix.
   cloud sessions' browser), and the majors osm-auth 4, TypeScript 7 and tailwind-variants 4,
   each on its own once checked.
 
+- **Open: PDF imports time out on CI.** The PDF tests in `floorplans.spec.ts` (142, 168, 219,
+  245, 284) fail at random on CI runners, master included, and pass locally: on CI the plan
+  never appears within 20 s and the plan worker never loads its next chunks. To root-cause
+  in its own PR.
+
 Open questions in the report (section 5) are asked before R6.1 and R6.4 start.
 
 ## Later: 3D
