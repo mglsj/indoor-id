@@ -25,8 +25,8 @@ function setup() {
 			entries.map((e) => ({ ...e, id: e.operation.id })),
 		),
 		keyOf: (operation: Operation) => (operation.id === "delete" ? "Del" : ""),
-		onrun: (operation: Operation) => calls.push(operation.id),
-		onzoom: () => calls.push("zoom"),
+		onrun: (operation: Operation) => void calls.push(operation.id),
+		onzoom: () => void calls.push("zoom"),
 	});
 	return calls;
 }

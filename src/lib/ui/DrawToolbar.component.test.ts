@@ -10,11 +10,11 @@ function setup(scope: "map" | "building", drawing: DrawTool | null = null) {
 	renderWithTooltips(DrawToolbar, {
 		offered: toolsFor(scope),
 		drawing,
-		measureVariant: "measure",
+		measureVariant: "measure" as const,
 		locked: false,
-		ondraw: (kind: DrawTool) => calls.push(`draw ${kind}`),
-		onplaceguides: () => calls.push("guides"),
-		onmeasure: () => calls.push("measure"),
+		ondraw: (kind: DrawTool) => void calls.push(`draw ${kind}`),
+		onplaceguides: () => void calls.push("guides"),
+		onmeasure: () => void calls.push("measure"),
 	});
 	return calls;
 }
