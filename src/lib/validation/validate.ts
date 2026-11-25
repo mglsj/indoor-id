@@ -28,7 +28,7 @@ import type {
 import { isClosed, pointInRing, wayLocs } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
-import { hasInterestingTags, type Tags } from "#lib/osm/tags.ts";
+import { hasInterestingTags, isVertical, type Tags } from "#lib/osm/tags.ts";
 import { buildingIssues } from "./buildings.ts";
 import { conformanceIssues } from "./conformance.ts";
 import { Outlines } from "./outlines.ts";
@@ -177,18 +177,6 @@ function outdatedTags(
 			},
 		),
 	];
-}
-
-const VERTICAL_HIGHWAYS = new Set(["elevator", "steps"]);
-
-/** Stairs, elevators and escalators span levels rather than repeat on them. */
-function isVertical(tags: Tags): boolean {
-	return (
-		tags.stairs === "yes" ||
-		tags.elevator === "yes" ||
-		(tags.highway !== undefined && VERTICAL_HIGHWAYS.has(tags.highway)) ||
-		tags.conveying !== undefined
-	);
 }
 
 function levelIssues(entity: Entity): Issue[] {
@@ -499,6 +487,7 @@ function inside(ring: readonly Loc[], outer: readonly Loc[]): boolean {
 	return pointInRing(centre, outer);
 }
 
+/** Indoor spaces: a room, an area, a corridor. */
 const ROOM_SPACES = new Set(["room", "area", "corridor"]);
 
 /**
@@ -611,8 +600,6 @@ function openingIssues(entity: Entity): Issue[] {
 	];
 }
 
-/** Indoor spaces that are a room on each level when tagged with several. */
-const SPACES = new Set(["room", "area", "corridor"]);
 /** Rooms that do span levels. */
 const SPANNING_ROOMS = new Set(["stairs", "elevator", "atrium", "shaft"]);
 
@@ -626,7 +613,8 @@ const SPANNING_ROOMS = new Set(["stairs", "elevator", "atrium", "shaft"]);
 function roomOnSeveralLevels(graph: Graph, entity: Entity): Issue[] {
 	const { tags } = entity;
 	if (entity.type !== "way" || !isClosed(entity)) return [];
-	if (!SPACES.has(tags.indoor ?? "") || tags.repeat_on !== undefined) return [];
+	if (!ROOM_SPACES.has(tags.indoor ?? "") || tags.repeat_on !== undefined)
+		return [];
 	if (isVertical(tags) || SPANNING_ROOMS.has(tags.room ?? "")) return [];
 	if (tags.level === undefined || graph.parentRelations(entity.id).length > 0)
 		return [];

@@ -9,8 +9,8 @@
  * crosses another's a new node goes into both (not into building outlines, as Split).
  */
 import type { Geometry, Position } from "geojson";
-import { difference, type Geom } from "polyclip-ts";
 import type { IndoorFeature } from "#lib/map/features.ts";
+import { clipPolygons } from "#lib/osm/clip.ts";
 import type {
 	Entity,
 	EntityId,
@@ -145,7 +145,7 @@ export function unmappedFloorAt(
 	if (!extent) return null;
 	const containerId = container.feature.properties["@id"] as EntityId;
 	const cutOut: EntityId[] = [];
-	const covering: Geom[] = [];
+	const covering: Polygon[] = [];
 	for (const feature of all) {
 		const tags = feature.properties;
 		const id = tags["@id"] as EntityId;
@@ -155,11 +155,11 @@ export function unmappedFloorAt(
 		const own = extentOfPolygons(polygons);
 		if (!own || !extentsIntersect(own, extent)) continue;
 		cutOut.push(id);
-		covering.push(polygons as Geom);
+		covering.push(...polygons);
 	}
-	const pieces = difference(container.polygons as Geom, ...covering);
-	for (const piece of pieces) {
-		const polygon = piece as unknown as Polygon;
+	// Degrees to a nanodegree (0.1 mm), well under `SAME_SPOT`.
+	const pieces = clipPolygons("difference", container.polygons, covering, 1e9);
+	for (const polygon of pieces) {
 		if (!pointInPolygon(at, polygon)) continue;
 		const area = polygonArea(polygon);
 		if (area < MIN_FLOOR_AREA) return null;

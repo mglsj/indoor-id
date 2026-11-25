@@ -13,3 +13,22 @@ const UNINTERESTING_KEYS = new Set([
 export function hasInterestingTags(tags: Tags): boolean {
 	return Object.keys(tags).some((key) => !UNINTERESTING_KEYS.has(key));
 }
+
+const VERTICAL_ROOMS = new Set(["stairs", "escalator", "elevator"]);
+
+/**
+ * Stairs, elevators, escalators and stairwells: features that span levels rather than repeat
+ * on them. The map draws them as vertical passages; the validator wants their levels in
+ * `level`, not `repeat_on`.
+ */
+export function isVertical(tags: Tags): boolean {
+	return (
+		tags.stairs === "yes" ||
+		tags.elevator === "yes" ||
+		tags.highway === "elevator" ||
+		tags.highway === "steps" ||
+		tags.conveying !== undefined ||
+		(tags.room !== undefined && VERTICAL_ROOMS.has(tags.room)) ||
+		tags.buildingpart === "verticalpassage"
+	);
+}

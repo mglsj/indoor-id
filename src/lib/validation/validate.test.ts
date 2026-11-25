@@ -185,6 +185,20 @@ describe("validate: levels", () => {
 		});
 	});
 
+	it("knows a stairwell by room=stairs or buildingpart=verticalpassage too, as the map does (R4)", () => {
+		const stairwells: Record<string, string>[] = [
+			{ indoor: "room", room: "stairs" },
+			{ indoor: "room", buildingpart: "verticalpassage" },
+		];
+		for (const tags of stairwells) {
+			const rules = issuesOf(
+				roomWith({ ...tags, level: "0", repeat_on: "1" }),
+				"w1",
+			).map((i) => i.rule);
+			expect(rules).toContain("vertical-repeat-on");
+		}
+	});
+
 	it("accepts repeat_on on an elevator's or stairs' door (SIT's vertical connections)", () => {
 		const graph = Graph.fromEntities([
 			node("n1", {
