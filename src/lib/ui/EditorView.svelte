@@ -12,6 +12,7 @@
 	import MapPin from "@lucide/svelte/icons/map-pin";
 	import Move from "@lucide/svelte/icons/move";
 	import Octagon from "@lucide/svelte/icons/octagon";
+	import OctagonAlert from "@lucide/svelte/icons/octagon-alert";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import RectangleHorizontal from "@lucide/svelte/icons/rectangle-horizontal";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
@@ -345,8 +346,13 @@
 		untrack(() => idleIssues.schedule(() => editor.editIssues));
 		return () => idleIssues.stop();
 	});
-	const issueCount = $derived(
-		editor.history.editCount === 0 ? 0 : (idleIssues.issues?.length ?? 0),
+	const shownIssues = $derived(
+		editor.history.editCount === 0 ? [] : (idleIssues.issues ?? []),
+	);
+	const issueCount = $derived(shownIssues.length);
+	/** Errors and warnings are told apart by their icon, not only its colour (A.1). */
+	const errorCount = $derived(
+		shownIssues.filter((issue) => issue.severity === "error").length,
 	);
 	// Plans saved in earlier visits come back once their images are decoded.
 	/**
@@ -2016,8 +2022,21 @@
 								disabled={editor.history.previewing}
 								onclick={() => (saving = true)}
 							>
-								<TriangleAlert class="text-destructive" />
-								<span class="tabular-nums">{issueCount}</span>
+								{#if errorCount > 0}
+									<OctagonAlert class="text-destructive" />
+									<span class="tabular-nums" data-testid="error-count"
+										>{errorCount}</span
+									>
+								{/if}
+								{#if issueCount > errorCount}
+									<TriangleAlert
+										class="fill-warning text-warning-foreground"
+										data-testid="warning-icon"
+									/>
+									<span class="tabular-nums" data-testid="warning-count"
+										>{issueCount - errorCount}</span
+									>
+								{/if}
 							</Button>
 						{/if}
 					</ButtonGroup.Root>

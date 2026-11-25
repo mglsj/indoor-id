@@ -26,6 +26,7 @@
 	 * a time); the editor
 	 * (`EditorView`) adds modes, drawing, floor plans and upload on top.
 	 */
+	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import Layers from "@lucide/svelte/icons/layers";
 	import type { Place } from "#lib/api/nominatim.ts";
 	import { Badge } from "#lib/components/shadcn/badge/index.ts";
@@ -383,12 +384,15 @@
 		role="status"
 		data-testid="load-status"
 		class={[
-			"absolute bottom-10 left-1/2 z-10 -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-sm shadow-md ring-1 ring-foreground/10",
+			"absolute bottom-10 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-popover px-4 py-1.5 text-sm shadow-md ring-1 ring-foreground/10",
 			editor.sync.status.kind === "error"
 				? "text-destructive"
 				: "text-popover-foreground",
 		]}
 	>
+		{#if editor.sync.status.kind === "error"}
+			<CircleAlert class="size-4 shrink-0" aria-hidden="true" />
+		{/if}
 		{statusMessage}
 	</p>
 {/if}

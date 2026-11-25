@@ -57,6 +57,9 @@ test("counts the issues in the edits beside Save, checked in idle time (P6)", as
 	await expect(
 		page.getByRole("button", { name: "1 issue in your edits" }),
 	).toBeVisible();
+	// A warning: the yellow triangle, no error count (A.1).
+	await expect(page.getByTestId("warning-count")).toHaveText("1");
+	await expect(page.getByTestId("error-count")).toBeHidden();
 	await page.getByRole("button", { name: "Undo" }).click();
 	await expect(page.getByTestId("issue-count")).toBeHidden();
 });
