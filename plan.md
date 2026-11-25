@@ -251,13 +251,13 @@ report's). One PR per slice, each with a test that fails before the fix.
   main-thread time 36 s on master, 29–31 s after; most of what remains is software WebGL
   drawing, JavaScript was under 2 s. Left for later: incremental level counts in
   `FeatureStore`, bands from the index.
-- **R6.4, refactors with no behaviour change (M–L).** R1: `EditorView.svelte` split (building
-  scope controller, mode factory, layer wiring, operations menu, draw toolbar), one PR per
-  cut unless the user says otherwise. ~~R4~~ done ✅ (2026-11-25): one `isVertical` in
-  `osm/tags.ts` (the map's, so the validator now also knows `room=stairs|elevator|escalator`
-  and `buildingpart=verticalpassage`), one `ROOM_SPACES`, `pixelsAtZ17` in `features.ts`.
-  ~~R5~~ done ✅ (2026-11-25): `osm/clip.ts` (`clipPolygons`, Clipper2 with the given corners
-  kept exact) for the unmapped floor and the building overlaps; `polyclip-ts` dropped.
+- ~~**R6.4, refactors with no behaviour change**~~: done ✅ (2026-11-25). R1: `EditorView.svelte`
+  split in four cuts, 2,690 lines down to 2,126: the building scope controller
+  (`state/building-scope-controller.svelte.ts`), the draw toolbar and selection bar with its
+  operations menu (`ui/DrawToolbar.svelte`, `ui/SelectionBar.svelte`), the mode factory
+  (`edit/mode-factory.ts`) and the layer wiring (`map/editor-layers.svelte.ts`). R4: one
+  `isVertical`, one set of room spaces, a `pixelsAtZ17` helper. R5: `osm/clip.ts`
+  (Clipper2) replaces `polyclip-ts`, one clipping library left.
 - ~~**R6.5, dependencies and tests**~~: done ✅ (2026-11-25). Minor and patch updates (MapLibre
   6.19, Kit 3.4, Svelte 5.59, pdf.js 6.5, bits-ui 2.22, Vitest 5.1, Vite 8.3.8, Biome 2.6.9,
   Clipper2 2.0.1-19…); Bun 1.4.4; `osm-auth`, `rbush`, `mode-watcher`, `tailwind-variants`,
@@ -269,6 +269,11 @@ report's). One PR per slice, each with a test that fails before the fix.
   `reloadDiscardingEdits` now waits for the dialog to go. Left: Playwright 1.65 (with the
   cloud sessions' browser), and the majors osm-auth 4, TypeScript 7 and tailwind-variants 4,
   each on its own once checked.
+
+- **Open: PDF imports time out on CI.** The PDF tests in `floorplans.spec.ts` (142, 168, 219,
+  245, 284) fail at random on CI runners, master included, and pass locally: on CI the plan
+  never appears within 20 s and the plan worker never loads its next chunks. To root-cause
+  in its own PR.
 
 Open questions in the report (section 5) are asked before R6.1 and R6.4 start.
 

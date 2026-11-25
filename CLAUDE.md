@@ -124,6 +124,10 @@ runs the same commands.
 - Editing (R1): `edit/mode-manager.ts` is the only listener on the map's pointer events (mouse, touch, pen); it hands
   hover (cursor), click, press (a `Drag`) and keys to one `Mode` (`edit/mode.ts`,
   `edit/modes/*`). Add map interactions as a mode, not as `map.on(...)` in a component.
+  The editor's mode is `edit/mode-factory.ts`: `modeKindOf` (what is on) and `modeFor(kind, host)`
+  (a new mode adds a kind there and its options to `ModeHost`).
+  The editor's own layers (overlay, feedback, guides, grid, floor plans) are made and fed in
+  `map/editor-layers.svelte.ts` (`attachEditorLayers`, called in the effect holding the map).
   Shortcuts use `edit/keys.ts` (`matches`, `formatCombo`, `isTyping`). Map layers insert
   before a slot from `map/layer-slots.ts` (`slotId("plans")`), never before another owner's
   layer.
@@ -142,7 +146,9 @@ runs the same commands.
   on `actions/copy.ts`, `disconnect.ts`, `orthogonalize.ts`, `merge-areas.ts`, `delete.ts`,
   `split-areas.ts` (with `edit/modes/split.ts`), `repeat-levels.ts` (`ui/RepeatDialog.svelte`),
   `multipolygon.ts`; add a new one to that list, not as a button of its own (the toolbar and
-  the right-click menu, `Mode.contextMenu`, both list it). Several features
+  the right-click menu, `Mode.contextMenu`, both list it: `ui/SelectionBar.svelte` and
+  `ui/OperationItem.svelte`, icons in `ui/operation-icons.ts`; the drawing tools are
+  `ui/DrawToolbar.svelte`). Several features
   (P5.3.6): Shift+click and `edit/lasso.ts`, edited in `ui/MultiInspector.svelte`; a press on
   a selected feature moves the selection (`edit/feature-drag.ts`). Spatial checks (P5.3.9) are
   `validation/spatial.ts`; `BLOCKING_RULES` stop the upload; `Editor.editIssues` leaves out
@@ -167,7 +173,9 @@ runs the same commands.
   `show` callback; `map/guide-layer.ts` draws guides and marks, `ui/MeasureLabels.svelte` the lengths.
 - Building mode (B): `edit/scope.ts` (`scopeOf`, `inScope`, `scopeAt`: what can be entered
   and what belongs to it, by position only, never by relation membership),
-  `state/scope.svelte.ts` (`BuildingScope`, held as `editor.scope`), `&building=w123` in the
+  `state/scope.svelte.ts` (`BuildingScope`, held as `editor.scope`),
+  `state/building-scope-controller.svelte.ts` (entering and leaving, its hint, the download of
+  the building entered; `EditorView` gives it a `ScopeHost`), `&building=w123` in the
   URL hash (`map/hash.ts`). Entering (B.2): a double-click (`Mode.doubleClick`), "Edit indoor"
   or "Edit indoor here" fit the camera; the building is downloaded whole (`DataSync.loadArea`);
   with nothing selected the side panel is `ui/BuildingPanel.svelte`. What each scope offers
