@@ -81,25 +81,37 @@ export const EDITED_COLORS = {
 /** How a feature was edited, as the feature state `edited`. */
 export type EditKind = keyof typeof EDITED_COLORS;
 
-export const EDITED_LINE_LAYER = "indoor-edited-line";
+/**
+ * The palettes of "Highlight changes" (A.4): IndoorID's, dark enough for the light map (4:1 or
+ * more) and told apart by line style too (added solid, retagged dashed, reshaped dotted), so
+ * colour-blind users see the kinds; or iD's wide halo, made for dark imagery.
+ */
+export type EditPalette = "indoorid" | "id";
+
+export const EDIT_PALETTES: Record<EditPalette, Record<EditKind, string>> = {
+	indoorid: { added: "#15803d", retagged: "#7c3aed", geometry: "#c2410c" },
+	id: EDITED_COLORS,
+};
+
+/** IndoorID's line style per kind, in line widths. */
+const EDIT_DASHES: Record<EditKind, number[]> = {
+	added: [1, 0],
+	retagged: [2.5, 1.5],
+	geometry: [0.6, 1.4],
+};
+
+const EDIT_KINDS = Object.keys(EDITED_COLORS) as EditKind[];
+
+/** One line layer per kind, so each has its own dashes (`line-dasharray` isn't per feature). */
+export const EDITED_LINE_LAYERS: readonly string[] = EDIT_KINDS.map(
+	(edit) => `indoor-edited-line-${edit}`,
+);
 export const EDITED_POINT_LAYER = "indoor-edited-point";
 
 const edited: ExpressionSpecification = [
 	"coalesce",
 	["feature-state", "edited"],
 	"",
-];
-const editedColor = [
-	"match",
-	edited,
-	...Object.entries(EDITED_COLORS).flat(),
-	"rgba(0, 0, 0, 0)",
-] as unknown as ExpressionSpecification;
-const editedOpacity: ExpressionSpecification = [
-	"case",
-	["==", edited, ""],
-	0,
-	0.6,
 ];
 
 /** Layers the user can click to select a feature. */
@@ -176,6 +188,10 @@ const outlineOpacity: ExpressionSpecification = [
 	0,
 ];
 
+/** The selection's default colour and its light casing (A.4). */
+const C_SELECTION = INDOOR_COLORS.selection;
+export const SELECTION_CASING = "#ffffff";
+
 /** The labels' font, when the basemap names none. */
 export const LABEL_FONT = ["Noto Sans Regular"];
 
@@ -186,6 +202,10 @@ export const LABEL_FONT = ["Noto Sans Regular"];
 export type Presentation = "edit" | "view";
 
 export interface IndoorStyleOptions {
+	/** The selection's colour (A.4), drawn over a white casing. */
+	readonly selection?: string;
+	/** The palette of "Highlight changes" (A.4). */
+	readonly edits?: EditPalette;
 	/** Fonts available from the basemap's glyph server. */
 	readonly textFont?: string[];
 	readonly presentation?: Presentation;
@@ -265,8 +285,12 @@ export function indoorLayers(
 		presentation = "edit",
 		fill = "partial",
 		scope,
+		selection = C_SELECTION,
+		edits = "indoorid",
 	}: IndoorStyleOptions = {},
 ): LayerSpecification[] {
+	const palette = EDIT_PALETTES[edits];
+	const halo = edits === "id";
 	const fade = scopeFade(presentation === "edit" ? scope : undefined);
 	const C = INDOOR_COLORS;
 	const E = EDIT_COLORS;
@@ -370,19 +394,23 @@ export function indoorLayers(
 				"fill-opacity": editing && fill === "partial" ? fade : 0,
 			},
 		},
-		{
-			// iD's "Highlight changes": a halo under what was added, retagged or reshaped.
-			id: EDITED_LINE_LAYER,
-			type: "line",
-			source: INDOOR_SOURCE,
-			filter: onLevel(["any", isPolygon, isLine]),
-			layout: { "line-join": "round", "line-cap": "round" },
-			paint: {
-				"line-color": editedColor,
-				"line-width": wireframe ? 3 : 16,
-				"line-opacity": editedOpacity,
-			},
-		},
+		// "Highlight changes": iD's halo under what was added, retagged or reshaped, or
+		// IndoorID's lines styled by kind (A.4).
+		...EDIT_KINDS.map(
+			(edit, i): LayerSpecification => ({
+				id: EDITED_LINE_LAYERS[i] as string,
+				type: "line",
+				source: INDOOR_SOURCE,
+				filter: onLevel(["any", isPolygon, isLine]),
+				layout: { "line-join": "round" },
+				paint: {
+					"line-color": palette[edit],
+					"line-width": halo ? (wireframe ? 3 : 16) : 4,
+					"line-dasharray": halo ? [1, 0] : EDIT_DASHES[edit],
+					"line-opacity": ["case", ["==", edited, edit], halo ? 0.6 : 0.95, 0],
+				},
+			}),
+		),
 		{
 			id: "indoor-outline",
 			type: "line",
@@ -484,8 +512,13 @@ export function indoorLayers(
 			filter: onLevel(isPoint),
 			paint: {
 				"circle-radius": 10,
-				"circle-color": editedColor,
-				"circle-opacity": editedOpacity,
+				"circle-color": [
+					"match",
+					edited,
+					...Object.entries(palette).flat(),
+					"rgba(0, 0, 0, 0)",
+				] as unknown as ExpressionSpecification,
+				"circle-opacity": ["case", ["==", edited, ""], 0, halo ? 0.6 : 0.9],
 			},
 		},
 		{
@@ -614,15 +647,40 @@ export function indoorLayers(
 				"icon-opacity": faded(1, fade),
 			},
 		},
+		// The selection (A.4): a dark core over a light casing, a cue that isn't hue alone.
+		{
+			id: "indoor-selection-casing",
+			type: "line",
+			source: INDOOR_SOURCE,
+			filter: onLevel(["any", isPolygon, isLine]),
+			paint: {
+				"line-color": SELECTION_CASING,
+				"line-width": 7,
+				"line-opacity": outlineOpacity,
+			},
+		},
 		{
 			id: "indoor-selection-line",
 			type: "line",
 			source: INDOOR_SOURCE,
 			filter: onLevel(["any", isPolygon, isLine]),
 			paint: {
-				"line-color": C.selection,
+				"line-color": selection,
 				"line-width": 3,
 				"line-opacity": outlineOpacity,
+			},
+		},
+		{
+			id: "indoor-selection-point-casing",
+			type: "circle",
+			source: INDOOR_SOURCE,
+			filter: onLevel(isPoint),
+			paint: {
+				"circle-radius": 12,
+				"circle-color": "rgba(0, 0, 0, 0)",
+				"circle-stroke-color": SELECTION_CASING,
+				"circle-stroke-width": 6,
+				"circle-stroke-opacity": outlineOpacity,
 			},
 		},
 		{
@@ -633,7 +691,7 @@ export function indoorLayers(
 			paint: {
 				"circle-radius": 12,
 				"circle-color": "rgba(0, 0, 0, 0)",
-				"circle-stroke-color": C.selection,
+				"circle-stroke-color": selection,
 				"circle-stroke-width": 3,
 				"circle-stroke-opacity": outlineOpacity,
 			},

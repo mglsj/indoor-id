@@ -57,6 +57,9 @@ test("counts the issues in the edits beside Save, checked in idle time (P6)", as
 	await expect(
 		page.getByRole("button", { name: "1 issue in your edits" }),
 	).toBeVisible();
+	// A warning: the yellow triangle, no error count (A.1).
+	await expect(page.getByTestId("warning-count")).toHaveText("1");
+	await expect(page.getByTestId("error-count")).toBeHidden();
 	await page.getByRole("button", { name: "Undo" }).click();
 	await expect(page.getByTestId("issue-count")).toBeHidden();
 });
@@ -76,7 +79,8 @@ test("a copied room pastes where the pointer is, selected", async ({
 	await expect(page.getByTestId("edit-count")).toHaveText("5");
 	await expect(inspector(page).root).toBeVisible();
 	await page.mouse.move(x + 400, y + 10);
-	await expect(page.getByRole("button", { name: "Paste" })).toBeVisible();
+	await page.getByRole("button", { name: "More" }).click();
+	await expect(page.getByRole("menuitem", { name: /^Paste/ })).toBeVisible();
 });
 
 test("two rooms selected with Shift+click merge into one", async ({ page }) => {
@@ -218,9 +222,11 @@ test("Straighten turns a hand-drawn outline's sides to 45° steps, in one undo s
 	page,
 }) => {
 	await selectRoom(page, {}, wobblyRoom());
+	await page.getByRole("button", { name: "Transform" }).click();
 	await expect(
-		page.getByRole("button", { name: "Straighten to 45°" }),
+		page.getByRole("menuitem", { name: /^Straighten to 45°/ }),
 	).toBeVisible();
+	await page.keyboard.press("Escape");
 	await page.keyboard.press("a");
 	await expect(page.getByTestId("edit-count")).not.toHaveText("0");
 	await expect(inspector(page).root).toBeVisible();
@@ -232,7 +238,8 @@ test("Make symmetric mirrors a hand-drawn outline's corners", async ({
 	page,
 }) => {
 	await selectRoom(page, {}, wobblyRoom());
-	await page.getByRole("button", { name: "Make symmetric" }).click();
+	await page.getByRole("button", { name: "Transform" }).click();
+	await page.getByRole("menuitem", { name: /^Make symmetric/ }).click();
 	await expect(page.getByTestId("edit-count")).not.toHaveText("0");
 	await expect(inspector(page).root).toBeVisible();
 });

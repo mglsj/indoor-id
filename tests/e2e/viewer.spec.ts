@@ -248,3 +248,63 @@ test("colours an untagged room by the point of interest inside it", async ({
 		blend([0xf3, 0xc9, 0x8b], 0.95, BACKGROUND),
 	);
 });
+
+test.describe("on a phone (A.7)", () => {
+	test.use({ viewport: { width: 390, height: 844 } });
+
+	test("the header fits: pages in a menu, the search behind an icon", async ({
+		page,
+	}) => {
+		await serveOverpass(page, []);
+		await page.goto(`/view#19/${LAT}/${LON}/0`);
+		await camera(page);
+		await expect(page.getByText(/0\.1\.0/)).toBeHidden();
+		const header = page.getByRole("banner");
+		const box = await header.boundingBox();
+		// Nothing past the right edge.
+		const right = await header
+			.locator("button:visible, a:visible")
+			.evaluateAll((els) =>
+				Math.max(...els.map((e) => e.getBoundingClientRect().right)),
+			);
+		expect(right).toBeLessThanOrEqual((box?.width ?? 0) + 1);
+
+		await page.getByRole("button", { name: "Search a place" }).click();
+		const search = page.getByRole("searchbox", { name: "Search a place" });
+		await expect(search).toBeVisible();
+		expect((await search.boundingBox())?.width).toBeGreaterThan(300);
+		await search.press("Escape");
+		await expect(search).toBeHidden();
+
+		await page.getByRole("button", { name: "Pages" }).click();
+		await page.getByRole("menuitem", { name: "Edit" }).click();
+		await expect(page).toHaveURL(new RegExp(`/#19/${LAT}/${LON}/0$`));
+	});
+
+	test("places open as a sheet at the bottom, and the tools keep clear of Background", async ({
+		page,
+	}) => {
+		await serveOverpass(page, []);
+		await page.goto(`/view#19/${LAT}/${LON}/0`);
+		await camera(page);
+		await expect(page.getByText("Floor numbering")).toBeVisible();
+		await page.getByRole("button", { name: "Places" }).click();
+		const sheet = page.getByTestId("places-sheet");
+		await expect(sheet).toBeVisible();
+		const sheetBox = await sheet.boundingBox();
+		expect(sheetBox?.x).toBe(0);
+		expect(sheetBox?.width).toBe(390);
+
+		const background = await page
+			.getByRole("button", { name: "Background" })
+			.boundingBox();
+		const numbering = await page
+			.getByRole("group", { name: "Floor numbering" })
+			.boundingBox();
+		if (!background || !numbering) throw new Error("not drawn");
+		const apart =
+			numbering.x + numbering.width <= background.x ||
+			numbering.y >= background.y + background.height;
+		expect(apart).toBe(true);
+	});
+});

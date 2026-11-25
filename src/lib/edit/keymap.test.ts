@@ -25,7 +25,9 @@ describe("keymap (P6: the shortcuts help)", () => {
 
 	it("lists every operation and every map key, and no key twice in a group", () => {
 		const listed = KEY_GROUPS.flatMap((g) => g.keys.map((k) => k.action));
-		for (const operation of OPERATIONS) expect(listed).toContain(operation.id);
+		// Split has no key of its own: the split tool's X is a map key.
+		for (const operation of OPERATIONS)
+			if (operation.keys.length > 0) expect(listed).toContain(operation.id);
 		for (const key of MAP_KEYS) expect(listed).toContain(key.action);
 		for (const group of KEY_GROUPS) {
 			const combos = group.keys.map((k) => k.combo);

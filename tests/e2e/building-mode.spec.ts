@@ -133,14 +133,56 @@ test("with areas filled whole, a click inside a building on the map picks the bu
 	await expect(await tagsBox(page)).toHaveValue("building=yes");
 });
 
-test("Escape with nothing selected, or Done, goes back to the map", async ({
+test("building mode shows in a blue bar, a frame round the map and the header (A.2)", async ({
+	page,
+}) => {
+	await page.addInitScript(() =>
+		localStorage.setItem("indoorid.building-hints", "0"),
+	);
+	await open(page, `/#19/${LAT}/${LON}/0&building=w1`);
+	const bar = page.getByRole("region", { name: "Building mode" });
+	await expect(bar).toContainText("Level 0");
+	await expect(
+		bar.getByRole("button", { name: "Leave building", exact: true }),
+	).toBeVisible();
+	await expect(page.getByTestId("building-frame")).toBeVisible();
+	const crumb = page.getByRole("banner").getByTestId("building-crumb");
+	await expect(crumb).toBeVisible();
+	// The first visits get a hint saying how to leave.
+	await expect(page.getByTestId("building-hint")).toContainText("Esc");
+
+	// The header's × leaves too, and the bar's place offers to come back in.
+	await crumb.getByRole("button", { name: /^Leave / }).click();
+	await expect(bar).toBeHidden();
+	await expect(page.getByTestId("building-frame")).toBeHidden();
+	await expect(crumb).toBeHidden();
+	const stack = page.getByTestId("bottom-stack");
+	await expect(
+		stack.getByRole("button", { name: "Edit indoor" }),
+	).toBeVisible();
+});
+
+test("building tools stay in the toolbar on the map, disabled with a reason (A.2)", async ({
+	page,
+}) => {
+	await open(page, `/#19/${LAT}/${LON}/0`);
+	const rectangle = page.getByRole("button", { name: "Draw rectangle" });
+	await expect(rectangle).toHaveAttribute("aria-disabled", "true");
+	await expect(rectangle).toHaveAccessibleDescription("inside a building only");
+	await rectangle.click({ force: true });
+	await expect(rectangle).toHaveAttribute("aria-pressed", "false");
+});
+
+test("Escape with nothing selected, or Leave building, goes back to the map", async ({
 	page,
 }) => {
 	await open(page, `/#19/${LAT}/${LON}/0&building=w1`);
 	const scope = page.getByTestId("building-scope");
 	await expect(scope).toBeVisible();
 
-	await page.getByRole("button", { name: "Done" }).click();
+	await page
+		.getByRole("button", { name: "Leave building", exact: true })
+		.click();
 	await expect(scope).toBeHidden();
 	await expect.poll(() => hash(page)).not.toContain("building=");
 	// The building left is selected.
@@ -174,7 +216,7 @@ test("a double-click on a building enters it, fitting it in view beside its pane
 		.poll(async () => (await camera(page)).lon)
 		.toBeLessThan(LON - 0.0001);
 
-	await panel.getByRole("button", { name: "Back to the map (Escape)" }).click();
+	await panel.getByRole("button", { name: "Leave building (Esc)" }).click();
 	await expect(page.getByTestId("building-scope")).toBeHidden();
 	await expect(await tagsBox(page)).toHaveValue("building=yes");
 });
@@ -226,8 +268,12 @@ test("the map offers iD's tools; CAD tools, floor plans and levels are building 
 	page,
 }) => {
 	await open(page, `/#19/${LAT}/${LON}/0`);
-	const draw = page.getByRole("group", { name: "Draw" });
-	await expect(draw.getByRole("button")).toHaveCount(3);
+	const draw = page.getByRole("toolbar", { name: "Draw" });
+	// Building mode's tools keep their place, disabled (A.2).
+	const usable = draw.locator(
+		'button:not([aria-disabled="true"]):not([disabled])',
+	);
+	await expect(usable).toHaveCount(3);
 	await expect(page.getByRole("button", { name: "Floor plans" })).toBeHidden();
 	await expect(page.getByTestId("level")).toBeHidden();
 	// Keys of tools not offered do nothing.
@@ -239,7 +285,7 @@ test("the map offers iD's tools; CAD tools, floor plans and levels are building 
 	await expect(
 		draw.getByRole("button", { name: "Draw rectangle" }),
 	).toBeVisible();
-	await expect(draw.getByRole("button")).toHaveCount(6);
+	await expect(usable).toHaveCount(7);
 	await expect(page.getByRole("button", { name: "Floor plans" })).toBeVisible();
 	await expect(page.getByTestId("level")).toBeVisible();
 });
@@ -274,9 +320,12 @@ test("inside, the outline is locked: a corner it shares with a room stays until 
 	await expect(page.getByTestId("edit-count")).toHaveText("0");
 	// Operations that move the room's corners are refused the same way.
 	await clickRoom();
-	await expect(
-		page.getByRole("button", { name: "Move by a distance" }),
-	).toHaveAttribute("aria-disabled", "true");
+	await page.getByRole("button", { name: "Transform" }).click();
+	const move = page.getByRole("menuitem", { name: /^Move by a distance/ });
+	await expect(move).toHaveAttribute("aria-disabled", "true");
+	// The reason shows in the menu itself (A.3).
+	await expect(move).toContainText("Shared with the building outline");
+	await page.keyboard.press("Escape");
 	await page.keyboard.press("Shift+M");
 	await expect(page.getByTestId("operation-note")).toContainText(
 		"Shared with the building outline",
@@ -311,7 +360,9 @@ test("inside, the level switcher offers every floor building:levels counts, mapp
 	await expect(page.getByRole("button", { name: "Level 2" })).toBeVisible();
 
 	// Back on the map, which has no switcher, the ground floor shows again.
-	await page.getByRole("button", { name: "Done" }).click();
+	await page
+		.getByRole("button", { name: "Leave building", exact: true })
+		.click();
 	await expect(page.getByTestId("building-scope")).toBeHidden();
 	await expect(page.getByTestId("level")).toBeHidden();
 	await expect.poll(() => hash(page)).toMatch(/\/0$/);
@@ -355,4 +406,27 @@ test("Preview in indoor= sends the building, edits included, to indoor= once it 
 		() => (window as never as { received: { name: string }[] }).received,
 	);
 	expect(preview?.name).toBe("indoorid.geojson");
+});
+
+test("inside a building the level switcher lists all its levels, in view or not (A.5)", async ({
+	page,
+}) => {
+	// A room on level 1 in the building's east half.
+	await serveOsm(page, [
+		...buildingWithRoom(),
+		{
+			type: "way",
+			id: 3,
+			version: 1,
+			nodes: [5, 2, 3, 6, 5],
+			tags: { indoor: "room", level: "1" },
+		},
+	]);
+	// Zoomed in on the west room: the east one is out of view.
+	await page.goto(`/#22/${LAT}/${LON - 0.0003}/0&building=w1`);
+	await camera(page);
+	await mapDrawn(page);
+	const levels = page.getByRole("group", { name: "Levels" });
+	await expect(levels.getByRole("radio", { name: "Level 1" })).toBeVisible();
+	await expect(levels.getByRole("radio", { name: "Level 0" })).toBeVisible();
 });

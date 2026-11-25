@@ -130,7 +130,7 @@
 					<span
 						class={[
 							"truncate",
-							chip.raw && "font-mono text-xs",
+							chip.raw && field.options.length > 0 && "font-mono text-xs",
 							chip.state === "no" && "text-muted-foreground line-through",
 						]}
 						>{chip.label}</span

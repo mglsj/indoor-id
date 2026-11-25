@@ -17,8 +17,9 @@ import type { AreaFill } from "./style/colors.ts";
 import { loadIconsOnDemand } from "./style/icons.ts";
 import {
 	BAND_SOURCE,
-	EDITED_LINE_LAYER,
+	EDITED_LINE_LAYERS,
 	type EditKind,
+	type EditPalette,
 	FILL_BAND_LAYER,
 	INDOOR_SOURCE,
 	indoorLayers,
@@ -37,6 +38,10 @@ export interface IndoorLook {
 	readonly fill?: AreaFill;
 	/** What the editor's scope fades (B.1); unset in the viewer. */
 	readonly scope?: ScopeLook;
+	/** The selection's colour (A.4); the default blue when unset. */
+	readonly selection?: string;
+	/** The palette of "Highlight changes" (A.4). */
+	readonly edits?: EditPalette;
 }
 
 /** The labels' layer: an area's label doesn't pick the area unless areas are filled whole. */
@@ -50,7 +55,9 @@ const SLOTS: Record<string, Slot> = {
 	"indoor-fill": "indoor-fill",
 	[FILL_BAND_LAYER]: "indoor-fill",
 	"indoor-outline": "indoor-lines",
-	[EDITED_LINE_LAYER]: "indoor-lines",
+	...Object.fromEntries(
+		EDITED_LINE_LAYERS.map((id) => [id, "indoor-lines" as const]),
+	),
 	"indoor-lines": "indoor-lines",
 	"indoor-rails-left": "indoor-lines",
 	"indoor-rails-right": "indoor-lines",
@@ -196,7 +203,9 @@ export class IndoorMap {
 		if (
 			look.presentation === this.#look.presentation &&
 			look.fill === this.#look.fill &&
-			look.scope === this.#look.scope
+			look.scope === this.#look.scope &&
+			look.selection === this.#look.selection &&
+			look.edits === this.#look.edits
 		) {
 			return;
 		}

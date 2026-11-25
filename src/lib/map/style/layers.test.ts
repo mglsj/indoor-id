@@ -267,11 +267,49 @@ describe("indoorLayers: edits and labels", () => {
 	const paint = (id: string) =>
 		indoorLayers(0).find((l) => l.id === id)?.paint as Record<string, unknown>;
 
-	it("draws iD's halo colours under edited features, by their feature state", () => {
-		const line = JSON.stringify(paint("indoor-edited-line"));
-		expect(line).toContain('["feature-state","edited"]');
-		for (const colour of ["rgb(133, 255, 103)", "#fcde5a", "rgb(255, 126, 46)"])
-			expect(line).toContain(colour);
+	const lines = (edits?: "indoorid" | "id") =>
+		indoorLayers(0, { presentation: "edit", ...(edits ? { edits } : {}) })
+			.filter((l) => l.id.startsWith("indoor-edited-line-"))
+			.map((l) => l.paint as Record<string, unknown>);
+
+	it("draws each kind of change in its own colour and line style, by feature state (A.4)", () => {
+		const paints = lines();
+		expect(paints.map((p) => p["line-color"])).toEqual([
+			"#15803d",
+			"#7c3aed",
+			"#c2410c",
+		]);
+		const dashes = paints.map((p) => JSON.stringify(p["line-dasharray"]));
+		expect(new Set(dashes).size).toBe(3);
+		for (const p of paints)
+			expect(JSON.stringify(p["line-opacity"])).toContain(
+				'["feature-state","edited"]',
+			);
+	});
+
+	it("keeps iD's halo colours as an option", () => {
+		expect(lines("id").map((p) => p["line-color"])).toEqual([
+			"rgb(133, 255, 103)",
+			"#fcde5a",
+			"rgb(255, 126, 46)",
+		]);
+	});
+
+	it("draws the selection in its colour over a white casing (A.4)", () => {
+		const layers = indoorLayers(0, {
+			presentation: "edit",
+			selection: "#00aa00",
+		});
+		const at = (id: string) => layers.findIndex((l) => l.id === id);
+		expect(paint("indoor-selection-line")["line-color"]).toBe("#1d4ed8");
+		const chosen = layers[at("indoor-selection-line")]?.paint as
+			| Record<string, unknown>
+			| undefined;
+		expect(chosen?.["line-color"]).toBe("#00aa00");
+		expect(paint("indoor-selection-casing")["line-color"]).toBe("#ffffff");
+		expect(at("indoor-selection-casing")).toBeLessThan(
+			at("indoor-selection-line"),
+		);
 	});
 
 	it("hides labels near the pointer", () => {

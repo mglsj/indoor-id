@@ -2173,3 +2173,54 @@ brightness, contrast and saturation sliders (25–200%, for the page only, as iD
 **Drag to move the imagery** (iD's offset pad): the imagery follows a quarter of the pointer's
 moves, applied every 120 ms; `setBackground` now keeps the imagery shown under the new one
 until the new tiles are in (numbered layers), so moving the offset no longer flashes the map.
+
+## A: Accessibility and layout, from the 2026-11-24 audit (November 2026)
+
+Agreed with the user on 2026-11-24 and 2026-11-25 ✔ ([audit-2026-11-24.md](audit-2026-11-24.md),
+its "Decisions (25 November)"). Scope: good practice with WCAG 2.2 AA's 3:1 (graphics, states)
+and 4.5:1 (text) as the yardstick, no new features, the editor desktop only, the viewer also on
+a phone. Done ✅ 2026-11-25 in seven stacked PRs:
+
+- **A.1 Theme tokens** (#60): `--ring` 0.45/0.70 drawn at full strength (an unlayered
+  `:focus-visible` rule), `--input` 0.70/35% white, `--muted-foreground` 0.50, a `--pressed`
+  token on `[aria-pressed=true]` and toggles that are on (was 1.09:1 light, 1.31:1 dark against
+  their neighbours), a blue `--mode` for building mode, `--warning` for the issues button's
+  yellow triangle beside the red octagon of errors. `tests/e2e/a11y.spec.ts` measures pressed
+  tools, the selected level and the focus ring at 3:1 or more, as the browser resolves the
+  colours (canvas, so oklch and alpha count), in both themes.
+- **A.2 Layout** (#61): the header holds place search, Save, Issues and "?" (`HeaderSlots`,
+  `ui/header.svelte.ts`); the right column is Background, Floor plans (moved from the side
+  panel into a 320 px pane, so plans and the inspector can be open together), Guides, Map data
+  and the level switcher; building-only tools show disabled outside a building with their
+  reason; Measure/Guide is a split button. Building mode: a blue bar at the bottom middle
+  ("Leave building", Esc), a 3 px frame, a breadcrumb and a hint the first 3 times. One bottom
+  stack for the mode bar, load status and hints (`StatusPill`). A bits-ui radio item didn't
+  close its menu when its choice re-rendered the toolbar: the measure menu closes itself.
+- **A.3 Selection bar** (#62): six labelled actions, More and Transform menus, Zoom to
+  selection; the right-click menu grouped the same way, opening upward near the bottom. The
+  grouping is data (`groupOperations`); split joined `OPERATIONS`.
+- **A.4 Map data** (#63): area fill and Highlight changes moved out of Background into a Map
+  data pane with the selection, grid and new-guide colours (`state/appearance.svelte.ts`,
+  `indoorid.appearance`). New defaults on the light map: the selection blue `#1d4ed8` over a
+  white casing (was amber, 1.8:1), the grid slate at 70%/100% (was the guides' magenta,
+  1.2–1.7:1), changes in their own colour and line style (added solid green, retagged dashed
+  purple, reshaped dotted orange; iD's halo was 1.05–2.1:1 and alike under deuteranopia), iD's
+  halo kept as an option. Background hides the imagery settings without imagery.
+- **A.5 Inspector and levels** (#65): Level first for every feature that may have one
+  (`fieldList`; values of fields without options no longer in monospace), the switcher shows
+  the level once and, in a building, all its levels whatever is in view; Measurements starts
+  open (sections already remembered their state); presets without an icon get a placeholder.
+- **A.6 Keyboard and semantics** (#66): toolbars with roving focus (`ui/roving.ts`), skip links
+  (a `skips` header slot), the map after the side panel and tools in the DOM, page titles
+  ("Edit · {building} · IndoorID"), the help page's `h1`, reduced motion (MapLibre already
+  skips camera animations without `essential`), Undo/Redo tooltips naming the step
+  (`EditHistory.undoLabel`), PageUp/PageDown (`LEVEL_KEYS`), a search in the shortcuts dialog.
+- **A.7 Viewer on phones**: below `sm` the header drops the version, puts the pages and
+  Licenses in a menu and the search behind an icon that opens over the header; the places panel
+  is a sheet on the bottom half; the floor numbering chips are labelled; the tools column
+  leaves less room for the right column on a phone, so it no longer runs under Background.
+
+Dropped on 2026-11-25 ✔: the command palette, the status bar, vertex and label size settings,
+floor plan tint, basemap dimming, UI density, a high-contrast mode (A.1 covers it), recent tags,
+the first-run tour, saved views per building, the undo history list, default units from the
+map's country.

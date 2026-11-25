@@ -412,3 +412,27 @@ describe("EditHistory.save and restore: autosaved edits back over newer download
 		expect(tagsOf(history, "n1")).toEqual({ amenity: "bench" });
 	});
 });
+
+describe("EditHistory: what Undo and Redo do (A.6)", () => {
+	it("names the step Undo takes back, and the one Redo does again", () => {
+		const history = benches();
+		expect(history.undoLabel).toBeNull();
+		history.perform(
+			changeTags("n1", { amenity: "bench", name: "New" }),
+			msg("operation_delete"),
+		);
+		history.perform(deleteEntities(["n2"]), msg("operation_square"));
+		expect(history.undoLabel).toEqual(msg("operation_square"));
+		expect(history.redoLabel).toBeNull();
+		history.undo();
+		expect(history.undoLabel).toEqual(msg("operation_delete"));
+		expect(history.redoLabel).toEqual(msg("operation_square"));
+	});
+
+	it("names nothing while a drag is shown", () => {
+		const history = benches();
+		history.perform(deleteEntities(["n2"]), msg("operation_delete"));
+		history.preview(moveNode("n1", [2.36, 48.85]));
+		expect(history.undoLabel).toBeNull();
+	});
+});

@@ -289,8 +289,11 @@
 		class={cn(
 			"flex h-8 w-full min-w-0 rounded-lg border border-input bg-transparent py-1 pl-2.5 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30",
 			raw ? "pr-2.5" : "pr-8",
+			// A value the field's options don't know, as a raw tag value; a field without
+			// options (Level, A.5) has none to know it by, so its values read as text.
 			!plain &&
 				value !== undefined &&
+				field.options.length > 0 &&
 				!field.options.some((o) => o.value === value) &&
 				"font-mono text-xs",
 		)}

@@ -16,7 +16,6 @@ import {
 	lngLatAt,
 	mapDrawn,
 	mapLocator,
-	pixelAt,
 	room,
 	serveOsm,
 	test,
@@ -24,6 +23,15 @@ import {
 } from "./fixtures.ts";
 
 const FILES = path.join(import.meta.dirname, "files");
+
+/**
+ * Wide enough that plans and their control points stay clear of the floor plans pane, which
+ * covers the right of the map (A.2). Only where it is needed: a bigger map is slower to draw
+ * under SwiftShader, and CI's PDF tests are slow already.
+ */
+async function wide(page: Page) {
+	await page.setViewportSize({ width: 1600, height: 900 });
+}
 const RED: [number, number, number] = [255, 0, 0];
 /** Colour of building outlines in floor plan mode. */
 const BUILDING_OUTLINE: [number, number, number] = [0xd6, 0x24, 0x9f];
@@ -46,8 +54,9 @@ async function importPlan(page: Page, file: string) {
 }
 
 /**
- * Where new plans go: the middle of the map beside the floor plan side panel. `mx` is the map's
- * own centre, (LON, LAT); `scale`, the screen pixels a plan pixel `planHeight` tall takes.
+ * Where new plans go: the middle of the map left of the floor plans pane (A.2: on the right).
+ * `mx` is the map's own centre, (LON, LAT); `scale`, the screen pixels a plan pixel
+ * `planHeight` tall takes.
  */
 async function initialLayout(page: Page, planHeight: number) {
 	const box = await mapLocator(page).boundingBox();
@@ -55,9 +64,8 @@ async function initialLayout(page: Page, planHeight: number) {
 		.getByRole("complementary", { name: "Floor plan editor" })
 		.boundingBox();
 	if (!box || !panel) throw new Error("No map or floor plan panel");
-	const left = panel.x + panel.width;
 	return {
-		cx: (left + box.x + box.width) / 2,
+		cx: (box.x + panel.x) / 2,
 		cy: box.y + box.height / 2,
 		mx: box.x + box.width / 2,
 		scale: (box.height * 0.6) / planHeight,
@@ -123,6 +131,11 @@ test("imports an SVG plan as paths, without running its scripts, kept after a re
 		.toBe(true);
 	await page.reload();
 	await page.getByRole("button", { name: "Floor plans" }).click();
+	// In Edit, the mall's fill is hidden (A.2: only a plan in Edit hides the map's features).
+	await planRows(page)
+		.first()
+		.getByRole("button", { name: /^Edit / })
+		.click();
 	await expectPlanDrawn(page, [0, 255, 0], 4 / 3);
 });
 
@@ -371,7 +384,7 @@ function mall() {
 	);
 }
 
-test("floor plan mode shows only building outlines, without selection", async ({
+test("floor plans open beside the inspector; a plan in Edit shows only building outlines (A.2)", async ({
 	page,
 }) => {
 	// A room inside a mall 0.0008° (~600 px at zoom 19) wide, tagged as the one in Rennes.
@@ -385,30 +398,43 @@ test("floor plan mode shows only building outlines, without selection", async ({
 	await mapDrawn(page);
 	await page.mouse.click(centre.x, centre.y);
 	await expect(editor).toBeVisible();
-	const editing = await pixelAt(page, centre.x, centre.y);
 
-	// The feature editor and the floor plan editor take turns in the side panel, on the left.
-	const editorBox = await editor.boundingBox();
-	expect(editorBox?.x).toBe(box.x);
+	// The feature editor stays on the left; the floor plans pane opens on the right.
 	await page.getByRole("button", { name: "Floor plans" }).click();
-	await expect(editor).toBeHidden();
 	const planEditor = page.getByRole("complementary", {
 		name: "Floor plan editor",
 	});
 	await expect(planEditor).toBeVisible();
-	expect((await planEditor.boundingBox())?.x).toBe(box.x);
-	await expect(page.getByRole("group", { name: "Edit history" })).toBeHidden();
-	// Rooms and fills are hidden; the building's outline is drawn ~298 px right of the centre.
-	await expectPixel(page, centre.x, centre.y, BACKGROUND);
+	await expect(editor).toBeVisible();
+	expect((await editor.boundingBox())?.x).toBe(box.x);
+	const pane = await planEditor.boundingBox();
+	expect((pane?.x ?? 0) + (pane?.width ?? 0)).toBe(box.x + box.width);
+	await expect(
+		page.getByRole("toolbar", { name: "Edit history" }),
+	).toBeVisible();
+
+	// A plan in Edit blocks editing: nothing selected, no tools, rooms hidden; the building's
+	// outline is drawn ~298 px right of the centre.
+	await page
+		.getByLabel("Import a floor plan")
+		.setInputFiles(path.join(FILES, "plan.png"));
+	await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue("plan");
+	await expect(editor).toBeHidden();
+	await expect(
+		page.getByRole("toolbar", { name: "Edit history" }),
+	).toBeHidden();
 	await expectPixel(page, centre.x + 298, centre.y, BUILDING_OUTLINE, 40);
-	// Clicking a room selects nothing.
-	await page.mouse.click(centre.x, centre.y);
+	await page.mouse.click(centre.x + 250, centre.y);
 	await expect(editor).toBeHidden();
 
+	// Done with the plan: editing again, with the pane still open.
+	await page.getByRole("button", { name: "Done" }).click();
+	await expect(
+		page.getByRole("toolbar", { name: "Edit history" }),
+	).toBeVisible();
+	await expect(planEditor).toBeVisible();
 	await page.getByRole("button", { name: "Close" }).click();
 	await expect(planEditor).toBeHidden();
-	await expect(page.getByRole("group", { name: "Edit history" })).toBeVisible();
-	await expectPixel(page, centre.x, centre.y, editing);
 });
 
 test("draws a plan over the rooms already mapped", async ({ page }) => {
@@ -487,6 +513,7 @@ function nodesOnLevel(level: string, ...offsets: [number, number][]) {
 test("aligns a plan with control points snapped to OSM nodes", async ({
 	page,
 }) => {
+	await wide(page);
 	// Nodes A and B, 360 × 260 screen px apart: plan pixels (20, 20) and (380, 280) go there.
 	const A: [number, number] = [-180, -130];
 	const B: [number, number] = [180, 130];
@@ -553,6 +580,7 @@ test("snaps a control point to a vector plan's own corner", async ({
 test("control points don't snap to nodes on another level", async ({
 	page,
 }) => {
+	await wide(page);
 	const A: [number, number] = [-180, -130];
 	const B: [number, number] = [180, 130];
 	// The wall is on level 1; level 0 is shown.
@@ -579,6 +607,7 @@ test("control points don't snap to nodes on another level", async ({
 test("shows how far each control point is from where the plan puts it", async ({
 	page,
 }) => {
+	await wide(page);
 	const A: [number, number] = [-180, -130];
 	const B: [number, number] = [180, 130];
 	await serveOsm(page, nodesAt(A, B));
@@ -663,83 +692,88 @@ test("keeps plans, where they were placed, after a reload", async ({
 	await expect(planRows(page)).toContainText(["plan 400 × 300 px"]);
 });
 
-test("draws a large stored plan's tiles on screen only, more as the map is panned", async ({
-	page,
-}) => {
-	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
-	// 6000 × 1500 px: three columns of 2048 px tiles, red, green and blue.
-	const png = await page.evaluate(async () => {
-		const canvas = new OffscreenCanvas(6000, 1500);
-		const context = canvas.getContext("2d");
-		if (!context) throw new Error("No 2D context");
-		for (const [x, color] of [
-			[0, "#ff0000"],
-			[2048, "#00ff00"],
-			[4096, "#0000ff"],
-		] as const) {
-			context.fillStyle = color;
-			context.fillRect(x, 0, 2048, 1500);
-		}
-		const blob = await canvas.convertToBlob({ type: "image/png" });
-		const bytes = new Uint8Array(await blob.arrayBuffer());
-		let binary = "";
-		for (const byte of bytes) binary += String.fromCharCode(byte);
-		return btoa(binary);
-	});
-	await page.getByRole("button", { name: "Floor plans" }).click();
-	await page.getByLabel("Import a floor plan").setInputFiles({
-		name: "large.png",
-		mimeType: "image/png",
-		buffer: Buffer.from(png, "base64"),
-	});
-	const latitude = page.getByRole("spinbutton", { name: "Latitude" });
-	const longitude = page.getByRole("spinbutton", { name: "Longitude" });
-	await expect(latitude).not.toHaveValue("");
-	const centre = [await latitude.inputValue(), await longitude.inputValue()];
-	await page.getByRole("button", { name: "Done" }).click();
-	// Saved once its tiles are encoded: then they load from storage, not decoded yet.
-	await expect
-		.poll(
-			async () => {
-				const { plans, complete } = await storedPlans(page);
-				return complete && JSON.parse(plans).length === 1;
-			},
-			{ timeout: 60_000 },
-		)
-		.toBe(true);
+test.describe("at the default size", () => {
+	// The tiles counted are those of a 1280 × 720 screen.
+	test.use({ viewport: { width: 1280, height: 720 } });
 
-	// Zoomed in on the plan's middle: about a plan pixel a screen pixel, its full size drawn,
-	// only the green tile on screen.
-	await page.goto(`/#21/${centre[0]}/${centre[1]}/0${INDOOR}`);
-	await page.reload();
-	const map = mapLocator(page);
-	await expect(map).toHaveAttribute("data-plan-tiles", "1", {
-		timeout: 20_000,
-	});
-	const box = await map.boundingBox();
-	if (!box) throw new Error("No map");
-	const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-	await expectPixel(
+	test("draws a large stored plan's tiles on screen only, more as the map is panned", async ({
 		page,
-		middle.x,
-		middle.y,
-		blend([0, 255, 0], 0.5, BACKGROUND),
-	);
+	}) => {
+		await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
+		// 6000 × 1500 px: three columns of 2048 px tiles, red, green and blue.
+		const png = await page.evaluate(async () => {
+			const canvas = new OffscreenCanvas(6000, 1500);
+			const context = canvas.getContext("2d");
+			if (!context) throw new Error("No 2D context");
+			for (const [x, color] of [
+				[0, "#ff0000"],
+				[2048, "#00ff00"],
+				[4096, "#0000ff"],
+			] as const) {
+				context.fillStyle = color;
+				context.fillRect(x, 0, 2048, 1500);
+			}
+			const blob = await canvas.convertToBlob({ type: "image/png" });
+			const bytes = new Uint8Array(await blob.arrayBuffer());
+			let binary = "";
+			for (const byte of bytes) binary += String.fromCharCode(byte);
+			return btoa(binary);
+		});
+		await page.getByRole("button", { name: "Floor plans" }).click();
+		await page.getByLabel("Import a floor plan").setInputFiles({
+			name: "large.png",
+			mimeType: "image/png",
+			buffer: Buffer.from(png, "base64"),
+		});
+		const latitude = page.getByRole("spinbutton", { name: "Latitude" });
+		const longitude = page.getByRole("spinbutton", { name: "Longitude" });
+		await expect(latitude).not.toHaveValue("");
+		const centre = [await latitude.inputValue(), await longitude.inputValue()];
+		await page.getByRole("button", { name: "Done" }).click();
+		// Saved once its tiles are encoded: then they load from storage, not decoded yet.
+		await expect
+			.poll(
+				async () => {
+					const { plans, complete } = await storedPlans(page);
+					return complete && JSON.parse(plans).length === 1;
+				},
+				{ timeout: 60_000 },
+			)
+			.toBe(true);
 
-	// Panned 1200 px east: the blue tile comes on screen, right of the middle.
-	await page.mouse.move(middle.x + 600, middle.y);
-	await page.mouse.down();
-	await page.mouse.move(middle.x - 600, middle.y, { steps: 20 });
-	await page.mouse.up();
-	await expect(map).toHaveAttribute("data-plan-tiles", "2", {
-		timeout: 20_000,
+		// Zoomed in on the plan's middle: about a plan pixel a screen pixel, its full size drawn,
+		// only the green tile on screen.
+		await page.goto(`/#21/${centre[0]}/${centre[1]}/0${INDOOR}`);
+		await page.reload();
+		const map = mapLocator(page);
+		await expect(map).toHaveAttribute("data-plan-tiles", "1", {
+			timeout: 20_000,
+		});
+		const box = await map.boundingBox();
+		if (!box) throw new Error("No map");
+		const middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+		await expectPixel(
+			page,
+			middle.x,
+			middle.y,
+			blend([0, 255, 0], 0.5, BACKGROUND),
+		);
+
+		// Panned 1200 px east: the blue tile comes on screen, right of the middle.
+		await page.mouse.move(middle.x + 600, middle.y);
+		await page.mouse.down();
+		await page.mouse.move(middle.x - 600, middle.y, { steps: 20 });
+		await page.mouse.up();
+		await expect(map).toHaveAttribute("data-plan-tiles", "2", {
+			timeout: 20_000,
+		});
+		await expectPixel(
+			page,
+			middle.x + 450,
+			middle.y,
+			blend([0, 0, 255], 0.5, BACKGROUND),
+		);
 	});
-	await expectPixel(
-		page,
-		middle.x + 450,
-		middle.y,
-		blend([0, 0, 255], 0.5, BACKGROUND),
-	);
 });
 
 test("shows a plan only on its level", async ({ page }) => {
@@ -1266,6 +1300,7 @@ test("puts a plan back as it was when Edit was pressed on Cancel", async ({
 test("asks to save or discard a plan's changes when closing floor plans", async ({
 	page,
 }) => {
+	await wide(page);
 	// Three rounds (keep editing, discard, save and reload) while the worker still encodes the
 	// imported plan's tiles: 22–27 s of the default 30 under SwiftShader, so it timed out.
 	test.slow();
@@ -1328,15 +1363,20 @@ test("draws the layers in the list's order, changed by dragging or Alt+arrows", 
 		.setInputFiles(path.join(FILES, "plan.svg"));
 	await page.getByRole("button", { name: "Done" }).click();
 	await expect(page.getByTestId("load-status")).toBeHidden();
-	// The two plans lie on each other; the mall's outline runs ~298 px right of the map
-	// centre, under both of them.
+	// A plan in Edit: the map shows only building outlines (A.2), not the mall's fill.
+	await planRows(page)
+		.first()
+		.getByRole("button", { name: /^Edit / })
+		.click();
+	// The two plans lie on each other; the mall's outline runs ~298 px left of the map
+	// centre (as right of it), under both of them.
 	const { cx, cy, mx } = await initialLayout(page, 300);
 	const GREEN: [number, number, number] = [0, 255, 0];
 	const greenOnRed = blend(GREEN, 0.5, blend(RED, 0.5, BACKGROUND));
 	const redOnGreen = blend(RED, 0.5, blend(GREEN, 0.5, BACKGROUND));
 	await expectPixel(page, cx, cy, greenOnRed);
 	// The buildings start on top.
-	await expectPixel(page, mx + 298, cy, BUILDING_OUTLINE, 40);
+	await expectPixel(page, mx - 298, cy, BUILDING_OUTLINE, 40);
 	await expect(
 		page.getByRole("list", { name: "Layers" }).getByRole("listitem").first(),
 	).toContainText("Buildings");
@@ -1367,7 +1407,7 @@ test("draws the layers in the list's order, changed by dragging or Alt+arrows", 
 	).toContainText("Buildings");
 	await expectPixel(
 		page,
-		mx + 298,
+		mx - 298,
 		cy,
 		blend(GREEN, 0.5, blend(RED, 0.5, BUILDING_OUTLINE)),
 		12,
@@ -1375,7 +1415,7 @@ test("draws the layers in the list's order, changed by dragging or Alt+arrows", 
 
 	// Hidden: only the plans are left.
 	await page.getByRole("button", { name: "Show buildings" }).click();
-	await expectPixel(page, mx + 298, cy, greenOnRed);
+	await expectPixel(page, mx - 298, cy, greenOnRed);
 });
 
 test("shows the map's grab cursor over plans when none is in Edit", async ({

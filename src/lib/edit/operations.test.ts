@@ -5,6 +5,7 @@ import type { EntityId } from "#lib/osm/entity.ts";
 import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import {
+	groupOperations,
 	OPERATIONS,
 	type Operation,
 	type OperationContext,
@@ -70,6 +71,7 @@ describe("OPERATIONS", () => {
 			"square-frame",
 			"straighten",
 			"symmetric",
+			"split",
 			"delete",
 		]);
 		expect(offered(context(["n7"]))).toEqual([
@@ -89,6 +91,7 @@ describe("OPERATIONS", () => {
 			"merge",
 			"multipolygon",
 			...tools,
+			"split",
 			"delete",
 		]);
 		const clipboard = copyEntities(graph(), ["n7"]);
@@ -162,6 +165,52 @@ describe("OPERATIONS", () => {
 		expect(loc[0]).toBeCloseTo(5, 9);
 		expect(loc[1]).toBeCloseTo(5, 9);
 		expect(annotation).toEqual(msg("undo_paste"));
+	});
+});
+
+describe("groupOperations (A.3)", () => {
+	const ids = (list: readonly Operation[]) => list.map((o) => o.id);
+
+	it("puts the six main actions first, in the bar's order, then More and Transform", () => {
+		const groups = groupOperations(
+			OPERATIONS.filter((o) => o.available(context(["w1"]))),
+		);
+		expect(ids(groups.main)).toEqual([
+			"delete",
+			"copy",
+			"square",
+			"repeat",
+			"split",
+		]);
+		expect(ids(groups.more)).toEqual(["disconnect"]);
+		expect(ids(groups.transform)).toEqual([
+			"move",
+			"rotate",
+			"scale",
+			"side",
+			"offset",
+			"square-frame",
+			"straighten",
+			"symmetric",
+		]);
+	});
+
+	it("lists merge with the main actions, and multipolygon and paste under More", () => {
+		const clipboard = copyEntities(graph(), ["n7"]);
+		const groups = groupOperations(
+			OPERATIONS.filter((o) =>
+				o.available(context(["w1", "w2"], { clipboard })),
+			),
+		);
+		expect(ids(groups.main)).toEqual(["delete", "copy", "merge", "split"]);
+		expect(ids(groups.more)).toEqual(["paste", "multipolygon"]);
+	});
+
+	it("splits the selected areas with the split tool", () => {
+		expect(operation("split").run(context(["w1"]))).toEqual({
+			kind: "split",
+		});
+		expect(operation("split").available(context(["n7"]))).toBe(false);
 	});
 });
 

@@ -127,7 +127,10 @@ test("a dragged corner shows the lengths of both its sides", async ({
 test("the side panel measures the selected room", async ({ page }) => {
 	await metric(page);
 	await selectRoom(page);
-	await page.getByRole("button", { name: "Measurements" }).click();
+	// Open from the start (A.5).
+	await expect(
+		page.getByRole("button", { name: "Measurements" }),
+	).toHaveAttribute("aria-expanded", "true");
 	const measurements = page.getByTestId("measurements");
 	await expect(measurements).toContainText("Area");
 	await expect(measurements).toContainText("m²");
@@ -137,7 +140,6 @@ test("the side panel measures the selected room", async ({ page }) => {
 /** Opens the new feature's panel past its type list, at its measurements. */
 async function measurements(page: Page) {
 	await page.getByRole("button", { name: "Back to the feature" }).click();
-	await page.getByRole("button", { name: "Measurements" }).click();
 	return page.getByTestId("measurements");
 }
 
@@ -384,11 +386,13 @@ test("a guide at a typed distance from a side is snapped to, and kept", async ({
 }) => {
 	await metric(page);
 	const { x, y } = await roomMap(page);
-	await page.getByRole("button", { name: "Measure and guide" }).click();
 	await page
-		.getByTestId("measure-mode")
-		.getByRole("radio", { name: "Guide" })
+		.getByRole("button", { name: "Measure and guide", exact: true })
 		.click();
+	// Measure or Guide: the split button's menu (A.2).
+	await page.getByTestId("measure-mode").click();
+	await page.getByRole("menuitemradio", { name: "Guide" }).click();
+	await expect(page.getByRole("menu")).toBeHidden();
 	await expect(page.getByTestId("draw-hint")).toContainText("guide");
 	// The room's north side, then 2 m north of it.
 	await page.mouse.click(x, y - 223);
@@ -435,10 +439,10 @@ test("guides line up with each other: parallel at a typed distance, or square th
 	await metric(page);
 	const { x, y } = await emptyMap(page);
 	await page.keyboard.press("m");
-	await page
-		.getByTestId("measure-mode")
-		.getByRole("radio", { name: "Guide" })
-		.click();
+	// Measure or Guide: the split button's menu (A.2).
+	await page.getByTestId("measure-mode").click();
+	await page.getByRole("menuitemradio", { name: "Guide" }).click();
+	await expect(page.getByRole("menu")).toBeHidden();
 	// Guide 1 through the centre, 37° from east (north up: the frame's angle is 0).
 	await page.mouse.click(x, y);
 	await page.mouse.move(x + 100, y);
@@ -540,7 +544,6 @@ test("arrow keys nudge the selection, not the map", async ({ page }) => {
 test("a side's length is typed in the measurements", async ({ page }) => {
 	await metric(page);
 	await selectRoom(page);
-	await page.getByRole("button", { name: "Measurements" }).click();
 	const first = page.getByLabel("Side 1");
 	await first.fill("35 m");
 	await first.press("Enter");

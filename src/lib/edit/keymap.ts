@@ -69,7 +69,8 @@ export const DRAWING_KEYS: readonly KeyEntry[] = [
 
 /** Keys on the selection: the operations', and moving it with the arrows. */
 export const SELECTION_KEYS: readonly KeyEntry[] = [
-	...OPERATIONS.map((o) => ({
+	// Split has no key of its own: the split tool's X is listed with the map's keys.
+	...OPERATIONS.filter((o) => o.keys.length > 0).map((o) => ({
 		combo: o.keys[0] ?? "",
 		also: o.keys.slice(1),
 		action: o.id,
@@ -77,6 +78,12 @@ export const SELECTION_KEYS: readonly KeyEntry[] = [
 	})),
 	{ combo: "Arrows", action: "nudge", label: msg("key_nudge") },
 	{ combo: "Escape", action: "deselect", label: msg("key_deselect") },
+];
+
+/** Keys of the level switcher (A.6), wherever it shows: `LevelControl` listens to them. */
+export const LEVEL_KEYS: readonly KeyEntry<"level-up" | "level-down">[] = [
+	{ combo: "PageUp", action: "level-up", label: msg("key_level_up") },
+	{ combo: "PageDown", action: "level-down", label: msg("key_level_down") },
 ];
 
 export interface KeyGroup {
@@ -87,6 +94,7 @@ export interface KeyGroup {
 /** The help's groups, in order. */
 export const KEY_GROUPS: readonly KeyGroup[] = [
 	{ title: msg("keys_map"), keys: MAP_KEYS },
+	{ title: msg("keys_levels"), keys: LEVEL_KEYS },
 	{ title: msg("keys_selection"), keys: SELECTION_KEYS },
 	{ title: msg("keys_drawing"), keys: DRAWING_KEYS },
 ];

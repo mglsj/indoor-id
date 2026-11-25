@@ -77,12 +77,14 @@ describe("fieldList, as iD's Fields section", () => {
 	it("shows the type's fields for the geometry, then the others with a value, by label", () => {
 		const tags = { amenity: "cafe", opening_hours: "24/7", note: "Closed" };
 		expect(labels(listed(tags).shown)).toEqual([
+			"Level",
 			"Name",
 			"Cuisine",
 			"Hours",
 			"Note",
 		]);
 		expect(labels(listed(tags, "area").shown)).toEqual([
+			"Level",
 			"Name",
 			"Cuisine",
 			"Building",
@@ -94,7 +96,7 @@ describe("fieldList, as iD's Fields section", () => {
 	it("shows the fields added, even without a value", () => {
 		expect(
 			labels(listed({ amenity: "cafe" }, "point", ["description"]).shown),
-		).toEqual(["Name", "Cuisine", "Description"]);
+		).toEqual(["Level", "Name", "Cuisine", "Description"]);
 	});
 
 	it("offers the others in Add field, the universal ones last", () => {
@@ -102,7 +104,6 @@ describe("fieldList, as iD's Fields section", () => {
 		expect(labels(listed({ amenity: "cafe" }).addable)).toEqual([
 			"Hours",
 			"Internet Fee",
-			"Level",
 			"Description",
 			"Note",
 		]);
@@ -118,6 +119,57 @@ describe("fieldList, as iD's Fields section", () => {
 		expect(
 			labels(listed({ amenity: "cafe", name: "Le Sully" }).addable),
 		).toContain("Alternative Name");
+	});
+
+	it("pins Level first for every feature, in an indoor editor (A.5)", () => {
+		const room: Preset = {
+			id: "indoor/room",
+			name: "Room",
+			terms: [],
+			geometry: ["area"],
+			tags: { indoor: "room" },
+			fields: ["name"],
+			moreFields: [],
+		};
+		// Not one of the type's fields: Level comes first all the same.
+		expect(
+			labels(
+				fieldList(index, room, { indoor: "room" }, "area", new Set()).shown,
+			),
+		).toEqual(["Level", "Name"]);
+		// A type's own levels field (several levels) takes its place.
+		const stairs: Preset = {
+			...room,
+			id: "stairs",
+			fields: ["name", "level_semi"],
+		};
+		const semi = new PresetIndex(
+			[stairs],
+			[
+				name,
+				field("level", "level", "Level"),
+				field("level_semi", "level", "Levels"),
+			],
+		);
+		expect(
+			labels(fieldList(semi, stairs, {}, "area", new Set()).shown),
+		).toEqual(["Levels", "Name"]);
+	});
+
+	it("leaves Level out where its prerequisite says so (a building), unless set", () => {
+		const building = new PresetIndex(
+			[cafe],
+			[
+				name,
+				field("level", "level", "Level", {
+					prerequisiteTag: { keyNot: "building" },
+				}),
+			],
+		);
+		const shown = (tags: Record<string, string>) =>
+			labels(fieldList(building, cafe, tags, "area", new Set()).shown);
+		expect(shown({ building: "yes" })).not.toContain("Level");
+		expect(shown({ building: "yes", level: "0" })[0]).toBe("Level");
 	});
 
 	it("shows a field with a value whatever its prerequisite", () => {

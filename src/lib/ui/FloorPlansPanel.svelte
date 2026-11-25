@@ -55,7 +55,7 @@
 
 <aside
 	aria-label={t(msg("plans_editor"))}
-	class="flex h-full w-full flex-col border-r bg-background shadow-lg"
+	class="flex h-full w-full flex-col border-l bg-background shadow-lg"
 >
 	<header class="flex items-start gap-2 px-4 py-3">
 		<div class="min-w-0 flex-1">

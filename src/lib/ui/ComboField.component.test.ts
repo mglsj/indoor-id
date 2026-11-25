@@ -42,6 +42,32 @@ function renderCombo(props: Partial<{ value: string; mixed: boolean }> = {}) {
 }
 
 describe("ComboField", () => {
+	it("shows a value its options don't know as a raw tag", async () => {
+		renderCombo({ value: "ramen" });
+		await expect.element(page.getByRole("combobox")).toHaveClass(/font-mono/);
+	});
+
+	it("shows a level, a field without options, in the normal font (A.5)", async () => {
+		render(ComboField, {
+			props: {
+				field: {
+					...cuisine,
+					id: "level",
+					key: "level",
+					label: "Level",
+					options: [],
+				},
+				value: "0;1",
+				context,
+				locked: false,
+				onchange: vi.fn(),
+			},
+		});
+		await expect
+			.element(page.getByRole("combobox"))
+			.not.toHaveClass(/font-mono/);
+	});
+
 	it("shows the value's label, and changes it to an option chosen with the keys", async () => {
 		const { onchange, input } = renderCombo({ value: "pizza" });
 		await expect.element(input).toHaveValue("Pizza");

@@ -104,7 +104,8 @@ test("shows a custom tile URL, moved by an offset", async ({ page }) => {
 
 	const pane = await openPane(page);
 	const offset = pane.getByLabel("Offset in metres (east, north)");
-	await expect(offset).toBeDisabled();
+	// Only imagery moves: the offset shows once imagery is chosen (A.4).
+	await expect(offset).toBeHidden();
 	await pane.getByRole("radio", { name: "Custom" }).check();
 	const url = pane.getByLabel("Tile URL");
 	await url.fill("https://tiles.example.test/{zoom}/{x}");

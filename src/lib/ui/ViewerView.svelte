@@ -8,6 +8,7 @@
 	 * bubbles show where indoor data is (`Discovery`, V.2).
 	 */
 	import { untrack } from "svelte";
+	import { MediaQuery } from "svelte/reactivity";
 	import { Overpass } from "#lib/api/overpass.ts";
 	import { RecentUploads } from "#lib/api/recent-uploads.ts";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
@@ -104,6 +105,8 @@
 	/** The side panel (V.3): open from the start on wide screens. */
 	const PANEL_WIDTH = 320;
 	let panelOpen = $state(window.innerWidth >= 768);
+	/** On a phone (A.7) the panel is a sheet at the bottom, over the map, not beside it. */
+	const phone = new MediaQuery("(width < 40rem)");
 	const extent = $derived(camera ? (visibleExtent(map) ?? null) : null);
 
 	// Rooms coloured by their use, or the first point of interest inside them.
@@ -121,6 +124,10 @@
 		map?.easeTo({
 			center: [place.loc[0], place.loc[1]],
 			zoom: Math.max(map.getZoom(), 19),
+			// Over the sheet on a phone: in the middle of the map left above it.
+			offset: phone.current
+				? [0, -map.getContainer().clientHeight / 4]
+				: [0, 0],
 		});
 	}
 
@@ -171,7 +178,7 @@
 	bind:camera
 	presentation="view"
 	{numbering}
-	left={panelOpen ? PANEL_WIDTH : 0}
+	left={panelOpen && !phone.current ? PANEL_WIDTH : 0}
 >
 	{#snippet controls()}
 		<div class="rounded-md bg-background shadow-md">
@@ -187,12 +194,20 @@
 		</div>
 	{/snippet}
 	{#snippet tools()}
-		<div class="rounded-md bg-background shadow-md">
+		<!-- Labelled where it is seen (A.7): the chips alone didn't say what they choose. -->
+		<div
+			class="flex items-center gap-2 rounded-md bg-background pl-2 shadow-md"
+		>
+			<span
+				id="numbering-label"
+				class="text-xs whitespace-nowrap text-muted-foreground"
+				>{t(msg("view_numbering"))}</span
+			>
 			<ToggleGroup.Root
 				type="single"
 				variant="outline"
 				size="sm"
-				aria-label={t(msg("view_numbering"))}
+				aria-labelledby="numbering-label"
 				bind:value={() => numbering, setNumbering}
 			>
 				<ToggleGroup.Item
@@ -211,7 +226,14 @@
 		</div>
 	{/snippet}
 
-	{#if panelOpen}
+	{#if panelOpen && phone.current}
+		<div
+			class="absolute inset-x-0 bottom-0 z-30 h-1/2 overflow-hidden rounded-t-xl border-t shadow-lg"
+			data-testid="places-sheet"
+		>
+			<ViewerPanel {level} {extent} {websiteUrl} onshow={showPlace} />
+		</div>
+	{:else if panelOpen}
 		<div
 			class="absolute inset-y-0 left-0 z-30 max-w-full"
 			style:width="{PANEL_WIDTH}px"
@@ -219,7 +241,7 @@
 			<ViewerPanel {level} {extent} {websiteUrl} onshow={showPlace} />
 		</div>
 	{:else if editor.selected}
-		<div class="absolute bottom-10 left-4 z-30">
+		<div class="absolute right-4 bottom-10 left-4 z-30 sm:right-auto">
 			{#key editor.selected.id}
 				<FeatureCard
 					entity={editor.selected}

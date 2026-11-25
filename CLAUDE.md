@@ -175,7 +175,10 @@ runs the same commands.
 - Viewer (V.1): `/view` is `ui/ViewerView.svelte` on `MapShell` (`presentation="view"`,
   `numbering`), an `Editor` whose `SyncApi` is `api/overpass.ts` with `api/recent-uploads.ts`
   laid over its answers (the editor records each upload through `onupload`); a click shows
-  `ui/FeatureCard.svelte`. Both pages render inside `ui/AppPage.svelte` (header, config).
+  `ui/FeatureCard.svelte`. Both pages render inside `ui/AppPage.svelte` (header, config); a page fills
+  the header (skip links, breadcrumb, search, actions, the title's place) through `HeaderSlots`
+  (`ui/header.svelte.ts`, `useHeaderSlot`). The editor's colours for the grid, guides, selection
+  and changes are `state/appearance.svelte.ts`, set in `ui/MapDataPane.svelte` (A.4).
   `indoorLayers(level, { presentation, fill })`: colours from `style/colors.ts`
   (`INDOOR_COLORS` for the viewer, iD's `EDIT_COLORS` for the editor; the map is always light,
   whatever the page's theme: a dark map was hard to read), applied with
@@ -241,7 +244,8 @@ runs the same commands.
 - **UI**: build with the shadcn-svelte components in `src/lib/components/shadcn/` (added with
   `bunx shadcn-svelte@latest add <name>`, then `bun run format`; don't hand-edit them) and the
   theme's semantic colours (`bg-background`, `text-muted-foreground`…), never raw palette colours
-  or `dark:` overrides. Dark mode follows the system via `mode-watcher` (`.dark` class) until
+  or `dark:` overrides. A row of tools is `role="toolbar"` with `{@attach roving()}`
+  (`ui/roving.ts`, A.6): one Tab stop, arrows inside. Dark mode follows the system via `mode-watcher` (`.dark` class) until
   the header's theme button picks one; MapLibre's controls (`app.css`) follow it, the map itself
   (basemap and indoor colours) stays light. Controls
   floating over the map sit on a `bg-background` wrapper: shadcn's dark outline and input styles

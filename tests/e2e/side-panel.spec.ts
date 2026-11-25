@@ -28,7 +28,7 @@ test("the side panel is resized by dragging its edge, and keeps its width", asyn
 }) => {
 	const editor = await selectRoom(page);
 	expect(await width(editor)).toBe(352);
-	const history = page.getByRole("group", { name: "Edit history" });
+	const history = page.getByRole("toolbar", { name: "Edit history" });
 	expect((await history.boundingBox())?.x).toBe(352 + 16);
 
 	await dragEdge(page, 150);
@@ -37,11 +37,12 @@ test("the side panel is resized by dragging its edge, and keeps its width", asyn
 	// The map controls move along, beside the panel.
 	expect((await history.boundingBox())?.x).toBe(502 + 16);
 
-	// The floor plan editor opens at the same width.
+	// The floor plans pane opens on the right (A.2), beside it.
 	await page.getByRole("button", { name: "Floor plans" }).click();
 	const plans = page.getByRole("complementary", { name: "Floor plan editor" });
 	await expect(plans).toBeVisible();
-	expect(await width(plans)).toBe(502);
+	expect(await width(plans)).toBe(320);
+	expect(await width(editor)).toBe(502);
 
 	// And the width is kept after a reload.
 	await plans.getByRole("button", { name: "Close" }).click();

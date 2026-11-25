@@ -1,17 +1,23 @@
 <script lang="ts">
 	import ArrowRightFromLine from "@lucide/svelte/icons/arrow-right-from-line";
 	import BetweenVerticalStart from "@lucide/svelte/icons/between-vertical-start";
+	import Building from "@lucide/svelte/icons/building";
+	import ChevronDown from "@lucide/svelte/icons/chevron-down";
+	import ChevronRight from "@lucide/svelte/icons/chevron-right";
+	import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
 	import ClipboardPaste from "@lucide/svelte/icons/clipboard-paste";
 	import Combine from "@lucide/svelte/icons/combine";
 	import Copy from "@lucide/svelte/icons/copy";
 	import DoorOpen from "@lucide/svelte/icons/door-open";
+	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import FileImage from "@lucide/svelte/icons/file-image";
 	import Grid2x2Check from "@lucide/svelte/icons/grid-2x2-check";
-	import Keyboard from "@lucide/svelte/icons/keyboard";
 	import Layers2 from "@lucide/svelte/icons/layers-2";
 	import MapPin from "@lucide/svelte/icons/map-pin";
 	import Move from "@lucide/svelte/icons/move";
 	import Octagon from "@lucide/svelte/icons/octagon";
+	import OctagonAlert from "@lucide/svelte/icons/octagon-alert";
+	import PaintBucket from "@lucide/svelte/icons/paint-bucket";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import RectangleHorizontal from "@lucide/svelte/icons/rectangle-horizontal";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
@@ -19,8 +25,10 @@
 	import Ruler from "@lucide/svelte/icons/ruler";
 	import RulerDimensionLine from "@lucide/svelte/icons/ruler-dimension-line";
 	import Scaling from "@lucide/svelte/icons/scaling";
+	import Scan from "@lucide/svelte/icons/scan";
 	import Scissors from "@lucide/svelte/icons/scissors";
 	import ScissorsSquare from "@lucide/svelte/icons/scissors-square";
+	import Shapes from "@lucide/svelte/icons/shapes";
 	import Spline from "@lucide/svelte/icons/spline";
 	import Square from "@lucide/svelte/icons/square";
 	import SquareSquare from "@lucide/svelte/icons/square-square";
@@ -30,6 +38,7 @@
 	import Undo2 from "@lucide/svelte/icons/undo-2";
 	import Unlink from "@lucide/svelte/icons/unlink";
 	import Upload from "@lucide/svelte/icons/upload";
+	import X from "@lucide/svelte/icons/x";
 	import { type Component, untrack } from "svelte";
 	import { innerWidth } from "svelte/reactivity/window";
 	import type { Clipboard } from "#lib/actions/copy.ts";
@@ -45,7 +54,6 @@
 	import { Button } from "#lib/components/shadcn/button/index.ts";
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
 	import * as DropdownMenu from "#lib/components/shadcn/dropdown-menu/index.ts";
-	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
 	import type { EditorConfig } from "#lib/config.ts";
 	import { featureDrag, nodesOf } from "#lib/edit/feature-drag.ts";
@@ -87,6 +95,7 @@
 	} from "#lib/edit/modes/transform.ts";
 	import { type NodeGrab, nodeDrag } from "#lib/edit/node-drag.ts";
 	import {
+		groupOperations,
 		OPERATIONS,
 		type Operation,
 		type OperationContext,
@@ -138,6 +147,7 @@
 	import { planDecoders } from "#lib/floorplans/import.ts";
 	import { type Message, MessageError, msg, t } from "#lib/i18n/messages.ts";
 	import { featureLevels } from "#lib/levels/feature-levels.ts";
+	import { shortLabel } from "#lib/levels/level-names.ts";
 	import { isOnLevel } from "#lib/levels/levels.ts";
 	import type { Imagery } from "#lib/map/backgrounds.ts";
 	import { ConstructionLayer } from "#lib/map/construction-layer.ts";
@@ -149,7 +159,7 @@
 		planFrames,
 		toolFeatures,
 	} from "#lib/map/floorplan-layers.ts";
-	import { GridLayer } from "#lib/map/grid-layer.ts";
+	import { GridLayer, type GridStyle } from "#lib/map/grid-layer.ts";
 	import { GuideLayer } from "#lib/map/guide-layer.ts";
 	import { parseHash, type MapView as View } from "#lib/map/hash.ts";
 	import type { IndoorMap } from "#lib/map/indoor-map.ts";
@@ -169,6 +179,11 @@
 	import { hasInterestingTags } from "#lib/osm/tags.ts";
 	import { Autosave } from "#lib/persist/autosave.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
+	import {
+		type Appearance,
+		type AppearanceSettings,
+		DEFAULT_APPEARANCE,
+	} from "#lib/state/appearance.svelte.ts";
 	import { EditAutosave } from "#lib/state/autosave.svelte.ts";
 	import type { BackgroundSettings } from "#lib/state/background.svelte.ts";
 	import { performEdit } from "#lib/state/commands.ts";
@@ -193,7 +208,9 @@
 	import FloorPanel from "#lib/ui/FloorPanel.svelte";
 	import FloorPlansPanel from "#lib/ui/FloorPlansPanel.svelte";
 	import GuidesPane from "#lib/ui/GuidesPane.svelte";
+	import { getHeader, useHeaderSlot } from "#lib/ui/header.svelte.ts";
 	import Inspector from "#lib/ui/Inspector.svelte";
+	import MapDataPane from "#lib/ui/MapDataPane.svelte";
 	import MapShell, { type MapPane } from "#lib/ui/MapShell.svelte";
 	import MeasureLabels from "#lib/ui/MeasureLabels.svelte";
 	import MultiInspector from "#lib/ui/MultiInspector.svelte";
@@ -206,9 +223,11 @@
 	} from "#lib/ui/panel-width.ts";
 	import RepeatDialog from "#lib/ui/RepeatDialog.svelte";
 	import RestoreDialog from "#lib/ui/RestoreDialog.svelte";
+	import { roving } from "#lib/ui/roving.ts";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
 	import ShortcutsDialog from "#lib/ui/ShortcutsDialog.svelte";
 	import SnapMenu, { type FrameControls } from "#lib/ui/SnapMenu.svelte";
+	import StatusPill from "#lib/ui/StatusPill.svelte";
 	import UnsavedPlanDialog from "#lib/ui/UnsavedPlanDialog.svelte";
 	import {
 		previewFeatures,
@@ -345,15 +364,36 @@
 		untrack(() => idleIssues.schedule(() => editor.editIssues));
 		return () => idleIssues.stop();
 	});
-	const issueCount = $derived(
-		editor.history.editCount === 0 ? 0 : (idleIssues.issues?.length ?? 0),
+	const shownIssues = $derived(
+		editor.history.editCount === 0 ? [] : (idleIssues.issues ?? []),
+	);
+	const issueCount = $derived(shownIssues.length);
+	/** Errors and warnings are told apart by their icon, not only its colour (A.1). */
+	const errorCount = $derived(
+		shownIssues.filter((issue) => issue.severity === "error").length,
 	);
 	// Plans saved in earlier visits come back once their images are decoded.
 	/**
 	 * Floor plan mode: the map only shows building outlines to place plans against, and OSM
 	 * features can't be selected or edited.
 	 */
-	let planMode = $state(false);
+	/** The pane open on the right of the map: "background", "floorplans", "guides" or null. */
+	let openPane = $state<string | null>(null);
+	/**
+	 * The floor plans pane is open (A.2: on the right, beside the inspector). Features stay
+	 * editable, until a plan is in Edit: its alignment is floor plan mode, where the map only
+	 * shows building outlines to place plans against and OSM features can't be edited.
+	 */
+	const plansOpen = $derived.by(() => openPane === "floorplans");
+	const planMode = $derived.by(() => plansOpen && floorplans.editing !== null);
+	$effect(() => {
+		if (!planMode) return;
+		untrack(() => {
+			modes?.finish();
+			drawing = null;
+			editor.select(null);
+		});
+	});
 
 	/** The selected building or level outline, which "Edit indoor" enters (B.1). */
 	const enterable = $derived.by(() => {
@@ -391,6 +431,35 @@
 			editor.select(null);
 		}
 	}
+
+	/**
+	 * A hint the first few times a building is entered (A.2), counted in this browser.
+	 */
+	let enteredHint = $state.raw<Message | null>(null);
+	let enteredTimer: ReturnType<typeof setTimeout> | undefined;
+	const ENTERED_HINTS = 3;
+	const ENTERED_KEY = "indoorid.building-hints";
+	function hintEntered() {
+		let shown = 0;
+		try {
+			shown = Number(localStorage.getItem(ENTERED_KEY) ?? 0) || 0;
+			if (shown >= ENTERED_HINTS) return;
+			localStorage.setItem(ENTERED_KEY, String(shown + 1));
+		} catch {
+			// No storage: hint every time.
+		}
+		enteredHint = msg("building_entered_hint", { name: scopeName });
+		clearTimeout(enteredTimer);
+		enteredTimer = setTimeout(() => (enteredHint = null), 6000);
+	}
+	$effect(() => {
+		if (!editor.scope.active) {
+			enteredHint = null;
+			return;
+		}
+		void editor.scope.id;
+		untrack(hintEntered);
+	});
 
 	/** What map mode or building mode offers (B.3). */
 	const offered = $derived(toolsFor(editor.scope.active ? "building" : "map"));
@@ -479,17 +548,15 @@
 		editor.select(id && editor.graph.entity(id) ? id : null);
 	}
 
-	function setPlanMode(on: boolean) {
-		planMode = on;
-		drawing = null;
-		if (on) editor.select(null);
-		// Locks the plan in Edit: callers ask first about unsaved changes (closePlanMode).
-		else floorplans.cancel();
-	}
-
-	/** Leaves floor plan mode, once unsaved changes to the plan in Edit are saved or dropped. */
-	function closePlanMode() {
-		floorplans.whenSaved(() => setPlanMode(false));
+	/**
+	 * Closes the floor plans pane (and calls `then`), once unsaved changes to the plan in Edit
+	 * are saved or dropped; that ends the plan's Edit.
+	 */
+	function closePlanMode(then: () => void = () => (openPane = null)) {
+		floorplans.whenSaved(() => {
+			floorplans.cancel();
+			then();
+		});
 	}
 
 	/** The plan worker, started the first time a plan is imported or loaded. */
@@ -504,8 +571,6 @@
 	/** Construction guides placed with the measure tool (C.5), kept with the floor plans. */
 	const construction = new Guides(planStore);
 	void construction.load();
-	/** The pane open on the right of the map: "background", "guides" or null. */
-	let openPane = $state<string | null>(null);
 	/** The guide pointed at in the guides pane, drawn bold. */
 	let highlightedGuide = $state<string | null>(null);
 	/** The measure tool while it is on, for the toolbar's Measure / Guide switch. */
@@ -514,6 +579,9 @@
 	let guidesPaneShown = false;
 
 	/** Turns the measure and guide tool on, placing guides (the guides pane's button). */
+	/** The measure split button's menu (A.2). */
+	let measureMenuOpen = $state(false);
+
 	function placeGuides() {
 		if (drawing !== "measure") draw("measure");
 		measureVariant = "guide";
@@ -535,6 +603,10 @@
 			line,
 			level,
 			frames.at([...editor.features.byId.values()], line.origin, level)?.id,
+			// The Map data pane's colour, kept on the guide only when it isn't the default.
+			looks.guideColor === DEFAULT_APPEARANCE.guideColor
+				? undefined
+				: looks.guideColor,
 		);
 		if (!guidesPaneShown && openPane !== "guides") {
 			guidesPaneShown = true;
@@ -630,6 +702,17 @@
 	let indoor = $state.raw<IndoorMap>();
 	/** The background and area fill settings (W toggles the wireframe). */
 	let backgroundSettings = $state.raw<BackgroundSettings>();
+	/** The colours of the grid, new guides, the selection and changes (A.4, Map data). */
+	let appearance = $state.raw<AppearanceSettings>();
+	const looks = $derived(appearance?.current ?? DEFAULT_APPEARANCE);
+	/** The grid's colour and opacities, from the Map data pane. */
+	function gridStyle(look: Appearance): GridStyle {
+		return {
+			color: look.gridColor,
+			minorOpacity: look.gridMinorOpacity,
+			majorOpacity: look.gridMajorOpacity,
+		};
+	}
 	let background: Imagery | null = null;
 	/** Imagery shown since the last upload, for the changeset's imagery_used tag. */
 	let imageryUsed = $state<string[]>([]);
@@ -813,6 +896,10 @@
 			transformTool = result.tool;
 			return;
 		}
+		if (result.kind === "split") {
+			draw("split");
+			return;
+		}
 		if (result.kind === "copy") {
 			clipboard = result.clipboard;
 			const count = result.clipboard.roots.length;
@@ -885,7 +972,27 @@
 		"square-frame": Grid2x2Check,
 		straighten: Octagon,
 		symmetric: BetweenVerticalStart,
+		split: Scissors,
 	};
+
+	/** An operation's first key, or the draw tool's that does the same (split: X). */
+	function operationKey(operation: Operation): string {
+		const key = operation.keys[0] ?? (operation.id === "split" ? "X" : "");
+		return key ? formatCombo(key, mac) : "";
+	}
+
+	/** The selection's operations, in the bar's and the menu's groups (A.3). */
+	const grouped = $derived(
+		groupOperations(
+			operations.map((entry) => ({ ...entry, id: entry.operation.id })),
+		),
+	);
+
+	/** The menu opens upward when the right-click was in the lower half of the map (A.3). */
+	const menuSide = $derived.by(() => {
+		const height = map?.getCanvas().clientHeight ?? 0;
+		return menuAt && menuAt.y > height / 2 ? "top" : "bottom";
+	});
 
 	/** The tool editing the selection by clicks or typed values (C.6), or null. */
 	let transformTool = $state<TransformTool | null>(null);
@@ -959,6 +1066,7 @@
 			indoorLayers.setBuildingsVisible(floorplans.buildings.visible),
 		);
 		const overlay = new EditOverlay(instance);
+		$effect(() => overlay.setSelectionColor(looks.selectionColor));
 		const guides = new GuideLayer(instance);
 		$effect(() => guides.show(feedback));
 		// Arrow keys nudge the selection (C.6): the map's keyboard panning waits for none.
@@ -973,7 +1081,8 @@
 				highlightedGuide,
 			),
 		);
-		const grid = new GridLayer(instance);
+		const grid = new GridLayer(instance, gridStyle(looks));
+		$effect(() => grid.setStyle(gridStyle(looks)));
 		$effect(() => {
 			void camera;
 			const frame = planMode ? null : gridFrame;
@@ -1129,7 +1238,7 @@
 		$effect(() => floorplans.showLevel(level));
 		// Frames tell the plans apart in floor plan mode; tool marks show whenever a tool is on.
 		$effect(() => {
-			const frames = planMode
+			const frames = plansOpen
 				? planFrames(floorplans.plans, level).features
 				: [];
 			const tools = toolFeatures(
@@ -1580,6 +1689,12 @@
 		const extent = camera && visibleExtent();
 		return extent ? editor.features.levelsIn(extent, editor.floors) : [];
 	});
+	/** The shown level, named as the switcher names it, for the mode bar (A.2). */
+	const shownLevelLabel = $derived(
+		shortLabel(
+			levelsInView.find((entry) => entry.level === level) ?? { level },
+		),
+	);
 
 	/** Fits a feature in the part of the map the side panel leaves visible. */
 	function zoomTo(id: EntityId) {
@@ -1639,7 +1754,7 @@
 	});
 	/** The building entered, shown in the side panel while nothing is selected (B.2). */
 	// Not for the loose data (B.3): the header's chip says where you are, and the map stays clear.
-	const buildingShown = $derived(planMode ? null : editor.scope.current);
+	const buildingShown = $derived(editor.scope.current);
 	const buildingLevels = $derived(
 		buildingShown
 			? editor.features.levelsIn(buildingShown.extent, editor.floors)
@@ -1649,7 +1764,6 @@
 		editor.selected !== null ||
 			several !== null ||
 			editor.floor !== null ||
-			planMode ||
 			buildingShown !== null,
 	);
 
@@ -1685,8 +1799,10 @@
 		if (!map) return undefined;
 		const { clientWidth, clientHeight } = map.getContainer();
 		const left = sidePanel?.offsetWidth ?? 0;
+		// The floor plans pane covers the right (A.2).
+		const right = openPane ? 320 : 0;
 		const { lng, lat } = map.unproject([
-			(left + clientWidth) / 2,
+			(left + clientWidth - right) / 2,
 			clientHeight / 2,
 		]);
 		const bounds = map.getBounds();
@@ -1702,8 +1818,21 @@
 	const mac = isMac();
 
 	/** The guides pane, beside the background's; not in floor plan mode, where guides aren't drawn. */
-	const guidePanes: MapPane[] = $derived(
-		planMode || !offered.guides
+	const guidePanes: MapPane[] = $derived([
+		// Floor plans are traced inside a building (B.3), in the right column (A.2).
+		...(offered.floorPlans || plansOpen
+			? [
+					{
+						id: "floorplans",
+						label: t(msg("floor_plans")),
+						title: t(msg("floor_plans")),
+						icon: FileImage,
+						content: plansPane,
+						beforeClose: (close: () => void) => closePlanMode(close),
+					},
+				]
+			: []),
+		...(planMode || !offered.guides
 			? []
 			: [
 					{
@@ -1714,8 +1843,16 @@
 						badge: construction.countOn(level),
 						content: guidesPane,
 					},
-				],
-	);
+				]),
+		// How the data is drawn (A.4): area fill, Highlight changes, colours.
+		{
+			id: "map-data",
+			label: t(msg("map_data")),
+			title: t(msg("map_data_toggle")),
+			icon: PaintBucket,
+			content: mapDataPane,
+		},
+	]);
 
 	/** What the map keys do (`edit/keymap.ts`), in every mode but floor plan mode. */
 	const MAP_ACTIONS: Record<MapAction, () => void> = {
@@ -1736,6 +1873,37 @@
 		redo: () => editor.history.redo(),
 		help: () => (shortcutsOpen = true),
 	};
+
+	// The header shows where you are, Save, the issues and the shortcuts (A.2).
+	const header = getHeader();
+	useHeaderSlot(header, "crumb", () => crumb);
+	useHeaderSlot(header, "actions", () => headerActions);
+	// The page's title names the building entered (A.6).
+	$effect(() => {
+		header.place = editor.scope.active ? scopeName : undefined;
+		return () => {
+			header.place = undefined;
+		};
+	});
+
+	/** The tooltip of Undo or Redo, naming the step (A.6: "Undo: Square the corners"), with its key. */
+	function historyHint(which: "undo" | "redo"): string {
+		const step =
+			which === "undo" ? editor.history.undoLabel : editor.history.redoLabel;
+		const label = step
+			? t(
+					msg(which === "undo" ? "undo_named" : "redo_named", {
+						step: t(step),
+					}),
+				)
+			: t(msg(which));
+		return t(
+			msg("with_shortcut", {
+				label,
+				keys: formatCombo(which === "undo" ? "Mod+Z" : "Mod+Shift+Z", mac),
+			}),
+		);
+	}
 
 	/** The shortcuts help (`?`, P6). */
 	let shortcutsOpen = $state(false);
@@ -1821,15 +1989,21 @@
 	key: string,
 	Icon: Component,
 )}
+	{@const outside = !offered.draw.has(kind)}
 	<Tooltip.Root>
 		<Tooltip.Trigger onclick={() => draw(kind)}>
 			{#snippet child({ props })}
+				<!-- Tools of building mode stay in their place on the map (A.2), aria-disabled so
+				     that the tooltip still says why. -->
 				<Button
 					{...props}
-					variant={drawing === kind ? "secondary" : "outline"}
+					variant="outline"
 					size="icon"
 					aria-label={action}
 					aria-pressed={drawing === kind}
+					aria-disabled={outside || undefined}
+					aria-describedby={outside ? "tool-outside-reason" : undefined}
+					class={outside ? "opacity-50" : ""}
 					disabled={editor.history.locked}
 				>
 					<Icon />
@@ -1837,7 +2011,9 @@
 			{/snippet}
 		</Tooltip.Trigger>
 		<Tooltip.Content side="bottom"
-			>{t(msg("with_shortcut", { label, keys: key }))}</Tooltip.Content
+			>{t(msg("with_shortcut", { label, keys: key }))}{outside
+				? `: ${t(msg("tool_inside_building_only"))}`
+				: ""}</Tooltip.Content
 		>
 	</Tooltip.Root>
 {/snippet}
@@ -1845,40 +2021,111 @@
 {#snippet operationButton(operation: Operation, disabled: Message | null)}
 	{@const Icon = OPERATION_ICONS[operation.id]}
 	{@const label = t(operation.label)}
+	{@const reasonId = `operation-reason-${operation.id}`}
 	<Tooltip.Root>
 		<Tooltip.Trigger onclick={() => runOperation(operation)}>
 			{#snippet child({ props })}
-				<!-- aria-disabled, not disabled: the tooltip still says why. -->
+				<!-- aria-disabled, not disabled: the tooltip still says why, and so does the
+				     description (A.3). Labelled: the six main actions (A.3). -->
 				<Button
 					{...props}
 					variant="outline"
-					size="icon"
 					aria-label={label}
 					aria-disabled={disabled !== null}
+					aria-describedby={disabled ? reasonId : undefined}
 					class={disabled ? "opacity-50" : ""}
 				>
-					<Icon />
+					<Icon data-icon="inline-start" />
+					<!-- Icons only when the map is narrow (the side panel open on a small screen). -->
+					<span class="hidden @min-[44rem]:inline"
+						>{t(operation.short ?? operation.label)}</span
+					>
 				</Button>
 			{/snippet}
 		</Tooltip.Trigger>
 		<Tooltip.Content side="bottom">
-			{label}
-			({formatCombo(operation.keys[0] ?? "", mac)}){disabled
-				? `: ${t(disabled)}`
-				: ""}
+			{@const key = operationKey(operation)}
+			{label}{key ? ` (${key})` : ""}{disabled ? `: ${t(disabled)}` : ""}
 		</Tooltip.Content>
 	</Tooltip.Root>
+	{#if disabled}
+		<span id={reasonId} class="sr-only">{t(disabled)}</span>
+	{/if}
+{/snippet}
+
+<!-- An operation in a menu (the bar's More and Transform, the right-click menu): a disabled
+     one says why under its name (A.3). -->
+{#snippet operationItem(operation: Operation, disabled: Message | null)}
+	{@const Icon = OPERATION_ICONS[operation.id]}
+	<DropdownMenu.Item
+		disabled={disabled !== null}
+		class={disabled ? "items-start" : ""}
+		onSelect={() => runOperation(operation)}
+	>
+		<Icon />
+		<span class="flex min-w-0 flex-col">
+			{t(operation.label)}
+			{#if disabled}
+				<span class="text-xs text-muted-foreground">{t(disabled)}</span>
+			{/if}
+		</span>
+		<DropdownMenu.Shortcut>{operationKey(operation)}</DropdownMenu.Shortcut>
+	</DropdownMenu.Item>
+{/snippet}
+
+<!-- More ▾ or Transform ▾ in the selection bar (A.3). -->
+{#snippet operationMenu(
+	label: string,
+	Icon: Component,
+	entries: readonly { operation: Operation; disabled: Message | null }[],
+)}
+	<DropdownMenu.Root>
+		<DropdownMenu.Trigger>
+			{#snippet child({ props })}
+				<Button {...props} variant="outline">
+					<Icon data-icon="inline-start" />
+					{label}
+					<ChevronDown data-icon="inline-end" />
+				</Button>
+			{/snippet}
+		</DropdownMenu.Trigger>
+		<!-- Focus stays off the trigger: a transform tool takes typed values next. -->
+		<DropdownMenu.Content
+			align="start"
+			class="w-64"
+			onCloseAutoFocus={(event) => event.preventDefault()}
+		>
+			{#each entries as { operation, disabled } (operation.id)}
+				{@render operationItem(operation, disabled)}
+			{/each}
+		</DropdownMenu.Content>
+	</DropdownMenu.Root>
 {/snippet}
 
 <!-- A note under the toolbar's tools: what a tool asks for, why an operation was refused. -->
 {#snippet statusNote(testid: string, text: string)}
-	<p
-		role="status"
-		data-testid={testid}
-		class="absolute bottom-20 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-popover px-4 py-1.5 text-center text-sm text-popover-foreground shadow-md ring-1 ring-foreground/10"
-	>
-		{text}
-	</p>
+	<StatusPill {testid}>{text}</StatusPill>
+{/snippet}
+
+{#snippet plansPane(close: () => void)}
+	<FloorPlansPanel
+		{floorplans}
+		{decoders}
+		getView={planView}
+		{level}
+		{toolMessage}
+		onclose={close}
+		onshowlevel={(shown) => (level = shown)}
+		buildings={planBuildings}
+		buildingName={planBuildingName}
+		guides={construction}
+	/>
+{/snippet}
+
+{#snippet mapDataPane(close: () => void)}
+	{#if backgroundSettings && appearance}
+		<MapDataPane settings={backgroundSettings} {appearance} onclose={close} />
+	{/if}
 {/snippet}
 
 {#snippet guidesPane(close: () => void)}
@@ -1894,6 +2141,94 @@
 	/>
 {/snippet}
 
+<!-- In the header (A.2): where you are, then Save, the issues and the shortcuts. -->
+<!-- Why building mode's tools are disabled on the map, for their aria-describedby (A.2). -->
+<span id="tool-outside-reason" class="hidden">
+	{t(msg("tool_inside_building_only"))}
+</span>
+
+{#snippet crumb()}
+	{#if !planMode && editor.scope.active}
+		<div
+			class="flex min-w-0 items-center gap-1 text-sm"
+			data-testid="building-crumb"
+		>
+			<ChevronRight
+				class="size-4 shrink-0 text-muted-foreground"
+				aria-hidden="true"
+			/>
+			<span class="max-w-48 truncate font-medium">{scopeName}</span>
+			<Button
+				variant="ghost"
+				size="icon-xs"
+				aria-label={t(msg("building_leave_named", { name: scopeName }))}
+				title={t(msg("building_leave_named", { name: scopeName }))}
+				onclick={leaveBuilding}
+			>
+				<X />
+			</Button>
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet headerActions()}
+	<!-- Not while a drawing or drag is shown: the upload sends finished steps only. -->
+	<Button
+		variant={editor.history.editCount > 0 ? "default" : "outline"}
+		size="sm"
+		disabled={josm !== null ||
+			editor.history.editCount === 0 ||
+			editor.history.previewing}
+		title={josm ? t(msg("josm_save_disabled")) : undefined}
+		onclick={() => (saving = true)}
+	>
+		<Upload data-icon="inline-start" />
+		<!-- The icon and count on a phone, so the header fits (A.7). -->
+		<span class="max-sm:sr-only">{t(msg("save"))}</span>
+		<Badge
+			variant={editor.history.editCount > 0 ? "secondary" : "default"}
+			class="tabular-nums"
+			data-testid="edit-count"
+			>{editor.history.editCount}</Badge
+		>
+		<span class="sr-only">{t(msg("save_edits_suffix"))}</span>
+	</Button>
+	{#if issueCount > 0}
+		<!-- Checked in idle time; the save dialog lists them (P6). -->
+		<Button
+			variant="outline"
+			size="sm"
+			aria-label={t(msg("issue_count", { count: issueCount }))}
+			data-testid="issue-count"
+			disabled={editor.history.previewing}
+			onclick={() => (saving = true)}
+		>
+			{#if errorCount > 0}
+				<OctagonAlert class="text-destructive" />
+				<span class="tabular-nums" data-testid="error-count">{errorCount}</span>
+			{/if}
+			{#if issueCount > errorCount}
+				<TriangleAlert
+					class="fill-warning text-warning-foreground"
+					data-testid="warning-icon"
+				/>
+				<span class="tabular-nums" data-testid="warning-count"
+					>{issueCount - errorCount}</span
+				>
+			{/if}
+		</Button>
+	{/if}
+	<Button
+		variant="ghost"
+		size="icon-sm"
+		aria-label={t(msg("shortcuts_title"))}
+		title={t(msg("shortcuts_button"))}
+		onclick={() => (shortcutsOpen = true)}
+	>
+		<CircleQuestionMark />
+	</Button>
+{/snippet}
+
 <MapShell
 	{config}
 	bind:level
@@ -1901,139 +2236,48 @@
 	bind:camera
 	bind:indoor
 	bind:background={backgroundSettings}
+	bind:appearance
 	bind:openPane
 	panes={guidePanes}
+	sidePanel={panelOpen ? sidePanel : undefined}
 	left={panelOpen ? shownPanelWidth : 0}
 	{planTiles}
-	levelSwitcher={planMode || offered.levels}
+	levelSwitcher={plansOpen || offered.levels}
 	onbackground={backgroundPicked}
 >
 	{#snippet controls()}
-		{#if !planMode && editor.scope.active}
-			<div
-				class="flex items-center gap-2 rounded-md bg-background py-1 pr-1 pl-3 shadow-md"
-				data-testid="building-scope"
-			>
-				<span class="max-w-48 truncate text-sm">
-					{t(msg("building_editing", { name: scopeName }))}
-				</span>
-				<Tooltip.Root>
-					<Tooltip.Trigger onclick={leaveBuilding}>
-						{#snippet child({ props })}
-							<Button {...props} size="sm" variant="outline">
-								{t(msg("building_done"))}
-							</Button>
-						{/snippet}
-					</Tooltip.Trigger>
-					<Tooltip.Content side="bottom">
-						{t(msg("building_done_hint"))}
-					</Tooltip.Content>
-				</Tooltip.Root>
-			</div>
-		{:else if enterable || hereOffered}
-			<div class="rounded-md bg-background shadow-md">
-				<Tooltip.Root>
-					<Tooltip.Trigger
-						onclick={() => (enterable ? enterBuilding(enterable) : enterHere())}
-					>
-						{#snippet child({ props })}
-							<Button {...props} variant="outline">
-								<DoorOpen data-icon="inline-start" />
-								{t(
-									msg(
-										enterable
-											? "building_edit_indoor"
-											: "building_edit_indoor_here",
-									),
-								)}
-							</Button>
-						{/snippet}
-					</Tooltip.Trigger>
-					<Tooltip.Content side="bottom">
-						{t(
-							msg(
-								enterable
-									? "building_edit_indoor_hint"
-									: "building_edit_indoor_here_hint",
-							),
-						)}
-					</Tooltip.Content>
-				</Tooltip.Root>
-			</div>
-		{/if}
 		{#if !planMode}
-			<!-- Map controls sit on an opaque surface: shadcn's dark outline styles are translucent.
-			     The shortcuts button shares the row: a row more would push the toolbar over the map. -->
-			<div class="flex gap-2">
-				<div class="rounded-md bg-background shadow-md">
-					<ButtonGroup.Root aria-label={t(msg("toolbar_history"))}>
-						{@render iconButton(
-							t(msg("undo")),
-							t(
-								msg("with_shortcut", {
-									label: t(msg("undo")),
-									keys: formatCombo("Mod+Z", mac),
-								}),
-							),
-							Undo2,
-							!editor.history.canUndo,
-							() => editor.history.undo(),
-						)}
-						{@render iconButton(
-							t(msg("redo")),
-							t(
-								msg("with_shortcut", {
-									label: t(msg("redo")),
-									keys: formatCombo("Mod+Shift+Z", mac),
-								}),
-							),
-							Redo2,
-							!editor.history.canRedo,
-							() => editor.history.redo(),
-						)}
-						<!-- Not while a drawing or drag is shown: the upload sends finished steps only. -->
-						<Button
-							variant="outline"
-							disabled={josm !== null ||
-								editor.history.editCount === 0 ||
-								editor.history.previewing}
-							title={josm ? t(msg("josm_save_disabled")) : undefined}
-							onclick={() => (saving = true)}
-						>
-							<Upload data-icon="inline-start" />
-							{t(msg("save"))}
-							<Badge class="tabular-nums" data-testid="edit-count"
-								>{editor.history.editCount}</Badge
-							>
-							<span class="sr-only">{t(msg("save_edits_suffix"))}</span>
-						</Button>
-						{#if issueCount > 0}
-							<!-- Checked in idle time; the save dialog lists them (P6). -->
-							<Button
-								variant="outline"
-								aria-label={t(msg("issue_count", { count: issueCount }))}
-								data-testid="issue-count"
-								disabled={editor.history.previewing}
-								onclick={() => (saving = true)}
-							>
-								<TriangleAlert class="text-destructive" />
-								<span class="tabular-nums">{issueCount}</span>
-							</Button>
-						{/if}
-					</ButtonGroup.Root>
-				</div>
-				<div class="rounded-md bg-background shadow-md">
+			<!-- The tools only (A.2), in rows that keep their place: history, drawing, snapping,
+			     then the selection's operations. Map controls sit on an opaque surface: shadcn's
+			     dark outline styles are translucent. -->
+			<div class="rounded-md bg-background shadow-md">
+				<ButtonGroup.Root
+					role="toolbar"
+					aria-label={t(msg("toolbar_history"))}
+					{@attach roving()}
+				>
 					{@render iconButton(
-						t(msg("shortcuts_title")),
-						t(msg("shortcuts_button")),
-						Keyboard,
-						false,
-						() => (shortcutsOpen = true),
+						t(msg("undo")),
+						historyHint("undo"),
+						Undo2,
+						!editor.history.canUndo,
+						() => editor.history.undo(),
 					)}
-				</div>
+					{@render iconButton(
+						t(msg("redo")),
+						historyHint("redo"),
+						Redo2,
+						!editor.history.canRedo,
+						() => editor.history.redo(),
+					)}
+				</ButtonGroup.Root>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
-				<ButtonGroup.Root aria-label={t(msg("toolbar_draw"))}>
+				<ButtonGroup.Root
+					role="toolbar"
+					aria-label={t(msg("toolbar_draw"))}
+					{@attach roving()}
+				>
 					{@render drawButton(
 						"point",
 						t(msg("tool_point")),
@@ -2055,56 +2299,76 @@
 						"3",
 						Pentagon,
 					)}
-					<!-- Building mode's tools (B.3). -->
-					{#if offered.draw.has("rectangle")}
-						{@render drawButton(
-							"rectangle",
-							t(msg("tool_rectangle")),
-							t(msg("tool_rectangle_action")),
-							"4",
-							RectangleHorizontal,
-						)}
-						{@render drawButton(
-							"split",
-							t(msg("tool_split")),
-							t(msg("tool_split_action")),
-							"X",
-							Scissors,
-						)}
-						{@render drawButton(
-							"measure",
-							t(msg("measure_tool")),
-							t(msg("measure_tool")),
-							"M",
-							Ruler,
-						)}
-					{/if}
+					<!-- Building mode's tools (B.3), shown disabled on the map with the reason. -->
+					{@render drawButton(
+						"rectangle",
+						t(msg("tool_rectangle")),
+						t(msg("tool_rectangle_action")),
+						"4",
+						RectangleHorizontal,
+					)}
+					{@render drawButton(
+						"split",
+						t(msg("tool_split")),
+						t(msg("tool_split_action")),
+						"X",
+						Scissors,
+					)}
+					{@render drawButton(
+						"measure",
+						t(msg("measure_tool")),
+						t(msg("measure_tool")),
+						"M",
+						measureVariant === "guide" && drawing === "measure"
+							? RulerDimensionLine
+							: Ruler,
+					)}
+					<!-- Measure or place guides: a split button, not a row of its own (A.2). -->
+					<DropdownMenu.Root bind:open={measureMenuOpen}>
+						<DropdownMenu.Trigger disabled={!offered.draw.has("measure")}>
+							{#snippet child({ props })}
+								<Button
+									{...props}
+									variant="outline"
+									size="icon"
+									class="w-6"
+									aria-label={t(msg("measure_tool_mode"))}
+									data-testid="measure-mode"
+								>
+									<ChevronDown />
+								</Button>
+							{/snippet}
+						</DropdownMenu.Trigger>
+						<!-- Focus stays off the trigger: keys typed next go to the tool, and Enter
+						     would open the menu again. -->
+						<DropdownMenu.Content
+							align="start"
+							onCloseAutoFocus={(event) => event.preventDefault()}
+						>
+							<DropdownMenu.RadioGroup
+								value={drawing === "measure" ? measureVariant : ""}
+								onValueChange={(value) => {
+									measureMenuOpen = false;
+									if (value === "guide") placeGuides();
+									else if (value === "measure") {
+										if (drawing !== "measure") draw("measure");
+										measureAs("measure");
+									}
+								}}
+							>
+								<DropdownMenu.RadioItem value="measure">
+									<Ruler />
+									{t(msg("measure_mode_measure"))}
+								</DropdownMenu.RadioItem>
+								<DropdownMenu.RadioItem value="guide">
+									<RulerDimensionLine />
+									{t(msg("measure_mode_guide"))}
+								</DropdownMenu.RadioItem>
+							</DropdownMenu.RadioGroup>
+						</DropdownMenu.Content>
+					</DropdownMenu.Root>
 				</ButtonGroup.Root>
 			</div>
-			{#if drawing === "measure"}
-				<!-- What the measure and guide tool does, switched here or with Tab. -->
-				<div class="rounded-md bg-background shadow-md">
-					<ToggleGroup.Root
-						type="single"
-						variant="outline"
-						aria-label={t(msg("measure_tool_mode"))}
-						data-testid="measure-mode"
-						value={measureVariant}
-						onValueChange={(value) => {
-							if (value) measureAs(value as MeasureVariant);
-						}}
-					>
-						<ToggleGroup.Item value="measure">
-							<Ruler />
-							{t(msg("measure_mode_measure"))}
-						</ToggleGroup.Item>
-						<ToggleGroup.Item value="guide">
-							<RulerDimensionLine />
-							{t(msg("measure_mode_guide"))}
-						</ToggleGroup.Item>
-					</ToggleGroup.Root>
-				</div>
-			{/if}
 			<div class="rounded-md bg-background shadow-md">
 				<SnapMenu
 					{precision}
@@ -2122,32 +2386,151 @@
 				/>
 			</div>
 			{#if operations.length > 0}
-				<div class="rounded-md bg-background shadow-md">
-					<ButtonGroup.Root aria-label={t(msg("toolbar_selection"))}>
-						{#each operations as { operation, disabled } (operation.id)}
-							{@render operationButton(operation, disabled)}
-						{/each}
-					</ButtonGroup.Root>
+				<!-- The selection bar (A.3): the main actions labelled, the rest in two menus. -->
+				<div class="flex flex-wrap gap-2" data-testid="selection-bar">
+					<div class="rounded-md bg-background shadow-md">
+						<ButtonGroup.Root
+							role="toolbar"
+							aria-label={t(msg("toolbar_selection"))}
+							{@attach roving()}
+						>
+							{#each grouped.main as { operation, disabled } (operation.id)}
+								{@render operationButton(operation, disabled)}
+							{/each}
+							{#if grouped.more.length > 0}
+								{@render operationMenu(
+									t(msg("operations_more")),
+									Ellipsis,
+									grouped.more,
+								)}
+							{/if}
+							{#if grouped.transform.length > 0}
+								{@render operationMenu(
+									t(msg("operations_transform")),
+									Shapes,
+									grouped.transform,
+								)}
+							{/if}
+						</ButtonGroup.Root>
+					</div>
+					<div class="rounded-md bg-background shadow-md">
+						{@render iconButton(
+							t(msg("zoom_to_selection")),
+							t(
+								msg("with_shortcut", {
+									label: t(msg("zoom_to_selection")),
+									keys: "Z",
+								}),
+							),
+							Scan,
+							false,
+							() => zoomToAll(editor.selection.ids),
+						)}
+					</div>
 				</div>
 			{/if}
 		{/if}
 	{/snippet}
-	{#snippet tools()}
-		<!-- Floor plans are traced inside a building (B.3). -->
-		{#if planMode || offered.floorPlans}
-			<div class="rounded-md bg-background shadow-md">
-				<Button
-					variant={planMode ? "secondary" : "outline"}
-					aria-pressed={planMode}
-					onclick={() => (planMode ? closePlanMode() : setPlanMode(true))}
-				>
-					<FileImage data-icon="inline-start" />
-					{t(msg("floor_plans"))}
-				</Button>
-			</div>
+
+	{#snippet hints()}
+		{#if transformTool}
+			{@render statusNote("transform-hint", t(TRANSFORM_HINTS[transformTool]))}
+		{:else if framePick}
+			{@render statusNote(
+				"frame-hint",
+				t(
+					framePick === "align"
+						? msg("frame_pick_align")
+						: msg("frame_pick_origin"),
+				),
+			)}
+		{:else if drawing && !dragHint && !operationNote}
+			{@render statusNote(
+				"draw-hint",
+				t(
+					drawing === "rectangle" && rectangleVariant === "side"
+						? msg("draw_rectangle_side_hint")
+						: drawing === "measure" && measureVariant === "guide"
+							? msg("guide_hint")
+							: (drawing === "line" || drawing === "area") && precision.tracing
+								? msg("draw_tracing_hint", { hint: t(DRAW_HINTS[drawing]) })
+								: DRAW_HINTS[drawing],
+				),
+			)}
+		{:else if enteredHint && !operationNote && !dragHint}
+			{@render statusNote("building-hint", t(enteredHint))}
+		{/if}
+		{#if operationNote && !dragHint}
+			{@render statusNote("operation-note", t(operationNote))}
+		{/if}
+		{#if dragHint}
+			{@render statusNote("drag-hint", t(dragHint))}
 		{/if}
 	{/snippet}
 
+	<!-- Entering and leaving a building happen in one spot, the bottom middle (A.2). -->
+	{#snippet modeBar()}
+		{#if !planMode && editor.scope.active}
+			<section
+				class="flex items-center gap-3 rounded-lg bg-mode py-1.5 pr-1.5 pl-3 text-mode-foreground shadow-md"
+				data-testid="building-scope"
+				aria-label={t(msg("building_mode"))}
+			>
+				<Building class="size-4 shrink-0" aria-hidden="true" />
+				<span class="max-w-56 truncate text-sm font-medium">
+					{t(msg("building_editing", { name: scopeName }))}
+				</span>
+				{#if offered.levels}
+					<span class="text-sm whitespace-nowrap" data-testid="mode-level">
+						{t(msg("building_level_shown", { level: shownLevelLabel }))}
+					</span>
+				{/if}
+				<Button
+					size="sm"
+					class="bg-background text-foreground hover:bg-background/90"
+					aria-label={t(msg("building_leave"))}
+					aria-keyshortcuts="Escape"
+					onclick={leaveBuilding}
+				>
+					{t(msg("building_leave"))}
+					<kbd
+						class="rounded border border-input px-1 font-sans text-xs text-muted-foreground"
+						>Esc</kbd
+					>
+				</Button>
+			</section>
+		{:else if enterable || hereOffered}
+			<div class="rounded-md bg-background shadow-md">
+				<Tooltip.Root>
+					<Tooltip.Trigger
+						onclick={() => (enterable ? enterBuilding(enterable) : enterHere())}
+					>
+						{#snippet child({ props })}
+							<Button {...props} variant="outline">
+								<DoorOpen data-icon="inline-start" />
+								{t(
+									msg(
+										enterable
+											? "building_edit_indoor"
+											: "building_edit_indoor_here",
+									),
+								)}
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content side="top">
+						{t(
+							msg(
+								enterable
+									? "building_edit_indoor_hint"
+									: "building_edit_indoor_here_hint",
+							),
+						)}
+					</Tooltip.Content>
+				</Tooltip.Root>
+			</div>
+		{/if}
+	{/snippet}
 	<!-- The side panel edits the selected feature, or the floor plans in floor plan mode. -->
 	{#if panelOpen}
 		<div
@@ -2189,19 +2572,6 @@
 					ondone={leaveBuilding}
 					onpreview={previewBuilding}
 				/>
-			{:else}
-				<FloorPlansPanel
-					{floorplans}
-					{decoders}
-					getView={planView}
-					{level}
-					{toolMessage}
-					onclose={closePlanMode}
-					onshowlevel={(shown) => (level = shown)}
-					buildings={planBuildings}
-					buildingName={planBuildingName}
-					guides={construction}
-				/>
 			{/if}
 			<PanelResizer
 				width={shownPanelWidth}
@@ -2213,6 +2583,15 @@
 		</div>
 	{/if}
 
+	{#if !planMode && editor.scope.active}
+		<!-- Inside a building, the whole map says so (A.2), as Figma's isolation mode. -->
+		<div
+			class="pointer-events-none absolute inset-0 z-10 border-3 border-mode"
+			data-testid="building-frame"
+			aria-hidden="true"
+		></div>
+	{/if}
+
 	{#if feedback && (feedback.measures.length > 0 || feedback.input)}
 		<MeasureLabels
 			measures={feedback.measures}
@@ -2222,40 +2601,6 @@
 			units={precision.units}
 			{camera}
 		/>
-	{/if}
-
-	{#if transformTool}
-		{@render statusNote("transform-hint", t(TRANSFORM_HINTS[transformTool]))}
-	{:else if framePick}
-		{@render statusNote(
-			"frame-hint",
-			t(
-				framePick === "align"
-					? msg("frame_pick_align")
-					: msg("frame_pick_origin"),
-			),
-		)}
-	{:else if drawing && !dragHint && !operationNote}
-		{@render statusNote(
-			"draw-hint",
-			t(
-				drawing === "rectangle" && rectangleVariant === "side"
-					? msg("draw_rectangle_side_hint")
-					: drawing === "measure" && measureVariant === "guide"
-						? msg("guide_hint")
-						: (drawing === "line" || drawing === "area") && precision.tracing
-							? msg("draw_tracing_hint", { hint: t(DRAW_HINTS[drawing]) })
-							: DRAW_HINTS[drawing],
-			),
-		)}
-	{/if}
-
-	{#if operationNote && !dragHint}
-		{@render statusNote("operation-note", t(operationNote))}
-	{/if}
-
-	{#if dragHint}
-		{@render statusNote("drag-hint", t(dragHint))}
 	{/if}
 
 	{#if josm}
@@ -2298,26 +2643,35 @@
 	>
 		<DropdownMenu.Content
 			customAnchor={menuAnchor}
-			side="bottom"
+			side={menuSide}
 			align="start"
-			class="w-56"
+			class="w-64"
 			aria-label={t(msg("operations_menu"))}
 		>
-			{#each operations as { operation, disabled } (operation.id)}
-				{@const Icon = OPERATION_ICONS[operation.id]}
-				<DropdownMenu.Item
-					aria-disabled={disabled !== null}
-					class={disabled ? "opacity-50" : ""}
-					title={disabled ? t(disabled) : undefined}
-					onSelect={() => runOperation(operation)}
-				>
-					<Icon />
-					{t(operation.label)}
-					<DropdownMenu.Shortcut>
-						{formatCombo(operation.keys[0] ?? "", mac)}
-					</DropdownMenu.Shortcut>
-				</DropdownMenu.Item>
+			<!-- The bar's groups (A.3): the main actions, More's, then Transform as a submenu. -->
+			{#each grouped.main as { operation, disabled } (operation.id)}
+				{@render operationItem(operation, disabled)}
 			{/each}
+			{#if grouped.more.length > 0}
+				<DropdownMenu.Separator />
+				{#each grouped.more as { operation, disabled } (operation.id)}
+					{@render operationItem(operation, disabled)}
+				{/each}
+			{/if}
+			{#if grouped.transform.length > 0}
+				<DropdownMenu.Separator />
+				<DropdownMenu.Sub>
+					<DropdownMenu.SubTrigger>
+						<Shapes />
+						{t(msg("operations_transform"))}
+					</DropdownMenu.SubTrigger>
+					<DropdownMenu.SubContent class="w-64">
+						{#each grouped.transform as { operation, disabled } (operation.id)}
+							{@render operationItem(operation, disabled)}
+						{/each}
+					</DropdownMenu.SubContent>
+				</DropdownMenu.Sub>
+			{/if}
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
 

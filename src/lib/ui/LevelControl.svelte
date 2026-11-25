@@ -5,6 +5,8 @@
 	import * as ButtonGroup from "#lib/components/shadcn/button-group/index.ts";
 	import * as ToggleGroup from "#lib/components/shadcn/toggle-group/index.ts";
 	import * as Tooltip from "#lib/components/shadcn/tooltip/index.ts";
+	import { LEVEL_KEYS } from "#lib/edit/keymap.ts";
+	import { isForMap, isMac, matches } from "#lib/edit/keys.ts";
 	import { msg, t } from "#lib/i18n/messages.ts";
 	import {
 		type FloorNumbering,
@@ -51,6 +53,17 @@
 		if (value) level = Number(value);
 	}
 
+	const mac = isMac();
+	/** PageUp and PageDown step as the arrows do (A.6), unless typing or in a dialog. */
+	function onKeydown(event: KeyboardEvent) {
+		if (!isForMap(event)) return;
+		const key = LEVEL_KEYS.find((k) => matches(event, k.combo, mac));
+		if (!key) return;
+		const target = key.action === "level-up" ? upTarget : downTarget;
+		event.preventDefault();
+		if (target !== undefined) level = target;
+	}
+
 	/** A level's accessible name: its number, then its names, which the button shows. */
 	function accessibleName(entry: LevelEntry): string {
 		const label = fullLabel(entry);
@@ -59,6 +72,8 @@
 			: t(msg("level_named", { level: String(entry.level), label }));
 	}
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 {#snippet stepButton(
 	label: string,
@@ -94,7 +109,14 @@
 	class="max-w-20 rounded-md bg-background shadow-md"
 >
 	{@render stepButton(t(msg("level_up")), ChevronUp, upTarget)}
-	<ButtonGroup.Text class="justify-center px-1 tabular-nums">
+	<!-- The level shown: with a list, its pressed item says so, and this is for screen
+	     readers only (A.5: it showed the level twice). -->
+	<ButtonGroup.Text
+		class={[
+			"justify-center px-1 tabular-nums",
+			descending.length > 1 && "sr-only",
+		]}
+	>
 		{#snippet child({ props })}
 			<output
 				{...props}

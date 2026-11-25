@@ -12,8 +12,10 @@ import {
 	test,
 } from "./fixtures.ts";
 
-/** The style's selection colour (`INDOOR_COLORS.selection`). */
-const SELECTION: [number, number, number] = [0xf5, 0x9e, 0x0b];
+/** The style's selection colour (`INDOOR_COLORS.selection`, blue since A.4). */
+const SELECTION: [number, number, number] = [0x1d, 0x4e, 0xd8];
+/** The selection's casing under it (A.4). */
+const CASING: [number, number, number] = [0xff, 0xff, 0xff];
 /** Room half-width (0.0002°) at zoom 19, in screen pixels: 0.0002 × 2^19 × 512 / 360. */
 const HALF_WIDTH = 149;
 
@@ -29,7 +31,14 @@ test("a feature is outlined faintly under the pointer, and fully once selected",
 	const before = await pixelAt(page, edge.x, edge.y);
 
 	await page.mouse.move(x, y);
-	await expectPixel(page, edge.x, edge.y, blend(SELECTION, 0.45, before), 12);
+	// The blue core over the white casing, both faint.
+	await expectPixel(
+		page,
+		edge.x,
+		edge.y,
+		blend(SELECTION, 0.45, blend(CASING, 0.45, before)),
+		12,
+	);
 
 	// Off the room: no outline.
 	await page.mouse.move(x - 2 * HALF_WIDTH, y);

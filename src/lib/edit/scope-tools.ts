@@ -47,6 +47,7 @@ const ALL_DRAW: readonly DrawTool[] = [
 
 /** Operations for indoor work only: on levels, or CAD edits measured in a building's frame. */
 const INDOOR_OPERATIONS: ReadonlySet<Operation["id"]> = new Set([
+	"split",
 	"merge",
 	"repeat",
 	"cut-out",
