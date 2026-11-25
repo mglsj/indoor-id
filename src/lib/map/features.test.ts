@@ -9,6 +9,7 @@ import {
 	knownLevels,
 	labelPoint,
 	levelFilter,
+	pixelsAtZ17,
 } from "./features.ts";
 
 /** Node id n{prefix}{i}, e.g. n12. */
@@ -537,5 +538,14 @@ describe("labelPoint: one label per feature, wherever the map's tiles cut it", (
 		expect(bench && labelPoint(bench)).toBe(bench);
 		const room = feature(entities, "w2");
 		expect(room && labelPoint(room)).toBeNull();
+	});
+});
+
+describe("pixelsAtZ17", () => {
+	it("gives a length in pixels at zoom 17, longer away from the equator", () => {
+		// At zoom 17 a 512 px tile world is 67,108,864 px round 40,075,016.686 m: 1.6746 px/m.
+		expect(pixelsAtZ17(1, 0)).toBeCloseTo(1.6746, 4);
+		// At 60° Web Mercator draws lengths twice as long.
+		expect(pixelsAtZ17(1, 60)).toBeCloseTo(3.3492, 4);
 	});
 });
