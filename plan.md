@@ -50,6 +50,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | W2     | Wiki conformance, November research        | Done         |
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
 | P6     | Parity and polish                          | Done         |
+| A      | Accessibility and layout (Nov. audit)      | Planned      |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -208,6 +209,130 @@ check in the background every few edits (osm-simple3d-editor `9ed266f`).
   [docs/announcement-0.1.md](docs/announcement-0.1.md), not posted. Tagging the release and
   posting are the maintainer's.
 
+### A: Accessibility and layout, from the 2026-11-24 audit — M–L (A.1–A.7)
+
+Agreed with the user on 2026-11-24 and 2026-11-25 ✔. The findings, measured contrast ratios
+and the reasoning are in [docs/audit-2026-11-24.md](docs/audit-2026-11-24.md). Scope rules:
+
+- The editor is desktop only; the viewer should also work on a phone.
+- Good practice, not formal WCAG conformance: WCAG 2.2 AA's 3:1 (graphics, states) and 4.5:1
+  (text) are the yardstick.
+- No new features, only small changes to what exists.
+- Moving off shadcn's stock tokens is fine.
+- Units keep following the browser's language.
+
+Each slice agrees its test seams first, as usual. Toolbar moves change how e2e tests find
+buttons: find them by role and name, never by position.
+
+**A.1 Theme tokens and states — S.**
+
+- `--ring` 0.45 light / 0.70 dark, drawn at full strength, not `/50`.
+- `--input` 0.70 light / 35% white dark.
+- `--muted-foreground` 0.50 light.
+- A new `--pressed`/`--pressed-foreground` token (as `primary`) for pressed tools, the selected
+  level and selected toggles; today they differ from their neighbours by 1.09:1 (light) and
+  1.31:1 (dark).
+- A new blue `--mode` token, used only by building mode.
+- `--border` stays light.
+- Warnings in the issues count get a yellow triangle; errors stay red; the error status pill
+  gets an icon.
+
+**A.2 Layout — M–L.**
+
+- Place search moves into the header, between the page links and Licenses, on the editor and
+  the viewer, about 18rem wide.
+- Save (the filled primary button once there are edits) and Issues move to the header's right,
+  before Licenses, Language and Theme.
+- The keyboard shortcuts button becomes "?" in the header.
+- Right column, top to bottom: Background, Floor plans, Guides, Map data (A.4), level switcher.
+- Floor plans' panel moves from the left side panel into the right pane. It gets 320px (or a
+  resizable right pane): `PlanList` and `PlanTools` get a pass at that width.
+- Floor plans and the inspector can be open together. A plan's alignment session still blocks
+  drawing.
+- The left column keeps the tools only, in rows of fixed height:
+  - Building-only tools are shown disabled outside a building, with a reason.
+  - Measure/Guide becomes a split button, not a new row.
+- Building mode is unmistakable:
+  - A blue mode bar at the bottom middle: building icon, name, shown level and a filled
+    **Leave building** button with an `Esc` key cap. "Done" is renamed.
+  - "Edit indoor" and "Edit indoor here" sit in the same spot.
+  - A 3px inset frame in `--mode` around the map while inside.
+  - A breadcrumb in the header: "Edit › {building} ×".
+  - A hint the first few times a building is entered.
+  - The building panel's header gets the same blue stripe.
+- One bottom-centre stack, so pills never overlap: the mode bar lowest, then the load status,
+  then the tool hint. It stays clear of the attribution. Hint pills become `rounded-lg` when
+  they wrap.
+
+**A.3 Selection bar and context menu — M.**
+
+- The selection operations row becomes a bar with six labelled actions: Delete, Copy, Square,
+  Merge, Repeat on levels, Split.
+- The rest go under "More ▾". The precise transforms (move, rotate, scale, side, offset,
+  square to frame, straighten, symmetric) go under "Transform ▾".
+- A Zoom to selection button (Z).
+- The right-click menu gets the same grouping, with separators and a Transform submenu, and
+  flips upward when there is more room above. Today it scrolls silently and cuts off Delete.
+- A disabled operation's reason is linked with `aria-describedby` in the bar, and shown inline
+  in the menu.
+- Operations stay in `OPERATIONS`: the grouping is data on each operation, not new buttons.
+
+**A.4 Map data pane and appearance — M.**
+
+- A new right-column pane, "Map data". Area fill and Highlight changes move into it from
+  Background.
+- Appearance settings, saved like the background settings:
+  - Grid colour and opacity (minor and major).
+  - The default colour of new guides.
+  - The selection colour.
+  - The Highlight-changes palette.
+- New defaults that are visible on the light map (≥3:1) and safe for colour-blind users. Today
+  the grid is 1.2–1.7:1, the selection 1.8:1 and Highlight changes 1.05–2.1:1, and under
+  deuteranopia the selection, "reshaped" and "retagged" look the same.
+  - The grid no longer shares the guides' magenta.
+  - The selection gets a second, non-hue cue (a dark core with a light casing).
+  - Each edit kind gets its own line style.
+  - iD's colours stay available as an option.
+- The Background pane hides the imagery offset when no imagery is chosen, and labels its
+  offset inputs.
+
+**A.5 Inspector and levels — S–M.**
+
+- The Level field is pinned right under the preset, for every feature, in the normal font.
+- The level switcher drops the duplicate current-level output, and in a building lists the
+  building's levels whatever is in view.
+- Inspector sections remember being open or closed; Measurements starts open.
+- Presets without an icon get a placeholder, so names line up.
+
+**A.6 Keyboard and semantics — M.**
+
+- The DOM order follows the screen.
+- Skip links: "Skip to map" and "Skip to side panel".
+- Toolbars are `role="toolbar"` with arrow-key roving focus.
+- Landmarks for the side panel and the right panes.
+- A `<title>` per page, for example "Edit · {building} · IndoorID".
+- The help page's heading is its `h1`.
+- `prefers-reduced-motion` respected for camera moves and animations.
+- Undo and Redo tooltips name the step: "Undo: Square the corners".
+- PageUp and PageDown change the level.
+- A search box in the shortcuts dialog.
+
+**A.7 Viewer on phones — S–M.**
+
+- The header fits at 390px: no version string below `sm`, the page links in a menu, the
+  search as an icon that opens full width.
+- No overlap with the Background button.
+- The floor-numbering chips get a visible label.
+- The side panel becomes a bottom sheet.
+
+Dropped on 2026-11-25 ✔:
+
+- The command palette, the status bar, vertex and label size settings, floor plan tint,
+  basemap dimming and UI density.
+- A high-contrast mode: A.1 covers it.
+- Recent tags, the first-run tour, saved views per building and the undo history list.
+- Default units from the map's country.
+
 ## Later: 3D
 
 Not scheduled (moved here 2026-11-12 ✔): the user wants a good 2D editor and viewer first. Start
@@ -315,6 +440,9 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
   editing and viewing: P5.4b, W2, P6 and the 0.1 alpha release.
 - 2026-11-12: building mode (B) before P5.4b, W2 and P6, with the defaults in its section.
 - 2026-11-24: W3 takes in the checks from research addendum C (asked by the user).
+- 2026-11-24/25: phase A from the accessibility and ease-of-use audit, with the layout and
+  scope in its section (editor desktop only, good practice rather than formal conformance, no
+  new features).
 - 2026-11-11: before V, the plan takes in the forum recheck and osm-simple3d-editor's commits
   to `02c2bfd` (research addendum B), and the license notices are completed (LN below).
 
