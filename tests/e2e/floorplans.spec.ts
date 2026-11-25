@@ -404,7 +404,9 @@ test("floor plans open beside the inspector; a plan in Edit shows only building 
 	expect((await editor.boundingBox())?.x).toBe(box.x);
 	const pane = await planEditor.boundingBox();
 	expect((pane?.x ?? 0) + (pane?.width ?? 0)).toBe(box.x + box.width);
-	await expect(page.getByRole("group", { name: "Edit history" })).toBeVisible();
+	await expect(
+		page.getByRole("toolbar", { name: "Edit history" }),
+	).toBeVisible();
 
 	// A plan in Edit blocks editing: nothing selected, no tools, rooms hidden; the building's
 	// outline is drawn ~298 px right of the centre.
@@ -413,14 +415,18 @@ test("floor plans open beside the inspector; a plan in Edit shows only building 
 		.setInputFiles(path.join(FILES, "plan.png"));
 	await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue("plan");
 	await expect(editor).toBeHidden();
-	await expect(page.getByRole("group", { name: "Edit history" })).toBeHidden();
+	await expect(
+		page.getByRole("toolbar", { name: "Edit history" }),
+	).toBeHidden();
 	await expectPixel(page, centre.x + 298, centre.y, BUILDING_OUTLINE, 40);
 	await page.mouse.click(centre.x + 250, centre.y);
 	await expect(editor).toBeHidden();
 
 	// Done with the plan: editing again, with the pane still open.
 	await page.getByRole("button", { name: "Done" }).click();
-	await expect(page.getByRole("group", { name: "Edit history" })).toBeVisible();
+	await expect(
+		page.getByRole("toolbar", { name: "Edit history" }),
+	).toBeVisible();
 	await expect(planEditor).toBeVisible();
 	await page.getByRole("button", { name: "Close" }).click();
 	await expect(planEditor).toBeHidden();

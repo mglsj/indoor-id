@@ -6,12 +6,16 @@
 import { getContext, type Snippet, setContext } from "svelte";
 
 export class HeaderSlots {
+	/** Skip links (A.6), the first stops of the page, before the header. */
+	skips = $state.raw<Snippet | undefined>();
 	/** After the page links: where you are inside the page (the building entered). */
 	crumb = $state.raw<Snippet | undefined>();
 	/** Place search, between the page links and the right side. */
 	search = $state.raw<Snippet | undefined>();
 	/** The page's actions on the right, before Licenses, Language and Theme (Save, Issues). */
 	actions = $state.raw<Snippet | undefined>();
+	/** Where you are, for the page's title (A.6): the building entered. */
+	place = $state<string | undefined>();
 }
 
 const KEY = Symbol("header");
@@ -31,7 +35,7 @@ export function getHeader(): HeaderSlots {
  */
 export function useHeaderSlot(
 	slots: HeaderSlots,
-	slot: "crumb" | "search" | "actions",
+	slot: "skips" | "crumb" | "search" | "actions",
 	snippet: () => Snippet | undefined,
 ): void {
 	$effect(() => {

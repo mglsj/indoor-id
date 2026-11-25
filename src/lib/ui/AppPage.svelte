@@ -40,6 +40,16 @@
 	const header = setHeader(new HeaderSlots());
 	const languages = localeNames();
 
+	const PAGE_NAMES = {
+		edit: msg("nav_edit"),
+		view: msg("nav_view"),
+		help: msg("nav_help"),
+	} as const;
+	/** The page's title (A.6, WCAG 2.4.2): "Edit · Grand Quartier · IndoorID". */
+	const title = $derived(
+		[t(PAGE_NAMES[page]), header.place, "IndoorID"].filter(Boolean).join(" · "),
+	);
+
 	const dark = $derived(mode.current === "dark");
 	const label = $derived(t(msg(dark ? "theme_to_light" : "theme_to_dark")));
 
@@ -69,9 +79,19 @@
 	>
 {/snippet}
 
+<svelte:head>
+	<title>{title}</title>
+</svelte:head>
+
 <div class="flex h-full flex-col">
+	{@render header.skips?.()}
 	<header class="flex h-12 shrink-0 items-center gap-3 border-b px-4">
-		<h1 class="text-base font-semibold">IndoorID</h1>
+		<!-- The app's name; the help page's own heading is its h1 (A.6). -->
+		<svelte:element
+			this={page === "help" ? "p" : "h1"}
+			class="text-base font-semibold"
+			>IndoorID</svelte:element
+		>
 		<span class="text-xs text-muted-foreground"
 			>{__APP_VERSION__}
 			· {__GIT_HASH__}</span

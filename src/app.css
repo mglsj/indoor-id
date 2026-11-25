@@ -227,3 +227,22 @@ body {
 	background-color: var(--pressed);
 	color: var(--pressed-foreground);
 }
+
+/* Reduced motion (A.6): no transitions or zoom-ins; the camera follows it in MapLibre. A
+   spinner keeps turning: it says that something is loading. Unlayered, so it wins over the
+   utilities without !important. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	::before,
+	::after {
+		animation-duration: 0.01ms;
+		animation-iteration-count: 1;
+		transition-duration: 0.01ms;
+		scroll-behavior: auto;
+	}
+
+	.animate-spin {
+		animation-duration: 1s;
+		animation-iteration-count: infinite;
+	}
+}

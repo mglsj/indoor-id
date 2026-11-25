@@ -268,7 +268,7 @@ test("the map offers iD's tools; CAD tools, floor plans and levels are building 
 	page,
 }) => {
 	await open(page, `/#19/${LAT}/${LON}/0`);
-	const draw = page.getByRole("group", { name: "Draw" });
+	const draw = page.getByRole("toolbar", { name: "Draw" });
 	// Building mode's tools keep their place, disabled (A.2).
 	const usable = draw.locator(
 		'button:not([aria-disabled="true"]):not([disabled])',

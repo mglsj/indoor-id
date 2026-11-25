@@ -28,7 +28,7 @@ test("the side panel is resized by dragging its edge, and keeps its width", asyn
 }) => {
 	const editor = await selectRoom(page);
 	expect(await width(editor)).toBe(352);
-	const history = page.getByRole("group", { name: "Edit history" });
+	const history = page.getByRole("toolbar", { name: "Edit history" });
 	expect((await history.boundingBox())?.x).toBe(352 + 16);
 
 	await dragEdge(page, 150);

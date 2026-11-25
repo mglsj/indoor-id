@@ -48,6 +48,19 @@ describe("LevelControl", () => {
 		await expect.element(status).toHaveClass(/sr-only/);
 	});
 
+	it("steps with PageUp and PageDown, as its arrows (A.6)", async () => {
+		renderWithTooltips(LevelControl, {
+			level: 0,
+			levels: [{ level: -1 }, { level: 0 }, { level: 2 }],
+		});
+		const status = page.getByRole("status", { name: "Current level" });
+		await expect.element(status).toHaveTextContent("0");
+		await userEvent.keyboard("{PageUp}");
+		await expect.element(status).toHaveTextContent("2");
+		await userEvent.keyboard("{PageDown}{PageDown}");
+		await expect.element(status).toHaveTextContent("-1");
+	});
+
 	it("shows the level itself without a list", async () => {
 		renderWithTooltips(LevelControl, { level: 2, levels: [] });
 		await expect

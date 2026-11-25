@@ -27,7 +27,7 @@
 	class="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-6 text-sm leading-relaxed"
 >
 	<header class="flex flex-col gap-2">
-		<h2 class="text-2xl font-semibold">How to use IndoorID</h2>
+		<h1 class="text-2xl font-semibold">How to use IndoorID</h1>
 		<p class="text-muted-foreground">
 			IndoorID edits the inside of buildings in OpenStreetMap, level by level,
 			with
@@ -61,7 +61,7 @@
 	</header>
 
 	<section id="start" class="flex flex-col gap-2">
-		<h3 class="text-lg font-medium">Getting started</h3>
+		<h2 class="text-lg font-medium">Getting started</h2>
 		<p>
 			Open the
 			<a class="underline underline-offset-2" href={resolve("/")}>editor</a>
@@ -77,7 +77,7 @@
 	</section>
 
 	<section id="view" class="flex flex-col gap-2">
-		<h3 class="text-lg font-medium">Viewing indoor data</h3>
+		<h2 class="text-lg font-medium">Viewing indoor data</h2>
 		<p>
 			The
 			<a class="underline underline-offset-2" href={resolve("/view")}>viewer</a>
@@ -89,7 +89,7 @@
 	</section>
 
 	<section id="building" class="flex flex-col gap-2">
-		<h3 class="text-lg font-medium">Editing a building</h3>
+		<h2 class="text-lg font-medium">Editing a building</h2>
 		<p>
 			The map first shows buildings, building parts and entrances. Double-click
 			a building, or select it and choose <em>Edit indoor</em>, to enter it: the
@@ -111,7 +111,7 @@
 	</section>
 
 	<section id="draw" class="flex flex-col gap-2">
-		<h3 class="text-lg font-medium">Drawing rooms, walls and doors</h3>
+		<h2 class="text-lg font-medium">Drawing rooms, walls and doors</h2>
 		<ul class="list-disc space-y-1 pl-5">
 			<li>
 				<strong>Point</strong>
@@ -156,7 +156,7 @@
 	</section>
 
 	<section id="precision" class="flex flex-col gap-2">
-		<h3 class="text-lg font-medium">Drawing precisely</h3>
+		<h2 class="text-lg font-medium">Drawing precisely</h2>
 		<ul class="list-disc space-y-1 pl-5">
 			<li>
 				Snapping (<kbd>S</kbd>) catches corners, sides, their middles, floor
@@ -183,7 +183,7 @@
 	</section>
 
 	<section id="plans" class="flex flex-col gap-2">
-		<h3 class="text-lg font-medium">Floor plans</h3>
+		<h2 class="text-lg font-medium">Floor plans</h2>
 		<p>
 			Inside a building, open <em>Floor plans</em> to import a plan as an image
 			(PNG, JPEG, WebP), a PDF or an SVG, and assign it to a level. Place it
@@ -196,7 +196,7 @@
 	</section>
 
 	<section id="tags" class="flex flex-col gap-2">
-		<h3 class="text-lg font-medium">Choosing what a feature is</h3>
+		<h2 class="text-lg font-medium">Choosing what a feature is</h2>
 		<p>
 			A new feature asks for its type first: indoor types are listed first, then
 			the last ones you chose. Fields below edit its tags; the ⓘ buttons show
@@ -207,7 +207,7 @@
 	</section>
 
 	<section id="upload" class="flex flex-col gap-2">
-		<h3 class="text-lg font-medium">Checking and uploading</h3>
+		<h2 class="text-lg font-medium">Checking and uploading</h2>
 		<p>
 			IndoorID checks your edits as you work: the warning button beside
 			<em>Save</em>
@@ -226,7 +226,7 @@
 	</section>
 
 	<section id="elsewhere" class="flex flex-col gap-2">
-		<h3 class="text-lg font-medium">From other tools</h3>
+		<h2 class="text-lg font-medium">From other tools</h2>
 		<p>
 			The
 			<a
@@ -255,7 +255,7 @@
 	</section>
 
 	<section id="keys" class="flex flex-col gap-2">
-		<h3 class="text-lg font-medium">Keyboard shortcuts</h3>
+		<h2 class="text-lg font-medium">Keyboard shortcuts</h2>
 		<p>
 			Press <kbd>?</kbd> in the editor, or the keyboard button in the toolbar,
 			to list every shortcut.

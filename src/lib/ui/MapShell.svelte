@@ -106,6 +106,8 @@
 		modeBar?: Snippet;
 		/** Panels, hints and dialogs over the map. */
 		children?: Snippet;
+		/** The page's side panel, for the "Skip to side panel" link (A.6) while it shows. */
+		sidePanel?: HTMLElement;
 		/** Panes of the page's own, opened from buttons under the background's. */
 		panes?: readonly MapPane[];
 		/** The pane open on the right: "background", a pane's id, or null. */
@@ -134,11 +136,29 @@
 		modeBar,
 		children,
 		panes = [],
+		sidePanel,
 		openPane = $bindable(null),
 	}: Props = $props();
 
 	const editor = getEditor();
 	useHeaderSlot(getHeader(), "search", () => searchBox);
+	useHeaderSlot(getHeader(), "skips", () => skipLinks);
+
+	const skipTargets: ("map" | "panel")[] = $derived(
+		sidePanel ? ["map", "panel"] : ["map"],
+	);
+
+	/** Focuses the map, or the side panel's first control, from a skip link (A.6). */
+	function skipTo(target: "map" | "panel") {
+		if (target === "map") {
+			map?.getCanvas().focus();
+			return;
+		}
+		const first = sidePanel?.querySelector<HTMLElement>(
+			"button:not([disabled]), input:not([disabled]), [tabindex='0']",
+		);
+		first?.focus();
+	}
 	/** Enters what a link names: a building, or `here`, the loose indoor data (B.3). */
 	function enterFromUrl(building: NonNullable<View["building"]>) {
 		if (building === "here") editor.scope.enterLoose();
@@ -329,6 +349,23 @@
 
 <svelte:window onhashchange={onHashChange} />
 
+{#snippet skipLinks()}
+	<!-- Shown once focused: the first Tab of the page (A.6). -->
+	<div
+		class="pointer-events-none absolute top-2 left-2 z-50 flex gap-2 *:pointer-events-auto"
+	>
+		{#each skipTargets as target (target)}
+			<Button
+				variant="default"
+				size="sm"
+				class="sr-only focus-visible:not-sr-only"
+				onclick={() => skipTo(target)}
+				>{t(msg(target === "map" ? "skip_to_map" : "skip_to_panel"))}</Button
+			>
+		{/each}
+	</div>
+{/snippet}
+
 {#snippet searchBox()}
 	<SearchPlace
 		getView={() => visibleExtent(map)}
@@ -336,20 +373,6 @@
 		baseUrl={config.nominatim_url}
 	/>
 {/snippet}
-
-<MapView
-	styleUrl={BASEMAP_STYLE}
-	coveredRight={paneOpen ? PANE_WIDTH : 0}
-	initialCamera={fromUrl ?? {
-		zoom: config.map_initial_zoom,
-		lat: config.map_initial_latlng[0],
-		lon: config.map_initial_latlng[1],
-	}}
-	bind:map
-	onmove={onMove}
-	{drawn}
-	{planTiles}
-/>
 
 {@render children?.()}
 
@@ -363,6 +386,22 @@
 	{@render controls?.()}
 	{@render tools?.()}
 </div>
+
+<!-- The map after the side panel and the tools, before the right column: the keyboard order
+     follows the screen, left to right (A.6). It is in the flow; the rest is placed over it. -->
+<MapView
+	styleUrl={BASEMAP_STYLE}
+	coveredRight={paneOpen ? PANE_WIDTH : 0}
+	initialCamera={fromUrl ?? {
+		zoom: config.map_initial_zoom,
+		lat: config.map_initial_latlng[0],
+		lon: config.map_initial_latlng[1],
+	}}
+	bind:map
+	onmove={onMove}
+	{drawn}
+	{planTiles}
+/>
 
 <div
 	class="absolute top-4 z-10 flex flex-col items-end gap-2"

@@ -1,6 +1,7 @@
 <script lang="ts" module>
 	import type { FramePick } from "#lib/edit/modes/frame-pick.ts";
 	import type { BuildingFrame } from "#lib/state/frames.svelte.ts";
+	import { roving } from "#lib/ui/roving.ts";
 
 	/** The drawing frame in the middle of the map, and what can be done to it (C.3). */
 	export interface FrameControls {
@@ -120,7 +121,11 @@
 </script>
 
 <!-- Snapping on or off (S), and a menu of what snaps (C.1). -->
-<ButtonGroup.Root aria-label={t(msg("snap_menu"))}>
+<ButtonGroup.Root
+	role="toolbar"
+	aria-label={t(msg("snap_menu"))}
+	{@attach roving()}
+>
 	<Tooltip.Root>
 		<Tooltip.Trigger onclick={() => precision.toggle()}>
 			{#snippet child({ props })}

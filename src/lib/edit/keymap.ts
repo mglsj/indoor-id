@@ -80,6 +80,12 @@ export const SELECTION_KEYS: readonly KeyEntry[] = [
 	{ combo: "Escape", action: "deselect", label: msg("key_deselect") },
 ];
 
+/** Keys of the level switcher (A.6), wherever it shows: `LevelControl` listens to them. */
+export const LEVEL_KEYS: readonly KeyEntry<"level-up" | "level-down">[] = [
+	{ combo: "PageUp", action: "level-up", label: msg("key_level_up") },
+	{ combo: "PageDown", action: "level-down", label: msg("key_level_down") },
+];
+
 export interface KeyGroup {
 	readonly title: Message;
 	readonly keys: readonly KeyEntry[];
@@ -88,6 +94,7 @@ export interface KeyGroup {
 /** The help's groups, in order. */
 export const KEY_GROUPS: readonly KeyGroup[] = [
 	{ title: msg("keys_map"), keys: MAP_KEYS },
+	{ title: msg("keys_levels"), keys: LEVEL_KEYS },
 	{ title: msg("keys_selection"), keys: SELECTION_KEYS },
 	{ title: msg("keys_drawing"), keys: DRAWING_KEYS },
 ];

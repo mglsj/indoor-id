@@ -7,6 +7,7 @@ import {
 	LON,
 	mapDrawn,
 	room,
+	selectRoom,
 	serveOsm,
 	test,
 } from "./fixtures.ts";
@@ -149,3 +150,87 @@ for (const theme of ["light", "dark"] as const) {
 		});
 	});
 }
+
+test("transitions are cut short when the system asks for reduced motion (A.6)", async ({
+	page,
+}) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await openBuilding(page);
+	const duration = await page
+		.getByRole("button", { name: "Draw area" })
+		.evaluate((element) => getComputedStyle(element).transitionDuration);
+	expect(Number.parseFloat(duration)).toBeLessThan(0.001);
+});
+
+test("each page has a title of its own (A.6)", async ({ page }) => {
+	await openBuilding(page);
+	await expect(page).toHaveTitle(/^Edit · .+ · IndoorID$/);
+	await page.goto("/help");
+	await expect(page).toHaveTitle("Help · IndoorID");
+	await expect(
+		page.getByRole("heading", { level: 1, name: "How to use IndoorID" }),
+	).toBeVisible();
+});
+
+test("skip links come first: to the map, and to the side panel while it shows (A.6)", async ({
+	page,
+}) => {
+	await selectRoom(page);
+	// Back from the header's first link: the skip links are before it.
+	await page.getByRole("link", { name: "Edit", exact: true }).focus();
+	await page.keyboard.press("Shift+Tab");
+	const toPanel = page.getByRole("button", { name: "Skip to the side panel" });
+	await expect(toPanel).toBeFocused();
+	await expect(toPanel).toBeVisible();
+	await page.keyboard.press("Shift+Tab");
+	const toMap = page.getByRole("button", { name: "Skip to the map" });
+	await expect(toMap).toBeFocused();
+	await toPanel.focus();
+	await page.keyboard.press("Enter");
+	await expect(
+		page
+			.getByRole("complementary", { name: "Feature editor" })
+			.locator(":focus"),
+	).toHaveCount(1);
+
+	await toMap.focus();
+	await page.keyboard.press("Enter");
+	await expect(page.getByRole("region", { name: "Map" })).toBeFocused();
+});
+
+test("a toolbar is one Tab stop, its tools reached with the arrows (A.6)", async ({
+	page,
+}) => {
+	await openBuilding(page);
+	await page.getByRole("button", { name: "Draw point" }).focus();
+	await page.keyboard.press("ArrowRight");
+	await expect(page.getByRole("button", { name: "Draw line" })).toBeFocused();
+	// Out of the toolbar: the next stop is the snapping toolbar's.
+	await page.keyboard.press("Tab");
+	await expect(
+		page.getByRole("toolbar", { name: "Draw" }).locator(":focus"),
+	).toHaveCount(0);
+});
+
+test("Undo's tooltip names the step it takes back (A.6)", async ({ page }) => {
+	await selectRoom(page);
+	await page.keyboard.press("Delete");
+	await page.getByRole("button", { name: "Undo" }).hover();
+	await expect(page.locator("[data-slot=tooltip-content]")).toContainText(
+		/^Undo: Delete/,
+	);
+});
+
+test("PageUp and PageDown change the level (A.6)", async ({ page }) => {
+	await serveOsm(page, [
+		...room(100, LON, LAT, "0"),
+		...room(200, LON, LAT, "1"),
+	]);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
+	await camera(page);
+	await mapDrawn(page);
+	await page.keyboard.press("PageUp");
+	await expect(page.getByTestId("level")).toHaveAttribute("data-level", "1");
+	await page.keyboard.press("PageDown");
+	await expect(page.getByTestId("level")).toHaveAttribute("data-level", "0");
+});

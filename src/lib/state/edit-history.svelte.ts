@@ -83,6 +83,20 @@ export class EditHistory {
 		return this.#preview === null && this.#history.canRedo;
 	}
 
+	/** What Undo takes back: the current step's label (A.6, its tooltip), or null. */
+	get undoLabel(): Message | null {
+		if (!this.canUndo) return null;
+		const { steps, index } = this.#history.steps;
+		return steps[index]?.annotation ?? null;
+	}
+
+	/** What Redo does again: the next step's label, or null. */
+	get redoLabel(): Message | null {
+		if (!this.canRedo) return null;
+		const { steps, index } = this.#history.steps;
+		return steps[index + 1]?.annotation ?? null;
+	}
+
 	/** Applies an action as an undo step, labelled for the user. */
 	perform(action: Action, annotation: Message): void {
 		if (this.locked) return;

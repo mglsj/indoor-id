@@ -223,6 +223,7 @@
 	} from "#lib/ui/panel-width.ts";
 	import RepeatDialog from "#lib/ui/RepeatDialog.svelte";
 	import RestoreDialog from "#lib/ui/RestoreDialog.svelte";
+	import { roving } from "#lib/ui/roving.ts";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
 	import ShortcutsDialog from "#lib/ui/ShortcutsDialog.svelte";
 	import SnapMenu, { type FrameControls } from "#lib/ui/SnapMenu.svelte";
@@ -1877,12 +1878,28 @@
 	const header = getHeader();
 	useHeaderSlot(header, "crumb", () => crumb);
 	useHeaderSlot(header, "actions", () => headerActions);
+	// The page's title names the building entered (A.6).
+	$effect(() => {
+		header.place = editor.scope.active ? scopeName : undefined;
+		return () => {
+			header.place = undefined;
+		};
+	});
 
-	/** The tooltip of Undo or Redo, with its key. */
+	/** The tooltip of Undo or Redo, naming the step (A.6: "Undo: Square the corners"), with its key. */
 	function historyHint(which: "undo" | "redo"): string {
+		const step =
+			which === "undo" ? editor.history.undoLabel : editor.history.redoLabel;
+		const label = step
+			? t(
+					msg(which === "undo" ? "undo_named" : "redo_named", {
+						step: t(step),
+					}),
+				)
+			: t(msg(which));
 		return t(
 			msg("with_shortcut", {
-				label: t(msg(which)),
+				label,
 				keys: formatCombo(which === "undo" ? "Mod+Z" : "Mod+Shift+Z", mac),
 			}),
 		);
@@ -2221,6 +2238,7 @@
 	bind:appearance
 	bind:openPane
 	panes={guidePanes}
+	sidePanel={panelOpen ? sidePanel : undefined}
 	left={panelOpen ? shownPanelWidth : 0}
 	{planTiles}
 	levelSwitcher={plansOpen || offered.levels}
@@ -2232,7 +2250,11 @@
 			     then the selection's operations. Map controls sit on an opaque surface: shadcn's
 			     dark outline styles are translucent. -->
 			<div class="rounded-md bg-background shadow-md">
-				<ButtonGroup.Root aria-label={t(msg("toolbar_history"))}>
+				<ButtonGroup.Root
+					role="toolbar"
+					aria-label={t(msg("toolbar_history"))}
+					{@attach roving()}
+				>
 					{@render iconButton(
 						t(msg("undo")),
 						historyHint("undo"),
@@ -2250,7 +2272,11 @@
 				</ButtonGroup.Root>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
-				<ButtonGroup.Root aria-label={t(msg("toolbar_draw"))}>
+				<ButtonGroup.Root
+					role="toolbar"
+					aria-label={t(msg("toolbar_draw"))}
+					{@attach roving()}
+				>
 					{@render drawButton(
 						"point",
 						t(msg("tool_point")),
@@ -2362,7 +2388,11 @@
 				<!-- The selection bar (A.3): the main actions labelled, the rest in two menus. -->
 				<div class="flex flex-wrap gap-2" data-testid="selection-bar">
 					<div class="rounded-md bg-background shadow-md">
-						<ButtonGroup.Root aria-label={t(msg("toolbar_selection"))}>
+						<ButtonGroup.Root
+							role="toolbar"
+							aria-label={t(msg("toolbar_selection"))}
+							{@attach roving()}
+						>
 							{#each grouped.main as { operation, disabled } (operation.id)}
 								{@render operationButton(operation, disabled)}
 							{/each}
