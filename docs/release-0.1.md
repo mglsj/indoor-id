@@ -86,11 +86,11 @@ OSM API, a real JOSM, a userscript manager).
 ## Manual
 
 - [ ] Log in to openstreetmap.org (or the dev server, `api06.dev.openstreetmap.org`) with the
-  release's `config.json`, upload a small edit, and open its changeset on the website.
+      release's `config.json`, upload a small edit, and open its changeset on the website.
 - [ ] In JOSM (July 2025 or later) with Remote Control and "Export data from JOSM" on, open
-  `/?source=josm`: the active layer shows, unsaved edits included.
+      `/?source=josm`: the active layer shows, unsaved edits included.
 - [ ] Install `/indoorid.user.js` in Violentmonkey or Tampermonkey, set IndoorID's address, and
-  use "Open in IndoorID" on openstreetmap.org, an OSMCha changeset and indoorequal.org.
+      use "Open in IndoorID" on openstreetmap.org, an OSMCha changeset and indoorequal.org.
 - [ ] "Preview in indoor=" on a building opens indoorequal.org showing it.
 - [ ] Firefox and Safari: open a building, draw a room, import a PDF plan.
 - [ ] `licenses.md` from the header lists the bundled packages.

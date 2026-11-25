@@ -1,0 +1,42 @@
+# Weekly dependency updates (R6.5), grouped so related packages move together.
+# Playwright stays pinned to the Chromium of cloud sessions (see CLAUDE.md): it is ignored here.
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: playwright
+      - dependency-name: "@playwright/test"
+    groups:
+      maplibre:
+        patterns: ["maplibre-gl", "@maplibre/*"]
+      svelte:
+        patterns:
+          [
+            "svelte",
+            "svelte-check",
+            "@sveltejs/*",
+            "bits-ui",
+            "shadcn-svelte",
+            "@lucide/svelte",
+          ]
+      test-tooling:
+        patterns:
+          ["vitest", "@vitest/*", "vitest-browser-svelte", "fake-indexeddb"]
+      build-tooling:
+        patterns:
+          [
+            "vite",
+            "@biomejs/biome",
+            "tailwindcss",
+            "@tailwindcss/*",
+            "typescript",
+            "@types/*",
+          ]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

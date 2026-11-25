@@ -51,7 +51,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
 | P6     | Parity and polish                          | Done         |
 | A      | Accessibility and layout (Nov. audit)      | Done         |
-| R6     | Fixes from the 2026-11-25 code audit       | R6.3 done    |
+| R6     | Fixes from the 2026-11-25 code audit       | R6.4 open    |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -216,7 +216,7 @@ Done ✅ (2026-11-25, PRs #60–#63, #65, #66 and A.7's); see "A" in
 [docs/history.md](docs/history.md). Left for later: popovers (the snapping menu) still render
 outside a landmark (axe's moderate `region`), and the editor itself stays desktop only.
 
-### R6: Fixes from the 2026-11-25 code audit — M–L (R6.1–R6.5) — R6.3 done
+### R6: Fixes from the 2026-11-25 code audit — M–L (R6.1–R6.5) — R6.1–R6.3 and R6.5 done, R6.4 under way
 
 From the code audit of `master` at `ba63562`, in
 [docs/code-audit-2026-11-25.md](docs/code-audit-2026-11-25.md) (item ids below are the
@@ -256,13 +256,19 @@ report's). One PR per slice, each with a test that fails before the fix.
   (`state/building-scope-controller.svelte.ts`), the draw toolbar and selection bar with its
   operations menu (`ui/DrawToolbar.svelte`, `ui/SelectionBar.svelte`), the mode factory
   (`edit/mode-factory.ts`) and the layer wiring (`map/editor-layers.svelte.ts`). R4: one
-  `isVertical`, one set of room spaces, a `pixelsAtZ17` helper. R5: the `polyclip-ts` call
-  sites moved to Clipper2, one clipping library left.
-- **R6.5, dependencies and tests (S).** Minor and patch updates (MapLibre 6.19, Kit 3.4, Svelte
-  5.59, pdf.js 6.5, Vitest 5.1, Playwright 1.65); runtime libraries moved to `dependencies`;
-  Renovate or Dependabot; CI actions v5. Majors (osm-auth 4, TypeScript 7, tailwind-variants
-  4) each on their own once checked. L1: the JPEG XL codec tests follow `probeSupport()`. The
-  e2e test `inspector.spec.ts:80` that fails after a reload is looked at: a test race or a bug.
+  `isVertical`, one set of room spaces, a `pixelsAtZ17` helper. R5: `osm/clip.ts`
+  (Clipper2) replaces `polyclip-ts`, one clipping library left.
+- ~~**R6.5, dependencies and tests**~~: done ✅ (2026-11-25). Minor and patch updates (MapLibre
+  6.19, Kit 3.4, Svelte 5.59, pdf.js 6.5, bits-ui 2.22, Vitest 5.1, Vite 8.3.8, Biome 2.6.9,
+  Clipper2 2.0.1-19…); Bun 1.4.4; `osm-auth`, `rbush`, `mode-watcher`, `tailwind-variants`,
+  `cn` and `@internationalized/date` moved to `dependencies`; `.github/dependabot.yml` (weekly,
+  grouped; Playwright ignored, pinned to the cloud sessions' Chromium); CI actions on their
+  latest majors (checkout and setup-node 7, cache 6, upload-artifact 7). L1: the JPEG XL codec
+  tests check `probeSupport()` against what the browser decodes. `inspector.spec.ts:80` was a
+  test race, not a bug: the restore dialog's overlay, still fading out, took the click;
+  `reloadDiscardingEdits` now waits for the dialog to go. Left: Playwright 1.65 (with the
+  cloud sessions' browser), and the majors osm-auth 4, TypeScript 7 and tailwind-variants 4,
+  each on its own once checked.
 
 Open questions in the report (section 5) are asked before R6.1 and R6.4 start.
 
