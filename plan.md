@@ -51,7 +51,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
 | P6     | Parity and polish                          | Done         |
 | A      | Accessibility and layout (Nov. audit)      | Done         |
-| R6     | Fixes from the 2026-11-25 code audit       | R6.2 done    |
+| R6     | Fixes from the 2026-11-25 code audit       | R6.3 done    |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -216,7 +216,7 @@ Done ✅ (2026-11-25, PRs #60–#63, #65, #66 and A.7's); see "A" in
 [docs/history.md](docs/history.md). Left for later: popovers (the snapping menu) still render
 outside a landmark (axe's moderate `region`), and the editor itself stays desktop only.
 
-### R6: Fixes from the 2026-11-25 code audit — M–L (R6.1–R6.5) — R6.2 done
+### R6: Fixes from the 2026-11-25 code audit — M–L (R6.1–R6.5) — R6.3 done
 
 From the code audit of `master` at `ba63562`, in
 [docs/code-audit-2026-11-25.md](docs/code-audit-2026-11-25.md) (item ids below are the
@@ -239,11 +239,18 @@ report's). One PR per slice, each with a test that fails before the fix.
   `building=no` is no building, the sub-preset test needs a `/`, `matchScore` has iD's
   `addTags` bonus and `searchable` penalty, country-only presets are left out at build time
   (3), and door widths read `0,9`, `3'6"` and `36"`. `name:<locale>` labels stay for later.
-- **R6.3, performance (M).** M4: hover and label hiding once a frame. M5: selection, hover and
-  drawing from a small overlay source, not six layers over every feature. M6: frames and
-  containers looked up in an rbush. M7: stale tile downloads dropped or aborted. Incremental
-  level counts in `FeatureStore`, bands from the index. Measured with `bun run bench` and a
-  10,000-room pointer-move trace, before and after.
+- ~~**R6.3, performance**~~: done ✅ (2026-11-25). M4: `ModeManager` handles a hover (and
+  `onpointer`, the labels hidden near the pointer) once a frame, at the last position, as drags
+  were. M5: the selection, hover and drawing outlines come from `MARK_SOURCE`, which holds only
+  those features (their feature states moved with them), not six layers over all the data.
+  M6: `StoredFeatures.containersAt(loc)`, an rbush of level outlines and buildings, gives the
+  drawing frame without scanning every feature. M7: `MapLoader` runs the tiles of the latest
+  load first, and a download ending hands its turn straight on (never 5 at once); downloads
+  aren't aborted, as `loadArea` (a building entered) may still want tiles out of view.
+  Measured: 400 pointer moves over a selected room among 10,000 rooms (Chromium, SwiftShader),
+  main-thread time 36 s on master, 29–31 s after; most of what remains is software WebGL
+  drawing, JavaScript was under 2 s. Left for later: incremental level counts in
+  `FeatureStore`, bands from the index.
 - **R6.4, refactors with no behaviour change (M–L).** R1: `EditorView.svelte` split (building
   scope controller, mode factory, layer wiring, operations menu, draw toolbar), one PR per
   cut unless the user says otherwise. R4: one `isVertical`, one set of room spaces, a

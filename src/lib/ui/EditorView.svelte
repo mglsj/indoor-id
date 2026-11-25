@@ -300,7 +300,7 @@
 	/** The drawing frame at a position: its level outline's or building's, else north. */
 	function frameAt(loc: Loc): Frame {
 		return (
-			frames.at([...editor.features.byId.values()], loc, level)?.frame ??
+			frames.at(editor.features.containersAt(loc), loc, level)?.frame ??
 			northFrame(loc)
 		);
 	}
@@ -594,7 +594,8 @@
 		construction.add(
 			line,
 			level,
-			frames.at([...editor.features.byId.values()], line.origin, level)?.id,
+			frames.at(editor.features.containersAt(line.origin), line.origin, level)
+				?.id,
 			// The Map data pane's colour, kept on the guide only when it isn't the default.
 			looks.guideColor === DEFAULT_APPEARANCE.guideColor
 				? undefined
@@ -624,7 +625,7 @@
 			: [camera.lon, camera.lat];
 		void frames.version;
 		return untrack(() =>
-			frames.at([...editor.features.byId.values()], at, level),
+			frames.at(editor.features.containersAt(at), at, level),
 		);
 	});
 	/** The grid's frame: the building's, else north from a round spot near the middle. */

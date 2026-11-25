@@ -27,6 +27,11 @@ export const BAND_SOURCE = "osm-bands";
  * which MapLibre labels once per tile they cross.
  */
 export const LABEL_SOURCE = "osm-labels";
+/**
+ * The selected, hovered and being-drawn features only, for their outlines (M5): drawing them
+ * from the whole data at opacity 0 cost six layers of every line and point.
+ */
+export const MARK_SOURCE = "osm-marks";
 
 const kind: ExpressionSpecification = ["get", "@kind"];
 const isPolygon: ExpressionSpecification = [
@@ -667,7 +672,7 @@ export function indoorLayers(
 		{
 			id: "indoor-drawing-casing",
 			type: "line",
-			source: INDOOR_SOURCE,
+			source: MARK_SOURCE,
 			filter: onLevel(["any", isPolygon, isLine]),
 			paint: {
 				"line-color": SELECTION_CASING,
@@ -678,7 +683,7 @@ export function indoorLayers(
 		{
 			id: "indoor-drawing-line",
 			type: "line",
-			source: INDOOR_SOURCE,
+			source: MARK_SOURCE,
 			filter: onLevel(["any", isPolygon, isLine]),
 			paint: {
 				"line-color": drawing,
@@ -690,7 +695,7 @@ export function indoorLayers(
 		{
 			id: "indoor-selection-casing",
 			type: "line",
-			source: INDOOR_SOURCE,
+			source: MARK_SOURCE,
 			filter: onLevel(["any", isPolygon, isLine]),
 			paint: {
 				"line-color": SELECTION_CASING,
@@ -701,7 +706,7 @@ export function indoorLayers(
 		{
 			id: "indoor-selection-line",
 			type: "line",
-			source: INDOOR_SOURCE,
+			source: MARK_SOURCE,
 			filter: onLevel(["any", isPolygon, isLine]),
 			paint: {
 				"line-color": selection,
@@ -712,7 +717,7 @@ export function indoorLayers(
 		{
 			id: "indoor-selection-point-casing",
 			type: "circle",
-			source: INDOOR_SOURCE,
+			source: MARK_SOURCE,
 			filter: onLevel(isPoint),
 			paint: {
 				"circle-radius": 12,
@@ -725,7 +730,7 @@ export function indoorLayers(
 		{
 			id: "indoor-selection-point",
 			type: "circle",
-			source: INDOOR_SOURCE,
+			source: MARK_SOURCE,
 			filter: onLevel(isPoint),
 			paint: {
 				"circle-radius": 12,

@@ -459,3 +459,32 @@ describe("StoredFeatures.labels: the label points sent to the map", () => {
 		expect(next.labels.get("w2")?.properties["@label"]).toBe("B");
 	});
 });
+
+describe("StoredFeatures.containersAt (M6)", () => {
+	it("gives the level outlines and buildings whose extent holds a position, from an index", () => {
+		const store = new FeatureStore();
+		const graph = Graph.fromEntities([
+			...square(1, 0, 0),
+			way("w1", ring(1), { indoor: "room", level: "0" }),
+			...square(2, 0, 0.5),
+			way("w2", ring(2), { indoor: "level", level: "0" }),
+			...square(3, 0, -0.5),
+			way("w3", ring(3), { building: "yes" }),
+			...square(4, 10, 0),
+			way("w4", ring(4), { building: "yes" }),
+			...square(5, 0, 0),
+			way("w5", ring(5), { building: "no" }),
+		]);
+		const ids = (features: readonly IndoorFeature[]) =>
+			features.map((f) => f.properties["@id"]).sort();
+		expect(ids(store.update(graph).containersAt([0, 0]))).toEqual(["w2", "w3"]);
+		// A building moved away is found no more.
+		const moved = graph
+			.replace(node(nid(3, 1), {}, [19, -1]))
+			.replace(node(nid(3, 2), {}, [21, -1]))
+			.replace(node(nid(3, 3), {}, [21, 1]))
+			.replace(node(nid(3, 4), {}, [19, 1]));
+		expect(ids(store.update(moved).containersAt([0, 0]))).toEqual(["w2"]);
+		expect(ids(store.update(moved).containersAt([20, 0]))).toEqual(["w3"]);
+	});
+});

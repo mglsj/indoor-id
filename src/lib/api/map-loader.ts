@@ -1,6 +1,7 @@
 /**
  * Downloads OSM data for the visible area in zoom-16 tiles: each tile once, a few at a time,
- * so panning back and forth never downloads the same data twice.
+ * so panning back and forth never downloads the same data twice. The tiles of the latest load
+ * go first: after a fast pan, those in view don't wait behind those passed on the way (M7).
  */
 import { type Tile, tileBounds, tilesCovering } from "#lib/map/tiles.ts";
 import type { Entity } from "#lib/osm/entity.ts";
@@ -50,9 +51,15 @@ export class MapLoader<T = Entity> {
 	readonly #split = new Set<string>();
 	/** Failed tiles, and when they may be downloaded again. */
 	readonly #failures = new Map<string, { count: number; until: number }>();
-	readonly #pending = new Map<string, Promise<boolean>>();
-	readonly #waiting: (() => void)[] = [];
+	readonly #pending = new Map<
+		string,
+		{ readonly loading: Promise<boolean>; readonly rank: Rank }
+	>();
+	/** Downloads waiting for a turn: the highest rank goes first. */
+	readonly #waiting: { readonly rank: Rank; readonly start: () => void }[] = [];
 	#active = 0;
+	/** Bumped by each load: its tiles' rank. */
+	#loads = 0;
 	/** Tiles downloaded but not handed over yet, and whether a frame is asked for. */
 	#arrived: { key: string; entities: T[] }[] = [];
 	#scheduled = false;
@@ -80,8 +87,9 @@ export class MapLoader<T = Entity> {
 		const tiles = tilesCovering(bounds, this.#options.zoom);
 		if (tiles.length > this.#options.maxTiles)
 			return { failed: 0, skipped: true };
+		const rank = ++this.#loads;
 		const results = await Promise.all(
-			tiles.map((tile) => this.#loadTile(tile)),
+			tiles.map((tile) => this.#loadTile(tile, rank)),
 		);
 		// Everything is handed over once the load resolves.
 		this.#flush();
@@ -117,31 +125,36 @@ export class MapLoader<T = Entity> {
 		this.#arrived = [];
 	}
 
-	#loadTile(tile: Tile): Promise<boolean> {
+	#loadTile(tile: Tile, rank: number): Promise<boolean> {
 		const key = `${tile.z}/${tile.x}/${tile.y}`;
 		if (this.#loaded.has(key)) return Promise.resolve(true);
-		if (this.#split.has(key)) return this.#loadQuarters(tile);
+		if (this.#split.has(key)) return this.#loadQuarters(tile, rank);
 		const pending = this.#pending.get(key);
-		if (pending) return pending;
+		if (pending) {
+			// Wanted again: it waits with the latest load's tiles.
+			pending.rank.value = Math.max(pending.rank.value, rank);
+			return pending.loading;
+		}
 		// Failed lately: not asked again on every move.
 		const failure = this.#failures.get(key);
 		if (failure && this.#options.now() < failure.until) {
 			return Promise.resolve(false);
 		}
 
-		const loading = this.#download(tile, key).finally(() =>
+		const entry = { rank: { value: rank } };
+		const loading = this.#download(tile, key, entry.rank).finally(() =>
 			this.#pending.delete(key),
 		);
-		this.#pending.set(key, loading);
+		this.#pending.set(key, { ...entry, loading });
 		return loading;
 	}
 
-	async #download(tile: Tile, key: string): Promise<boolean> {
+	async #download(tile: Tile, key: string, rank: Rank): Promise<boolean> {
 		for (;;) {
 			let generation = this.#generation;
 			let entities: T[];
 			try {
-				entities = await this.#limited(async () => {
+				entities = await this.#limited(rank, async () => {
 					while (this.#paused) await this.#paused;
 					generation = this.#generation;
 					return this.#options.download(tileBounds(tile));
@@ -153,7 +166,7 @@ export class MapLoader<T = Entity> {
 					this.#options.tooLarge(error)
 				) {
 					this.#split.add(key);
-					return this.#loadQuarters(tile);
+					return this.#loadQuarters(tile, rank.value);
 				}
 				const count = (this.#failures.get(key)?.count ?? 0) + 1;
 				const wait = Math.min(
@@ -173,12 +186,12 @@ export class MapLoader<T = Entity> {
 	}
 
 	/** A tile too large, as its four quarters: true once all four are in. */
-	async #loadQuarters({ x, y, z }: Tile): Promise<boolean> {
+	async #loadQuarters({ x, y, z }: Tile, rank: number): Promise<boolean> {
 		const quarters = [0, 1].flatMap((dy) =>
 			[0, 1].map((dx) => ({ x: 2 * x + dx, y: 2 * y + dy, z: z + 1 })),
 		);
 		const results = await Promise.all(
-			quarters.map((quarter) => this.#loadTile(quarter)),
+			quarters.map((quarter) => this.#loadTile(quarter, rank)),
 		);
 		return results.every(Boolean);
 	}
@@ -198,19 +211,39 @@ export class MapLoader<T = Entity> {
 		this.#options.onData(entities);
 	}
 
-	/** Runs `task` once fewer than `concurrency` tasks are running. */
-	async #limited<T>(task: () => Promise<T>): Promise<T> {
+	/**
+	 * Runs `task` once fewer than `concurrency` tasks are running, the waiting task of the
+	 * highest rank first. A task ending hands its turn straight to the next, so no task
+	 * started meanwhile can run past the limit.
+	 */
+	async #limited<R>(rank: Rank, task: () => Promise<R>): Promise<R> {
 		if (this.#active >= this.#options.concurrency) {
-			await new Promise<void>((resolve) => this.#waiting.push(resolve));
+			await new Promise<void>((start) => this.#waiting.push({ rank, start }));
+		} else {
+			this.#active++;
 		}
-		this.#active++;
 		try {
 			return await task();
 		} finally {
-			this.#active--;
-			this.#waiting.shift()?.();
+			const next = this.#nextWaiting();
+			if (next) next.start();
+			else this.#active--;
 		}
 	}
+
+	#nextWaiting(): { readonly start: () => void } | undefined {
+		let best = -1;
+		for (const [i, waiting] of this.#waiting.entries()) {
+			const bestRank = this.#waiting[best]?.rank.value ?? -1;
+			if (waiting.rank.value > bestRank) best = i;
+		}
+		return best < 0 ? undefined : this.#waiting.splice(best, 1)[0];
+	}
+}
+
+/** A download's place in the queue: the latest load wanting its tile. */
+interface Rank {
+	value: number;
 }
 
 function isBadRequest(error: unknown): boolean {
