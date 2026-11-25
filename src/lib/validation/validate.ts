@@ -3,6 +3,7 @@
  * through the history like any edit (so it can be undone).
  */
 import { changeTags } from "#lib/actions/change-tags.ts";
+import { deleteEntities } from "#lib/actions/delete.ts";
 import { onePerLevel } from "#lib/actions/split-levels.ts";
 import { type Message, msg } from "#lib/i18n/messages.ts";
 import { featureLevels, unionOfLevels } from "#lib/levels/feature-levels.ts";
@@ -26,7 +27,7 @@ import type {
 import { isClosed, pointInRing, wayLocs } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import type { Action } from "#lib/osm/history.ts";
-import type { Tags } from "#lib/osm/tags.ts";
+import { hasInterestingTags, type Tags } from "#lib/osm/tags.ts";
 import { buildingIssues } from "./buildings.ts";
 import { conformanceIssues } from "./conformance.ts";
 import { Outlines } from "./outlines.ts";
@@ -75,7 +76,8 @@ export type IssueRule =
 	| "door-on-side"
 	| "building-overlap"
 	| "building-inside"
-	| "unglued-wall";
+	| "unglued-wall"
+	| "missing-tags";
 
 /** Rules whose issues the upload refuses: the server would take broken data. */
 export const BLOCKING_RULES: ReadonlySet<IssueRule> = new Set([
@@ -128,6 +130,7 @@ export function validate(
 			...recheckIssues(graph, entity, outlines),
 			...buildingIssues(graph, entity, outlines),
 			...openMultipolygon(graph, entity),
+			...missingTags(graph, entity),
 		);
 	}
 	return issues;
@@ -659,4 +662,33 @@ function openMultipolygon(graph: Graph, entity: Entity): Issue[] {
 				},
 			]
 		: [];
+}
+
+/**
+ * A point or way with nothing but `level` (or no tags at all) that no way or relation holds:
+ * just placed or drawn and not given a type yet (iD's `missing_tag`). A new untagged way
+ * can't be uploaded (`osm/upload-check.ts`); this points at it before Save.
+ */
+function missingTags(graph: Graph, entity: Entity): Issue[] {
+	if (hasInterestingTags(entity.tags)) return [];
+	const loose =
+		entity.type === "node"
+			? graph.parentWays(entity.id).length === 0
+			: entity.type === "way" && graph.parentRelations(entity.id).length === 0;
+	if (!loose) return [];
+	return [
+		issue(
+			"missing-tags",
+			entity,
+			msg(
+				entity.type === "node"
+					? "issue_missing_tags_point"
+					: "issue_missing_tags_way",
+			),
+			{
+				label: msg("fix_delete_feature"),
+				action: deleteEntities([entity.id]),
+			},
+		),
+	];
 }
