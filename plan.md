@@ -64,7 +64,7 @@ Finished phases (what was built, measured and decided) are in [docs/history.md](
 | App         | SvelteKit 3 + `adapter-static`, every route `ssr = false` / `prerender = true`; Svelte 5 runes; TypeScript 6 strict |
 | Map         | MapLibre GL JS 6 (WebGL), imported only via `#lib/map/maplibre.ts`                                                  |
 | UI          | Tailwind CSS 4, shadcn-svelte components (vega style, on bits-ui 2), `@lucide/svelte`                               |
-| Editing     | Custom engine modelled on iD's modes and behaviours, `rbush` spatial index, `polyclip-ts` (unmapped floor)          |
+| Editing     | Custom engine modelled on iD's modes and behaviours, `rbush` spatial index, `clipper2-ts` (unmapped floor, bands)   |
 | OSM         | `osm-auth` 3 (OAuth 2 PKCE, no secret, no backend); small `fetch` client for the API v0.6                           |
 | Presets     | `@openstreetmap/id-tagging-schema` filtered at build time, plus a local indoor overlay; `fuse.js`                   |
 | Storage     | IndexedDB via `idb` (floor plans, autosaved edits, settings)                                                        |
@@ -253,9 +253,11 @@ report's). One PR per slice, each with a test that fails before the fix.
   `FeatureStore`, bands from the index.
 - **R6.4, refactors with no behaviour change (M–L).** R1: `EditorView.svelte` split (building
   scope controller, mode factory, layer wiring, operations menu, draw toolbar), one PR per
-  cut unless the user says otherwise. R4: one `isVertical`, one set of room spaces, a
-  `pixelsAtZ17` helper. R5: the `polyclip-ts` call sites moved to Clipper2, one clipping
-  library left.
+  cut unless the user says otherwise. ~~R4~~ done ✅ (2026-11-25): one `isVertical` in
+  `osm/tags.ts` (the map's, so the validator now also knows `room=stairs|elevator|escalator`
+  and `buildingpart=verticalpassage`), one `ROOM_SPACES`, `pixelsAtZ17` in `features.ts`.
+  ~~R5~~ done ✅ (2026-11-25): `osm/clip.ts` (`clipPolygons`, Clipper2 with the given corners
+  kept exact) for the unmapped floor and the building overlaps; `polyclip-ts` dropped.
 - **R6.5, dependencies and tests (S).** Minor and patch updates (MapLibre 6.19, Kit 3.4, Svelte
   5.59, pdf.js 6.5, Vitest 5.1, Playwright 1.65); runtime libraries moved to `dependencies`;
   Renovate or Dependabot; CI actions v5. Majors (osm-auth 4, TypeScript 7, tailwind-variants
