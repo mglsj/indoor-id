@@ -41,32 +41,18 @@
 	} from "#lib/edit/keys.ts";
 	import { featuresInLasso, lassoDrag } from "#lib/edit/lasso.ts";
 	import type { MapPoint } from "#lib/edit/mode.ts";
+	import {
+		type ModeHost,
+		modeFor,
+		modeKindOf,
+	} from "#lib/edit/mode-factory.ts";
 	import { ModeManager } from "#lib/edit/mode-manager.ts";
-	import { browseMode } from "#lib/edit/modes/browse.ts";
-	import {
-		drawPointMode,
-		drawWayMode,
-		type SnapConstraints,
-	} from "#lib/edit/modes/draw.ts";
-	import {
-		floorPlanMode,
-		floorPlanToolMode,
-	} from "#lib/edit/modes/floorplan.ts";
-	import { type FramePick, framePickMode } from "#lib/edit/modes/frame-pick.ts";
-	import {
-		type MeasureMode,
-		type MeasureVariant,
-		measureMode,
-	} from "#lib/edit/modes/measure.ts";
-	import {
-		drawRectangleMode,
-		type RectangleVariant,
-	} from "#lib/edit/modes/rectangle.ts";
-	import { splitMode } from "#lib/edit/modes/split.ts";
-	import {
-		type TransformTool,
-		transformMode,
-	} from "#lib/edit/modes/transform.ts";
+	import type { BrowseOptions } from "#lib/edit/modes/browse.ts";
+	import type { SnapConstraints } from "#lib/edit/modes/draw.ts";
+	import type { FramePick } from "#lib/edit/modes/frame-pick.ts";
+	import type { MeasureMode, MeasureVariant } from "#lib/edit/modes/measure.ts";
+	import type { RectangleVariant } from "#lib/edit/modes/rectangle.ts";
+	import type { TransformTool } from "#lib/edit/modes/transform.ts";
 	import { type NodeGrab, nodeDrag } from "#lib/edit/node-drag.ts";
 	import {
 		groupOperations,
@@ -868,17 +854,13 @@
 
 	/** What the map's clicks, drags and keys do now (see `edit/modes`). */
 	const modeKind = $derived(
-		planMode
-			? floorplans.tool
-				? "floorplan-tool"
-				: "floorplan"
-			: framePick
-				? `frame-${framePick}`
-				: transformTool
-					? `transform-${transformTool}`
-					: drawing
-						? `draw-${drawing}`
-						: "browse",
+		modeKindOf({
+			planMode,
+			planTool: floorplans.tool !== null,
+			framePick,
+			transformTool,
+			drawing,
+		}),
 	);
 	let modes = $state.raw<ModeManager>();
 
@@ -1062,6 +1044,152 @@
 			});
 		});
 
+		/** What a click, a press or a key does while browsing (B.1, B.2, P5.3). */
+		const browseOptions = (): BrowseOptions => ({
+			hitTest: pick,
+			select: (id, at) => selectOrEnter(id as EntityId | null, at),
+			enter: (at) => {
+				const id = scopeControl.enterableAt(at);
+				if (!id) return false;
+				scopeControl.enter(id);
+				return true;
+			},
+			hasSelection: () =>
+				editor.selection.ids.length > 0 || editor.floor !== null,
+			leave: () => {
+				if (!editor.scope.active) return false;
+				scopeControl.leave();
+				return true;
+			},
+			toggle: (id) => editor.selection.toggle(id as EntityId),
+			move: (at) => {
+				if (!selectedAt(at.point)) return null;
+				// iD's too_large: a press inside a large area pans the map instead.
+				if (
+					tooLargeToEdit(editor.graph, editor.selection.ids, extentOfView(map))
+				) {
+					showNote(msg("operation_too_large"));
+					return null;
+				}
+				// The locked outline doesn't move with a room on it (B.4).
+				if (
+					editor.scope.movesOutline(nodesOf(editor.graph, editor.selection.ids))
+				) {
+					showNote(msg("outline_locked"));
+					return null;
+				}
+				return featureDrag(editor.selection.ids, at, editor.history, {
+					onhint: (hint) => (dragHint = hint),
+				});
+			},
+			lasso: (at) =>
+				lassoDrag(at.lngLat, {
+					onchange: (line) => (cut = line),
+					onend: selectInLasso,
+				}),
+			pointer: (at) => (lastPointer = at?.lngLat ?? null),
+			// The unmapped floor is building mode's (B.1).
+			floor: (at, hit) => editor.scope.active && selectFloorAt(at, hit),
+			hover: (id) => editor.selection.setHover(id as EntityId | null),
+			draggable: (point) => grabAt(point) !== null || selectedAt(point),
+			isSelected: (id) => editor.selection.ids.includes(id as EntityId),
+			menu: (at) => openMenu(at.point),
+			vertexAt: (point) => {
+				const grab = overlay.grabAt(point);
+				return grab?.kind === "vertex" ? grab.id : null;
+			},
+			drag: (at) => {
+				const grab = grabAt(at.point);
+				// A node of the locked outline, or a side of it, stays (B.4).
+				if (grab && grabMovesOutline(grab)) {
+					showNote(msg("outline_locked"));
+					return null;
+				}
+				return (
+					grab &&
+					nodeDrag(grab, {
+						history: editor.history,
+						snap: snapNode,
+						onhint: (hint) => (dragHint = hint),
+						show: showFeedback,
+					})
+				);
+			},
+		});
+
+		const precise = {
+			frameAt,
+			step: () => precision.step,
+			units: () => precision.units,
+			show: showFeedback,
+		};
+		const host: ModeHost = {
+			history: editor.history,
+			level: () => level,
+			snap: snapNode,
+			precision: precise,
+			inferences,
+			get typed() {
+				return offered.typed;
+			},
+			// Directions along or square to the guides shown (C.5).
+			guides: () => (offered.guides ? construction.on(level) : []),
+			ondrawn: drawingEnded,
+			ondrawing: (id) => editor.selection.setDrawing(id),
+			tracing: {
+				on: () => precision.tracing,
+				toggle: () => precision.toggleTracing(),
+				path: (from, to) =>
+					tracePath(editor.graph, from, to, (way) => tracesOn(way, level)),
+			},
+			onrectangle: (variant) => (rectangleVariant = variant),
+			onmeasure: (tool) => (measureTool = tool),
+			browse: browseOptions,
+			transform: () => {
+				const ids = editor.selection.ids;
+				return {
+					ids,
+					nodes: nodesOf(editor.graph, ids),
+					onfinish: (select) => {
+						transformTool = null;
+						if (select) editor.select(select);
+					},
+				};
+			},
+			measure: () => ({
+				variant: measureVariant,
+				onvariant: (variant) => (measureVariant = variant),
+				onguide: guidePlaced,
+				onexit: () => (drawing = null),
+			}),
+			framePick: () => ({
+				snapSide: sideAt,
+				onangle: (angle) => {
+					if (viewFrame) frames.set(viewFrame.id, { angle });
+				},
+				onorigin: (origin) => {
+					if (viewFrame)
+						frames.set(viewFrame.id, {
+							angle: viewFrame.frame.angle,
+							origin: [origin[0], origin[1]],
+						});
+				},
+				ondone: () => (framePick = null),
+			}),
+			split: () => ({ onchange: (line) => (cut = line), onfinish: split }),
+			floorplan: () => ({
+				map: instance,
+				floorplans,
+				close: closePlanMode,
+			}),
+			floorplanTool: () => ({
+				floorplans,
+				snap,
+				onmessage: (message) => (toolMessage = message),
+				onpointer: (at) => (pointer = at),
+			}),
+		};
+
 		const manager = new ModeManager(instance, {
 			// iD hides the labels around the pointer, to see what they cover.
 			onpointer: (point) => indoorLayers.hideLabelsNear(point),
@@ -1070,246 +1198,7 @@
 		$effect(() => {
 			// Only the kind decides: a mode reads the graph and level as they are when it starts.
 			const kind = modeKind;
-			untrack(() => {
-				switch (kind) {
-					case "browse":
-						manager.setMode(
-							browseMode({
-								hitTest: pick,
-								select: (id, at) => selectOrEnter(id as EntityId | null, at),
-								enter: (at) => {
-									const id = scopeControl.enterableAt(at);
-									if (!id) return false;
-									scopeControl.enter(id);
-									return true;
-								},
-								hasSelection: () =>
-									editor.selection.ids.length > 0 || editor.floor !== null,
-								leave: () => {
-									if (!editor.scope.active) return false;
-									scopeControl.leave();
-									return true;
-								},
-								toggle: (id) => editor.selection.toggle(id as EntityId),
-								move: (at) => {
-									if (!selectedAt(at.point)) return null;
-									// iD's too_large: a press inside a large area pans the map instead.
-									if (
-										tooLargeToEdit(
-											editor.graph,
-											editor.selection.ids,
-											extentOfView(map),
-										)
-									) {
-										showNote(msg("operation_too_large"));
-										return null;
-									}
-									// The locked outline doesn't move with a room on it (B.4).
-									if (
-										editor.scope.movesOutline(
-											nodesOf(editor.graph, editor.selection.ids),
-										)
-									) {
-										showNote(msg("outline_locked"));
-										return null;
-									}
-									return featureDrag(editor.selection.ids, at, editor.history, {
-										onhint: (hint) => (dragHint = hint),
-									});
-								},
-								lasso: (at) =>
-									lassoDrag(at.lngLat, {
-										onchange: (line) => (cut = line),
-										onend: selectInLasso,
-									}),
-								pointer: (at) => (lastPointer = at?.lngLat ?? null),
-								// The unmapped floor is building mode's (B.1).
-								floor: (at, hit) =>
-									editor.scope.active && selectFloorAt(at, hit),
-								hover: (id) => editor.selection.setHover(id as EntityId | null),
-								draggable: (point) =>
-									grabAt(point) !== null || selectedAt(point),
-								isSelected: (id) =>
-									editor.selection.ids.includes(id as EntityId),
-								menu: (at) => openMenu(at.point),
-								vertexAt: (point) => {
-									const grab = overlay.grabAt(point);
-									return grab?.kind === "vertex" ? grab.id : null;
-								},
-								drag: (at) => {
-									const grab = grabAt(at.point);
-									// A node of the locked outline, or a side of it, stays (B.4).
-									if (grab && grabMovesOutline(grab)) {
-										showNote(msg("outline_locked"));
-										return null;
-									}
-									return (
-										grab &&
-										nodeDrag(grab, {
-											history: editor.history,
-											snap: snapNode,
-											onhint: (hint) => (dragHint = hint),
-											show: showFeedback,
-										})
-									);
-								},
-							}),
-						);
-						break;
-					case "draw-point":
-						manager.setMode(
-							drawPointMode({
-								history: editor.history,
-								level,
-								snap: snapNode,
-								onfinish: drawingEnded,
-							}),
-						);
-						break;
-					case "draw-line":
-					case "draw-area":
-						manager.setMode(
-							drawWayMode(kind === "draw-line" ? "line" : "area", {
-								history: editor.history,
-								level,
-								snap: snapNode,
-								onfinish: drawingEnded,
-								ondrawing: (id) => editor.selection.setDrawing(id),
-								precision: {
-									frameAt,
-									step: () => precision.step,
-									units: () => precision.units,
-									show: showFeedback,
-									inferences,
-									typed: offered.typed,
-								},
-								tracing: {
-									on: () => precision.tracing,
-									toggle: () => precision.toggleTracing(),
-									path: (from, to) =>
-										tracePath(editor.graph, from, to, (way) =>
-											tracesOn(way, level),
-										),
-								},
-							}),
-						);
-						break;
-					case "transform-move":
-					case "transform-rotate":
-					case "transform-scale":
-					case "transform-side":
-					case "transform-offset": {
-						const ids = editor.selection.ids;
-						manager.setMode(
-							transformMode({
-								tool: kind.slice("transform-".length) as TransformTool,
-								history: editor.history,
-								ids,
-								nodes: nodesOf(editor.graph, ids),
-								snap: snapNode,
-								onfinish: (select) => {
-									transformTool = null;
-									if (select) editor.select(select);
-								},
-								precision: {
-									frameAt,
-									step: () => precision.step,
-									units: () => precision.units,
-									show: showFeedback,
-								},
-							}),
-						);
-						break;
-					}
-					case "draw-measure":
-						measureTool = measureMode({
-							snap: snapNode,
-							variant: measureVariant,
-							onvariant: (variant) => (measureVariant = variant),
-							onguide: guidePlaced,
-							onexit: () => (drawing = null),
-							// Directions along or square to the guides shown (C.5).
-							guides: () => (offered.guides ? construction.on(level) : []),
-							precision: {
-								frameAt,
-								step: () => precision.step,
-								units: () => precision.units,
-								show: showFeedback,
-							},
-						});
-						manager.setMode(measureTool);
-						break;
-					case "draw-rectangle":
-						manager.setMode(
-							drawRectangleMode({
-								history: editor.history,
-								level,
-								snap: snapNode,
-								onfinish: drawingEnded,
-								onvariant: (variant) => (rectangleVariant = variant),
-								precision: {
-									frameAt,
-									step: () => precision.step,
-									units: () => precision.units,
-									show: showFeedback,
-								},
-							}),
-						);
-						break;
-					case "frame-align":
-					case "frame-origin":
-						manager.setMode(
-							framePickMode({
-								pick: kind === "frame-align" ? "align" : "origin",
-								snap: (at) =>
-									kind === "frame-align" ? sideAt(at) : snapNode(at, new Set()),
-								onangle: (angle) => {
-									if (viewFrame) frames.set(viewFrame.id, { angle });
-								},
-								onorigin: (origin) => {
-									if (viewFrame)
-										frames.set(viewFrame.id, {
-											angle: viewFrame.frame.angle,
-											origin: [origin[0], origin[1]],
-										});
-								},
-								ondone: () => (framePick = null),
-							}),
-						);
-						break;
-					case "draw-split":
-						manager.setMode(
-							splitMode({
-								snap: (at) => {
-									const target = snapNode(at, new Set());
-									return target ? target.loc : null;
-								},
-								onchange: (line) => (cut = line),
-								onfinish: split,
-							}),
-						);
-						break;
-					case "floorplan":
-						manager.setMode(
-							floorPlanMode({
-								map: instance,
-								floorplans,
-								close: closePlanMode,
-							}),
-						);
-						break;
-					case "floorplan-tool":
-						manager.setMode(
-							floorPlanToolMode({
-								floorplans,
-								snap,
-								onmessage: (message) => (toolMessage = message),
-								onpointer: (at) => (pointer = at),
-							}),
-						);
-						break;
-				}
-			});
+			untrack(() => manager.setMode(modeFor(kind, host)));
 		});
 		return () => {
 			modes = undefined;

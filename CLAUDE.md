@@ -124,6 +124,8 @@ runs the same commands.
 - Editing (R1): `edit/mode-manager.ts` is the only listener on the map's pointer events (mouse, touch, pen); it hands
   hover (cursor), click, press (a `Drag`) and keys to one `Mode` (`edit/mode.ts`,
   `edit/modes/*`). Add map interactions as a mode, not as `map.on(...)` in a component.
+  The editor's mode is `edit/mode-factory.ts`: `modeKindOf` (what is on) and `modeFor(kind, host)`
+  (a new mode adds a kind there and its options to `ModeHost`).
   Shortcuts use `edit/keys.ts` (`matches`, `formatCombo`, `isTyping`). Map layers insert
   before a slot from `map/layer-slots.ts` (`slotId("plans")`), never before another owner's
   layer.
