@@ -229,7 +229,11 @@ export class DataSync {
 			.upload(graph, changesetTags, { retryOf: this.failedChangeset, user })
 			.catch((error: unknown) => {
 				if (error instanceof OsmApiError && error.changesetId !== undefined) {
-					this.failedChangeset = error.changesetId;
+					// Only a failure that may have lost the answer is checked by the next upload; a
+					// refusal (409, 410, 412, 400…) is an answer, and the next upload rebases again.
+					this.failedChangeset = mayHaveApplied(error)
+						? error.changesetId
+						: undefined;
 				}
 				throw error;
 			});
@@ -282,6 +286,18 @@ export class DataSync {
 	#receive(entities: Entity[]): void {
 		this.#history.merge(entities);
 	}
+}
+
+/**
+ * Whether the server may have applied an upload that failed: its answer was lost (the network)
+ * or broken (a 5xx), or a retry found it there (`uploaded`).
+ */
+function mayHaveApplied(error: OsmApiError): boolean {
+	return (
+		error.kind === "network" ||
+		error.kind === "server" ||
+		error.kind === "uploaded"
+	);
 }
 
 /** The first few problems of an upload, in words. */

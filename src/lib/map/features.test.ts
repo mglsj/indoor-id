@@ -4,7 +4,7 @@ import type { Entity, NodeId } from "#lib/osm/entity.ts";
 import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { PresetIndex } from "#lib/presets/presets.ts";
-import { buildFeatures, levelFilter } from "./features.ts";
+import { buildFeatures, knownLevels, levelFilter } from "./features.ts";
 
 /** Node id n{prefix}{i}, e.g. n12. */
 const nid = (prefix: number, i: number): NodeId => `n${prefix * 10 + i}`;
@@ -477,5 +477,15 @@ describe("levelFilter", () => {
 
 	it("treats level 0 as a real level", () => {
 		expect(visibleOn(0)).toEqual(["n5", "n7", "w1"]);
+	});
+});
+
+describe("knownLevels", () => {
+	it("lists a stray huge range by its ends only, at once", () => {
+		const started = performance.now();
+		expect(
+			knownLevels([[{ min: 0, max: 10_000_000 }], [{ min: 1, max: 1 }]]),
+		).toEqual([0, 1, 10_000_000]);
+		expect(performance.now() - started).toBeLessThan(50);
 	});
 });

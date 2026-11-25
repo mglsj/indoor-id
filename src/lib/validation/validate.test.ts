@@ -146,6 +146,21 @@ describe("validate: levels", () => {
 		expect(issue?.fix).toBeUndefined();
 	});
 
+	it("flags a range too wide to be a building's, without guessing a fix", () => {
+		const issues = issuesOf(
+			roomWith({ indoor: "room", level: "0-10000000" }),
+			"w1",
+		);
+		expect(issues).toMatchObject([{ rule: "implausible-level-range" }]);
+		expect(issues[0]?.fix).toBeUndefined();
+		expect(issues[0]?.message).toEqual(
+			msg("issue_implausible_level_range", {
+				key: "level",
+				value: "0-10000000",
+			}),
+		);
+	});
+
 	it("explains a comma, which could be a list or a decimal", () => {
 		const [issue] = issuesOf(roomWith({ indoor: "room", level: "1,5" }), "w1");
 		expect(issue?.message).toEqual(

@@ -51,7 +51,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
 | P6     | Parity and polish                          | Done         |
 | A      | Accessibility and layout (Nov. audit)      | Done         |
-| R6     | Fixes from the 2026-11-25 code audit       | Planned      |
+| R6     | Fixes from the 2026-11-25 code audit       | R6.1 done    |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -216,17 +216,22 @@ Done ✅ (2026-11-25, PRs #60–#63, #65, #66 and A.7's); see "A" in
 [docs/history.md](docs/history.md). Left for later: popovers (the snapping menu) still render
 outside a landmark (axe's moderate `region`), and the editor itself stays desktop only.
 
-### R6: Fixes from the 2026-11-25 code audit — M–L (R6.1–R6.5) — planned
+### R6: Fixes from the 2026-11-25 code audit — M–L (R6.1–R6.5) — R6.1 done
 
 From the code audit of `master` at `ba63562`, in
 [docs/code-audit-2026-11-25.md](docs/code-audit-2026-11-25.md) (item ids below are the
 report's). One PR per slice, each with a test that fails before the fix.
 
-- **R6.1, upload and data safety (S, first).** H1: a refused upload (409, 410, 412, 400) no
-  longer sets `failedChangeset`; only `network` and `server` failures do, and a retry always
-  rebases after checking the old changeset. H2: one capped helper expands level ranges
-  (`knownLevels`, `encodeLevels`, `listLevels`), with a validator issue for an implausible
-  range. M1: one `safeStorage()` (R3), and autosave built behind a try.
+- ~~**R6.1, upload and data safety**~~: done ✅ (2026-11-25). H1: `DataSync` remembers a
+  failed upload's changeset only when the server may have applied it (`network`, `server`,
+  `uploaded`); a refusal (409, 410, 412, 400…) clears it, so the next upload rebases again
+  instead of resending the same edits forever. A retry after a lost answer still skips the
+  rebase, checks the old changeset, and clears it if refused. H2: `wholeLevels` and
+  `MAX_LEVEL_SPAN` (250) in `levels/levels.ts` cap every expansion of a range (`knownLevels`,
+  `encodeLevels`, `listLevels`, `repeat-levels`); a wider `level` or `repeat_on` gets the
+  `implausible-level-range` issue. M1: `persist/storage.ts` (`browserStorage`, `NO_STORAGE`)
+  is the one way to read Web Storage; `openAutosave()` gives null where storage is blocked and
+  the editor edits without autosave; a full storage no longer throws from the heartbeat.
 - **R6.2, rendering and tagging (S–M).** M2: label points per area (polylabel on the whole
   ring), not per tile. M3: `indoor=*` decides before `room=*`. L2: `building=no`, the
   sub-preset prefix test, iD's `addTags` bonus and `searchable` penalty in `matchScore`,

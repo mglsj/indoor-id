@@ -26,6 +26,19 @@ export interface AutosaveOptions {
 	readonly now?: () => number;
 }
 
+/**
+ * The autosave, or null where the browser's storage can't be used (site data blocked): the
+ * editor then edits without one.
+ */
+export function openAutosave(options: AutosaveOptions = {}): Autosave | null {
+	try {
+		return new Autosave(options);
+	} catch (error) {
+		console.warn("Autosave unavailable", error);
+		return null;
+	}
+}
+
 /** How often an open tab says so. */
 export const HEARTBEAT_MS = 5_000;
 /** A tab silent this long is closed: its edits may be claimed. */
@@ -65,7 +78,11 @@ export class Autosave {
 
 	/** Says this tab is open; call every `HEARTBEAT_MS`. */
 	heartbeat(): void {
-		this.#local.setItem(BEAT_PREFIX + this.tab, String(this.#now()));
+		try {
+			this.#local.setItem(BEAT_PREFIX + this.tab, String(this.#now()));
+		} catch {
+			// Storage full: other tabs may take this one for closed, and offer its edits.
+		}
 	}
 
 	/** Saves this tab's edits, replacing those saved before. */

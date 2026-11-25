@@ -16,7 +16,12 @@ import {
 	isFromBuildingLevels,
 	unionOfLevels,
 } from "#lib/levels/feature-levels.ts";
-import { isOnLevel, type Levels } from "#lib/levels/levels.ts";
+import {
+	isOnLevel,
+	type Levels,
+	MAX_LEVEL_SPAN,
+	wholeLevels,
+} from "#lib/levels/levels.ts";
 import { entityGeometry, isArea } from "#lib/osm/area.ts";
 import {
 	type Entity,
@@ -238,9 +243,6 @@ export function levelFilter(level: number): FilterSpecification {
 	];
 }
 
-/** No feature fills more whole levels than this from its own ranges (a stray `level=0-1e9`). */
-const MAX_OWN_LEVELS = 250;
-
 /**
  * The known levels a feature is on, plus the whole levels inside its own ranges: the shown
  * level may be one no listed feature is on (a building's `building:levels`, a level the
@@ -250,11 +252,10 @@ const MAX_OWN_LEVELS = 250;
 function encodeLevels(levels: Levels | null, known: readonly number[]): string {
 	if (!levels) return "*";
 	const on = new Set(known.filter((l) => isOnLevel(levels, l)));
-	for (const { min, max } of levels) {
-		if (max - min > MAX_OWN_LEVELS) continue;
-		on.add(min);
-		on.add(max);
-		for (let l = Math.ceil(min); l <= Math.floor(max); l++) on.add(l);
+	for (const range of levels) {
+		// A stray huge range (`building:levels=100000`) is drawn on the known levels it covers.
+		if (range.max - range.min > MAX_LEVEL_SPAN) continue;
+		for (const l of wholeLevels(range)) on.add(l);
 	}
 	return `;${[...on]
 		.map((l) => (Object.is(l, -0) ? 0 : l))
@@ -263,14 +264,12 @@ function encodeLevels(levels: Levels | null, known: readonly number[]): string {
 		.join(";")};`;
 }
 
-/** Single levels and range ends, plus whole levels inside ranges. */
+/** Single levels and range ends, plus whole levels inside ranges (see `wholeLevels`). */
 export function knownLevels(all: readonly (Levels | null)[]): number[] {
 	const set = new Set<number>();
 	for (const levels of all) {
-		for (const { min, max } of levels ?? []) {
-			set.add(min);
-			set.add(max);
-			for (let l = Math.ceil(min); l <= Math.floor(max); l++) set.add(l);
+		for (const range of levels ?? []) {
+			for (const l of wholeLevels(range)) set.add(l);
 		}
 	}
 	return [...set].map((l) => (Object.is(l, -0) ? 0 : l)).sort((a, b) => a - b);

@@ -12,6 +12,7 @@
  */
 import {
 	formatLevels,
+	MAX_LEVEL_SPAN,
 	normalizeLevels,
 	parseLevels,
 } from "#lib/levels/levels.ts";
@@ -235,6 +236,8 @@ function listed(value: string): number[] {
 	const levels = parseLevels(value) ?? [];
 	return levels.flatMap(({ min, max }) => {
 		if (min === max) return [min];
+		// A stray huge range lists its ends only (see `MAX_LEVEL_SPAN`).
+		if (max - min > MAX_LEVEL_SPAN) return [min, max];
 		const all: number[] = [];
 		for (let l = Math.ceil(min); l <= max; l++) all.push(l);
 		return all;

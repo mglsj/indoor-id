@@ -78,14 +78,39 @@ export function levelToShow(value: string | null, shown: number): number {
 	return Math.min(...levels.map((l) => l.min));
 }
 
-/** Every level of a value, sorted, with ranges of whole levels listed; null if it can't be. */
+/**
+ * The widest range whose whole levels are listed: no building has more floors, and a stray
+ * `level=0-10000000` in the data mustn't list ten million.
+ */
+export const MAX_LEVEL_SPAN = 250;
+
+/**
+ * A range's ends and the whole levels between them (`-0.5-2` → -0.5, 0, 1, 2); only its ends
+ * when it spans more than `MAX_LEVEL_SPAN` levels.
+ */
+export function wholeLevels({ min, max }: LevelRange): number[] {
+	const levels = new Set([min, max]);
+	if (max - min <= MAX_LEVEL_SPAN) {
+		for (let l = Math.ceil(min); l <= Math.floor(max); l++) levels.add(l);
+	}
+	return [...levels].sort((a, b) => a - b);
+}
+
+/**
+ * Every level of a value, sorted, with ranges of whole levels listed; null if it can't be (a
+ * range of non-whole levels, or one wider than `MAX_LEVEL_SPAN`).
+ */
 export function listLevels(value: string): number[] | null {
 	const ranges = parseLevels(value);
 	if (!ranges) return null;
 	const levels: number[] = [];
 	for (const { min, max } of ranges) {
 		if (min === max) levels.push(min);
-		else if (Number.isInteger(min) && Number.isInteger(max)) {
+		else if (
+			Number.isInteger(min) &&
+			Number.isInteger(max) &&
+			max - min <= MAX_LEVEL_SPAN
+		) {
 			for (let l = min; l <= max; l++) levels.push(l);
 		} else return null;
 	}

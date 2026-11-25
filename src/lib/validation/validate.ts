@@ -13,6 +13,7 @@ import {
 	isOnLevel,
 	type Levels,
 	listLevels,
+	MAX_LEVEL_SPAN,
 	normalizeLevels,
 	parseLevels,
 } from "#lib/levels/levels.ts";
@@ -38,6 +39,7 @@ import { describeTags, type UpgradeRule, upgradeTags } from "./upgrades.ts";
 export type IssueRule =
 	| "outdated-tags"
 	| "unreadable-level"
+	| "implausible-level-range"
 	| "vertical-repeat-on"
 	| "door-not-on-wall"
 	| "room-not-indoor"
@@ -193,7 +195,20 @@ function levelIssues(entity: Entity): Issue[] {
 	const issues: Issue[] = [];
 	for (const key of ["level", "repeat_on"] as const) {
 		const value = entity.tags[key];
-		if (value === undefined || parseLevels(value)) continue;
+		if (value === undefined) continue;
+		const parsed = parseLevels(value);
+		if (parsed?.some(({ min, max }) => max - min > MAX_LEVEL_SPAN)) {
+			issues.push(
+				issue(
+					"implausible-level-range",
+					entity,
+					msg("issue_implausible_level_range", { key, value }),
+					undefined,
+					key,
+				),
+			);
+		}
+		if (parsed) continue;
 		issues.push(
 			issue(
 				"unreadable-level",

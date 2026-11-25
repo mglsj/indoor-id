@@ -210,7 +210,10 @@ runs the same commands.
   tab, the heartbeat lock; tested on fake-indexeddb), `state/autosave.svelte.ts`
   (`EditAutosave`: saves after changes, offers found edits with `ui/RestoreDialog.svelte`).
   `EditHistory` takes the `Selection`: steps record it, undo and redo select it again. A failed
-  upload's changeset (`DataSync.failedChangeset`) is checked by the next upload (`retryOf`).
+  upload's changeset (`DataSync.failedChangeset`) is checked by the next upload (`retryOf`), only
+  when the server may have applied it (a lost or 5xx answer); a refusal clears it. Reach Web
+  Storage through `persist/storage.ts` (`browserStorage()`) or inside a `try`: a browser
+  blocking site data throws on reading `localStorage` itself.
   E2E tests open a second tab with `context.newPage()` and `blockExternal()`.
 - Rebase and conflicts (P5.4b): `actions/rebase.ts` (`idsToCheck`, `rebase`, `resolveConflict`:
   three-way merges from the downloaded version), run by `DataSync.upload` before sending, over
