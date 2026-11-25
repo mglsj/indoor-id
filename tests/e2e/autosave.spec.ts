@@ -85,9 +85,15 @@ test("a tab silent for 20 s has closed: a new tab is offered its edits", async (
 	await openRoom(page);
 	await addPoint(page);
 
-	// A minute later for the new tab: the first one's last heartbeat is long gone.
+	// The first tab closes and its last heartbeat is long gone. (Faking the new tab's clock
+	// instead stalled its start for seconds on CI runners.)
+	await page.close();
 	const other = await context.newPage();
-	await other.clock.setFixedTime(Date.now() + 60_000);
+	await other.addInitScript(() => {
+		for (const key of Object.keys(localStorage)) {
+			if (key.startsWith("indoorid:beat:")) localStorage.setItem(key, "0");
+		}
+	});
 	await blockExternal(other);
 	await openRoom(other);
 

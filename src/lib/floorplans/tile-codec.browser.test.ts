@@ -24,11 +24,15 @@ function pixels(bitmap: ImageBitmap): Uint8ClampedArray {
 
 describe("tile codec (in Chromium)", () => {
 	it("finds what the browser reads and writes", async () => {
-		// Chromium writes WebP and, for now, doesn't read JPEG XL.
-		expect(await probeSupport()).toEqual({
-			decodesJxl: false,
-			encodesWebp: true,
-		});
+		const support = await probeSupport();
+		// Chromium writes WebP; whether it reads JPEG XL depends on the build (L1).
+		expect(support.encodesWebp).toBe(true);
+		const jxl = await encodeTile(picture(4, 4), ["image/jxl"]);
+		const reads = await createImageBitmap(jxl).then(
+			() => true,
+			() => false,
+		);
+		expect(support.decodesJxl).toBe(reads);
 	});
 
 	it("writes lossless WebP", async () => {
