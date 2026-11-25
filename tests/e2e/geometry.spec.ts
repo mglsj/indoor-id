@@ -212,7 +212,11 @@ test("Mod+Z while drawing takes the last corner back, not the step before", asyn
 test("changing level ends a drawing, kept on the level it was drawn on", async ({
 	page,
 }) => {
-	await serveOsm(page, []);
+	// Rooms on levels 0 and 1, away from the line, so the switcher can go up.
+	await serveOsm(page, [
+		...room(100, LON + 0.0006, LAT, "0"),
+		...room(200, LON + 0.0006, LAT, "1"),
+	]);
 	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
 	await camera(page);
 	const { x, y } = await mapCenter(page);
@@ -239,4 +243,51 @@ test("a point on a room's side becomes a door", async ({ page }) => {
 	await expect(
 		page.getByRole("button", { name: /^Indoor Door, change feature type/ }),
 	).toBeVisible();
+});
+
+test("a line drawn and left untagged stays on the map, and can be selected again", async ({
+	page,
+}) => {
+	await serveOsm(page, []);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	await page.keyboard.press("2");
+	await page.mouse.click(x - 100, y);
+	await page.mouse.click(x + 100, y);
+	await page.keyboard.press("Enter");
+	await expect(page.getByTestId("edit-count")).toHaveText("3");
+	// The missing tags are flagged before Save would refuse the line.
+	await expect(
+		page.getByRole("button", { name: "1 issue in your edits" }),
+	).toBeVisible();
+	// Escape leaves the line: nothing is selected.
+	await page.keyboard.press("Escape");
+	await expect(
+		page.getByRole("heading", { name: "Select feature type" }),
+	).toBeHidden();
+
+	// It is still drawn: a click on it selects it, and its issue offers to delete it.
+	await page.mouse.click(x + 30, y);
+	await expect(page.getByText(/This line has no tags yet/)).toBeVisible();
+	await page.getByRole("button", { name: "Delete it" }).click();
+	await expect(page.getByTestId("edit-count")).toHaveText("0");
+});
+
+test("the line being drawn has its own colour, not the guides' magenta", async ({
+	page,
+}) => {
+	await serveOsm(page, []);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	await page.keyboard.press("2");
+	await page.mouse.click(x - 100, y);
+	await page.mouse.click(x + 100, y);
+	await page.mouse.move(x + 100, y - 100);
+	// Teal (#0e7490) while drawing.
+	await expectPixel(page, x - 50, y, [14, 116, 144], 12);
+	// Once finished it is selected: the selection's blue (#1d4ed8).
+	await page.keyboard.press("Enter");
+	await expectPixel(page, x - 50, y, [29, 78, 216], 12);
 });

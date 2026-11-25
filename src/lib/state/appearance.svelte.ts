@@ -1,6 +1,7 @@
 /**
  * How the editor draws its working marks (A.4, the Map data pane): the grid's colour and
- * opacity, the colour of new construction guides, the selection's colour and the palette of
+ * opacity, the colour of new construction guides, the selection's colour, the colour of the
+ * line or area being drawn and the palette of
  * "Highlight changes", kept in this browser as the background settings are. The defaults are
  * visible on the light map (3:1 or more) and tell edit kinds apart by line style, not hue
  * alone; iD's palette stays available.
@@ -19,6 +20,8 @@ export interface Appearance {
 	readonly guideColor: string;
 	/** The selection's core; its casing is white. */
 	readonly selectionColor: string;
+	/** The line or area being drawn, until it is finished; its casing is white. */
+	readonly drawingColor: string;
 	/** The colours and line styles of "Highlight changes". */
 	readonly editPalette: EditPalette;
 }
@@ -31,6 +34,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
 	guideColor: INDOOR_COLORS.guide,
 	// Blue, 5.8:1 on the light map, over a white casing.
 	selectionColor: INDOOR_COLORS.selection,
+	drawingColor: INDOOR_COLORS.drawing,
 	editPalette: "indoorid",
 };
 
@@ -42,6 +46,7 @@ export class AppearanceSettings {
 	gridMajorOpacity = $state(DEFAULT_APPEARANCE.gridMajorOpacity);
 	guideColor = $state(DEFAULT_APPEARANCE.guideColor);
 	selectionColor = $state(DEFAULT_APPEARANCE.selectionColor);
+	drawingColor = $state(DEFAULT_APPEARANCE.drawingColor);
 	editPalette = $state<EditPalette>(DEFAULT_APPEARANCE.editPalette);
 	readonly #storage: Storage | undefined;
 
@@ -53,6 +58,7 @@ export class AppearanceSettings {
 		this.gridMajorOpacity = saved.gridMajorOpacity;
 		this.guideColor = saved.guideColor;
 		this.selectionColor = saved.selectionColor;
+		this.drawingColor = saved.drawingColor;
 		this.editPalette = saved.editPalette;
 	}
 
@@ -64,6 +70,7 @@ export class AppearanceSettings {
 		this.gridMajorOpacity = next.gridMajorOpacity;
 		this.guideColor = next.guideColor;
 		this.selectionColor = next.selectionColor;
+		this.drawingColor = next.drawingColor;
 		this.editPalette = next.editPalette;
 		try {
 			this.#storage?.setItem(KEY, JSON.stringify(next));
@@ -84,6 +91,7 @@ export class AppearanceSettings {
 			gridMajorOpacity: this.gridMajorOpacity,
 			guideColor: this.guideColor,
 			selectionColor: this.selectionColor,
+			drawingColor: this.drawingColor,
 			editPalette: this.editPalette,
 		};
 	}
@@ -116,6 +124,9 @@ function valid(
 		selectionColor: isColor(appearance.selectionColor)
 			? appearance.selectionColor.toLowerCase()
 			: fallback.selectionColor,
+		drawingColor: isColor(appearance.drawingColor)
+			? appearance.drawingColor.toLowerCase()
+			: fallback.drawingColor,
 		editPalette: PALETTES.includes(appearance.editPalette as EditPalette)
 			? (appearance.editPalette as EditPalette)
 			: fallback.editPalette,

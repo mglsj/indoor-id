@@ -24,10 +24,12 @@ function drawnBy(
 ): string[] {
 	return (
 		indoorLayers(level)
-			// Selection and edit layers draw everything, invisible unless selected or edited.
+			// Selection, drawing and edit layers draw everything, invisible unless selected,
+			// being drawn or edited.
 			.filter(
 				(layer) =>
 					!layer.id.startsWith("indoor-selection") &&
+					!layer.id.startsWith("indoor-drawing") &&
 					!layer.id.startsWith("indoor-edited"),
 			)
 			.filter((layer) => {
@@ -309,6 +311,31 @@ describe("indoorLayers: edits and labels", () => {
 		expect(paint("indoor-selection-casing")["line-color"]).toBe("#ffffff");
 		expect(at("indoor-selection-casing")).toBeLessThan(
 			at("indoor-selection-line"),
+		);
+	});
+
+	it("draws the line being drawn in its own colour, under the selection (#169 follow-up)", () => {
+		const layers = indoorLayers(0, {
+			presentation: "edit",
+			drawing: "#00aa00",
+		});
+		const at = (id: string) => layers.findIndex((l) => l.id === id);
+		const line = layers[at("indoor-drawing-line")]?.paint as
+			| Record<string, unknown>
+			| undefined;
+		expect(line?.["line-color"]).toBe("#00aa00");
+		// Teal by default: not the guides' magenta, the grid's slate or the selection's blue.
+		expect(paint("indoor-drawing-line")["line-color"]).toBe("#0e7490");
+		expect(paint("indoor-drawing-line")["line-opacity"]).toEqual([
+			"case",
+			["boolean", ["feature-state", "drawing"], false],
+			1,
+			0,
+		]);
+		expect(paint("indoor-drawing-casing")["line-color"]).toBe("#ffffff");
+		expect(at("indoor-drawing-casing")).toBeLessThan(at("indoor-drawing-line"));
+		expect(at("indoor-drawing-line")).toBeLessThan(
+			at("indoor-selection-casing"),
 		);
 	});
 

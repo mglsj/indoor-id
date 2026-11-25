@@ -18,7 +18,14 @@ import {
 } from "#lib/levels/feature-levels.ts";
 import { isOnLevel, type Levels } from "#lib/levels/levels.ts";
 import { entityGeometry, isArea } from "#lib/osm/area.ts";
-import type { Entity, Node, NodeId, Relation, Way } from "#lib/osm/entity.ts";
+import {
+	type Entity,
+	isNewId,
+	type Node,
+	type NodeId,
+	type Relation,
+	type Way,
+} from "#lib/osm/entity.ts";
 import { isClosedRing, pointInRing } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
 import { hasInterestingTags, type Tags } from "#lib/osm/tags.ts";
@@ -270,7 +277,10 @@ export function knownLevels(all: readonly (Levels | null)[]): number[] {
 }
 
 function geometryOf(graph: Graph, entity: Entity): Geometry | null {
-	if (!hasInterestingTags(entity.tags)) return null;
+	// An untagged vertex is its way's geometry, and an untagged member way is drawn as its
+	// relation. A point or way with no tags but its `level` and nothing holding it (just
+	// placed or drawn) is drawn plainly, as iD does, so it can be seen, selected and tagged.
+	if (!hasInterestingTags(entity.tags) && !isLoose(graph, entity)) return null;
 	switch (entity.type) {
 		case "node":
 			return { type: "Point", coordinates: [...entity.loc] };
@@ -287,6 +297,24 @@ function geometryOf(graph: Graph, entity: Entity): Geometry | null {
 				Object.keys(entity.tags).some((key) => key !== "type")
 				? multipolygon(graph, entity)
 				: null;
+	}
+}
+
+/**
+ * A point or way that nothing holds (a node in no way, a way in no relation) and that was
+ * placed in this session or still has a tag (its `level`): bare leftovers in downloaded data
+ * stay hidden.
+ */
+function isLoose(graph: Graph, entity: Entity): boolean {
+	if (!isNewId(entity.id) && Object.keys(entity.tags).length === 0)
+		return false;
+	switch (entity.type) {
+		case "node":
+			return graph.parentWays(entity.id).length === 0;
+		case "way":
+			return graph.parentRelations(entity.id).length === 0;
+		case "relation":
+			return false;
 	}
 }
 

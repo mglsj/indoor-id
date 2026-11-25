@@ -182,6 +182,12 @@ test("lists edits that clash with someone else's, and uploads the version kept",
 });
 
 test("explains that login is not set up on this instance", async ({ page }) => {
+	// The shipped config.json has a client id: serve one without it.
+	await page.route("**/config.json", async (route) => {
+		const response = await route.fetch();
+		const { oauth_client_id: _, ...config } = await response.json();
+		await route.fulfill({ response, json: config });
+	});
 	await editRoomNumber(page);
 	await page.getByRole("button", { name: /Save/ }).click();
 	const dialog = page.getByRole("dialog", { name: "Upload your edits" });

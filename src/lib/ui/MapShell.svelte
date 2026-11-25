@@ -202,7 +202,11 @@
 				fill: settings.areaFill,
 				// The Map data pane's colours (A.4), the editor's only.
 				...(presentation === "edit"
-					? { selection: looks.selectionColor, edits: looks.editPalette }
+					? {
+							selection: looks.selectionColor,
+							drawing: looks.drawingColor,
+							edits: looks.editPalette,
+						}
 					: {}),
 				// Building mode (B.1): the map fades indoor features, a building what is outside
 				// (or hides it, its surroundings off: B.2).
@@ -229,6 +233,7 @@
 		$effect(() => layers.setLevel(level));
 		$effect(() => layers.setSelected(editor.selection.ids));
 		$effect(() => layers.setHover(editor.selection.hover));
+		$effect(() => layers.setDrawing(editor.selection.drawing));
 		const stopDrawn = layers.onDrawn((count) => (drawn = count));
 		return () => {
 			indoor = undefined;

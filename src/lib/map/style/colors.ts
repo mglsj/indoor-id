@@ -27,6 +27,11 @@ export const INDOOR_COLORS = {
 	text: "#333333",
 	/** The selection's default (A.4): blue, 5.8:1 on the light map; was amber, 1.8:1. */
 	selection: "#1d4ed8",
+	/**
+	 * The line or area being drawn (A.4): teal, 5.4:1 on the light map, apart from the grid's
+	 * slate, the guides' magenta and the selection's blue.
+	 */
+	drawing: "#0e7490",
 	/** Snap guides and markers (C.1). */
 	guide: "#d946ef",
 	textHalo: "rgba(255, 255, 255, 0.8)",

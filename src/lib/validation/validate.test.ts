@@ -817,3 +817,44 @@ describe("validate: a room on several levels", () => {
 		}
 	});
 });
+
+describe("missing-tags: a point or way with nothing but its level", () => {
+	const line = (tags: Record<string, string>) => [
+		node("n1", {}, [0, 0]),
+		node("n2", {}, [0.0001, 0]),
+		way("w1", ["n1", "n2"], tags),
+	];
+	const rules = (entities: Entity[], id: EntityId) =>
+		issuesOf(entities, id).map((i) => i.rule);
+
+	it("flags a line with only a level, with a fix that deletes it", () => {
+		const entities = line({ level: "0" });
+		expect(rules(entities, "w1")).toContain("missing-tags");
+		const graph = Graph.fromEntities(entities);
+		const issue = validate(graph, ["w1"], RULES).find(
+			(i) => i.rule === "missing-tags",
+		);
+		const after = issue?.fix?.action(graph);
+		expect(after?.entity("w1")).toBeUndefined();
+		expect(after?.entity("n1")).toBeUndefined();
+	});
+
+	it("flags a point with only a level", () => {
+		expect(rules([node("n1", { level: "0" })], "n1")).toContain("missing-tags");
+	});
+
+	it("leaves tagged features, untagged vertices and untagged member ways alone", () => {
+		expect(rules(line({ level: "0", indoor: "wall" }), "w1")).not.toContain(
+			"missing-tags",
+		);
+		expect(rules(line({ level: "0" }), "n1")).not.toContain("missing-tags");
+		const member = [
+			...line({}),
+			relation("r1", [{ ref: "w1", role: "outer" }], {
+				type: "multipolygon",
+				indoor: "room",
+			}),
+		];
+		expect(rules(member, "w1")).not.toContain("missing-tags");
+	});
+});
