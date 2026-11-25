@@ -249,9 +249,14 @@
 		onbackground?.(settings.imagery);
 	});
 
-	/** The levels of the data in view, named, for the switcher; followed after each move. */
+	/**
+	 * The levels for the switcher, named: in a building, all of the building's whatever is in
+	 * view (A.5: they no longer come and go with the camera); otherwise those of the data in
+	 * view, followed after each move.
+	 */
 	const levelsInView = $derived.by(() => {
-		const extent = camera && visibleExtent(map);
+		const extent =
+			editor.scope.current?.extent ?? (camera && visibleExtent(map));
 		return extent ? editor.features.levelsIn(extent, editor.floors) : [];
 	});
 

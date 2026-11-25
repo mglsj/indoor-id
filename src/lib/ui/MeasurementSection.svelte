@@ -42,11 +42,8 @@
 </script>
 
 {#if measured}
-	<InspectorSection
-		id="measurements"
-		title={t(msg("measure_section"))}
-		defaultOpen={false}
-	>
+	<!-- Open until closed (A.5): lengths and area are read while editing. -->
+	<InspectorSection id="measurements" title={t(msg("measure_section"))}>
 		<dl
 			class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm tabular-nums"
 			data-testid="measurements"

@@ -94,7 +94,14 @@
 	class="max-w-20 rounded-md bg-background shadow-md"
 >
 	{@render stepButton(t(msg("level_up")), ChevronUp, upTarget)}
-	<ButtonGroup.Text class="justify-center px-1 tabular-nums">
+	<!-- The level shown: with a list, its pressed item says so, and this is for screen
+	     readers only (A.5: it showed the level twice). -->
+	<ButtonGroup.Text
+		class={[
+			"justify-center px-1 tabular-nums",
+			descending.length > 1 && "sr-only",
+		]}
+	>
 		{#snippet child({ props })}
 			<output
 				{...props}

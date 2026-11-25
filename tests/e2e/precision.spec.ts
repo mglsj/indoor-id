@@ -127,7 +127,10 @@ test("a dragged corner shows the lengths of both its sides", async ({
 test("the side panel measures the selected room", async ({ page }) => {
 	await metric(page);
 	await selectRoom(page);
-	await page.getByRole("button", { name: "Measurements" }).click();
+	// Open from the start (A.5).
+	await expect(
+		page.getByRole("button", { name: "Measurements" }),
+	).toHaveAttribute("aria-expanded", "true");
 	const measurements = page.getByTestId("measurements");
 	await expect(measurements).toContainText("Area");
 	await expect(measurements).toContainText("m²");
@@ -137,7 +140,6 @@ test("the side panel measures the selected room", async ({ page }) => {
 /** Opens the new feature's panel past its type list, at its measurements. */
 async function measurements(page: Page) {
 	await page.getByRole("button", { name: "Back to the feature" }).click();
-	await page.getByRole("button", { name: "Measurements" }).click();
 	return page.getByTestId("measurements");
 }
 
@@ -542,7 +544,6 @@ test("arrow keys nudge the selection, not the map", async ({ page }) => {
 test("a side's length is typed in the measurements", async ({ page }) => {
 	await metric(page);
 	await selectRoom(page);
-	await page.getByRole("button", { name: "Measurements" }).click();
 	const first = page.getByLabel("Side 1");
 	await first.fill("35 m");
 	await first.press("Enter");

@@ -22,6 +22,8 @@ export interface FieldList {
  * The fields of a feature: its preset's fields for the geometry, then its preset's more fields and
  * the universal ones, by label, once they have a value or were `added`; the rest of those go to
  * "Add field", universal ones last. A field waits for its `prerequisiteTag` unless it has a value.
+ * Level comes first for every feature that may have one (A.5: this is an indoor editor), the
+ * preset's own level field when it has one (`level_semi` for stairs), or the `level` field.
  */
 export function fieldList(
 	index: PresetIndex,
@@ -35,19 +37,32 @@ export function fieldList(
 	const allowed = (f: Field) =>
 		forGeometry(f) && (hasValue(f, tags) || meets(f.prerequisiteTag, tags));
 	const { fields, moreFields } = index.fieldsOf(preset);
+	const isLevel = (f: Field) => f.key === LEVEL_KEY;
+	const level =
+		[...fields, ...moreFields].find(isLevel) ?? index.field(LEVEL_FIELD);
+	const pinned = level && allowed(level) ? [level] : [];
+	const notLevel = (f: Field) => !isLevel(f);
 	const own = new Set(fields);
 	const others = [...new Set([...moreFields, ...index.universalFields()])]
-		.filter((f) => !own.has(f))
+		.filter((f) => !own.has(f) && notLevel(f))
 		.sort((a, b) => a.label.localeCompare(b.label))
 		.filter(allowed);
 	const isShown = (f: Field) => hasValue(f, tags) || added.has(f.id);
 	return {
-		shown: [...fields.filter(allowed), ...others.filter(isShown)],
+		shown: [
+			...pinned,
+			...fields.filter((f) => notLevel(f) && allowed(f)),
+			...others.filter(isShown),
+		],
 		addable: others
 			.filter((f) => !isShown(f))
 			.sort((a, b) => Number(a.universal) - Number(b.universal)),
 	};
 }
+
+/** The key pinned first (A.5), and the field that edits it when the preset has none. */
+const LEVEL_KEY = "level";
+const LEVEL_FIELD = "level";
 
 /** A localized field's other languages: `name:fr`, `name:zh-Hant` (iD's language suffix). */
 const LANGUAGE_SUFFIX =

@@ -407,3 +407,26 @@ test("Preview in indoor= sends the building, edits included, to indoor= once it 
 	);
 	expect(preview?.name).toBe("indoorid.geojson");
 });
+
+test("inside a building the level switcher lists all its levels, in view or not (A.5)", async ({
+	page,
+}) => {
+	// A room on level 1 in the building's east half.
+	await serveOsm(page, [
+		...buildingWithRoom(),
+		{
+			type: "way",
+			id: 3,
+			version: 1,
+			nodes: [5, 2, 3, 6, 5],
+			tags: { indoor: "room", level: "1" },
+		},
+	]);
+	// Zoomed in on the west room: the east one is out of view.
+	await page.goto(`/#22/${LAT}/${LON - 0.0003}/0&building=w1`);
+	await camera(page);
+	await mapDrawn(page);
+	const levels = page.getByRole("group", { name: "Levels" });
+	await expect(levels.getByRole("radio", { name: "Level 1" })).toBeVisible();
+	await expect(levels.getByRole("radio", { name: "Level 0" })).toBeVisible();
+});

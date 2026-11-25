@@ -37,6 +37,24 @@ describe("LevelControl", () => {
 			.toBeInTheDocument();
 	});
 
+	it("shows the level once: in the list when there is one, for screen readers above it (A.5)", async () => {
+		renderWithTooltips(LevelControl, {
+			level: 0,
+			levels: [{ level: 0 }, { level: 1 }],
+		});
+		await expect.element(radios().first()).toBeInTheDocument();
+		const status = page.getByRole("status", { name: "Current level" });
+		await expect.element(status).toHaveTextContent("0");
+		await expect.element(status).toHaveClass(/sr-only/);
+	});
+
+	it("shows the level itself without a list", async () => {
+		renderWithTooltips(LevelControl, { level: 2, levels: [] });
+		await expect
+			.element(page.getByRole("status", { name: "Current level" }))
+			.not.toHaveClass(/sr-only/);
+	});
+
 	it("labels unnamed levels as floors when given a numbering", async () => {
 		renderWithTooltips(LevelControl, {
 			level: 0,
