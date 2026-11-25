@@ -104,6 +104,25 @@ describe("drawWayMode", () => {
 		expect(history.graph.hasChanges()).toBe(false);
 	});
 
+	it("names the feature being drawn until the drawing ends, finished or dropped", () => {
+		const { finished, options } = setup();
+		const marked: (EntityId | null)[] = [];
+		const ondrawing = (id: EntityId | null) => marked.push(id);
+		const mode = drawWayMode("line", { ...options, ondrawing });
+		const [drawing] = marked;
+		expect(drawing).toMatch(/^w-/);
+		mode.click?.(at(5, 5));
+		mode.click?.(at(7, 5));
+		mode.key?.(key("Enter"));
+		expect(marked).toEqual([drawing, null]);
+		expect(finished).toEqual([drawing]);
+
+		const left = drawWayMode("area", { ...setup().options, ondrawing });
+		left.click?.(at(5, 5));
+		left.exit?.();
+		expect(marked.at(-1)).toBeNull();
+	});
+
 	it("shows the side to the pointer while drawing", () => {
 		const { history, options } = setup();
 		const mode = drawWayMode("line", options);

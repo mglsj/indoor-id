@@ -60,10 +60,11 @@
 	];
 
 	const COLORS: {
-		key: "gridColor" | "guideColor" | "selectionColor";
+		key: "gridColor" | "guideColor" | "selectionColor" | "drawingColor";
 		label: Message;
 	}[] = [
 		{ key: "selectionColor", label: msg("appearance_selection") },
+		{ key: "drawingColor", label: msg("appearance_drawing") },
 		{ key: "gridColor", label: msg("appearance_grid") },
 		{ key: "guideColor", label: msg("appearance_guide") },
 	];

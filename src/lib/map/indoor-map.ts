@@ -40,6 +40,8 @@ export interface IndoorLook {
 	readonly scope?: ScopeLook;
 	/** The selection's colour (A.4); the default blue when unset. */
 	readonly selection?: string;
+	/** The colour of the line or area being drawn (A.4); the default teal when unset. */
+	readonly drawing?: string;
 	/** The palette of "Highlight changes" (A.4). */
 	readonly edits?: EditPalette;
 }
@@ -86,6 +88,7 @@ export class IndoorMap {
 	#level = 0;
 	#selected: readonly string[] = [];
 	#hover: readonly string[] = [];
+	#beingDrawn: readonly string[] = [];
 	#planMode = false;
 	#buildingsVisible = true;
 	#look: IndoorLook = { presentation: "edit" };
@@ -205,6 +208,7 @@ export class IndoorMap {
 			look.fill === this.#look.fill &&
 			look.scope === this.#look.scope &&
 			look.selection === this.#look.selection &&
+			look.drawing === this.#look.drawing &&
 			look.edits === this.#look.edits
 		) {
 			return;
@@ -369,9 +373,18 @@ export class IndoorMap {
 		this.#hover = this.#mark("hover", this.#hover, id === null ? [] : [id]);
 	}
 
+	/** Marks the line or area being drawn, by `@id`, or none. */
+	setDrawing(id: string | null): void {
+		this.#beingDrawn = this.#mark(
+			"drawing",
+			this.#beingDrawn,
+			id === null ? [] : [id],
+		);
+	}
+
 	/** Moves a feature-state flag from the features in `before` to those in `after`. */
 	#mark(
-		flag: "selected" | "hover",
+		flag: "selected" | "hover" | "drawing",
 		before: readonly string[],
 		after: readonly string[],
 	): readonly string[] {
@@ -522,6 +535,7 @@ export class IndoorMap {
 		this.#applyInside(new Set(), this.#inside);
 		this.#mark("selected", [], this.#selected);
 		this.#mark("hover", [], this.#hover);
+		this.#mark("drawing", [], this.#beingDrawn);
 	}
 
 	#source(): GeoJSONSource | undefined {

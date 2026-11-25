@@ -178,6 +178,13 @@ const isHovered: ExpressionSpecification = [
 	["feature-state", "hover"],
 	false,
 ];
+const isDrawing: ExpressionSpecification = [
+	"boolean",
+	["feature-state", "drawing"],
+	false,
+];
+/** The line or area being drawn: shown until it is finished, then selected. */
+const drawingOpacity: ExpressionSpecification = ["case", isDrawing, 1, 0];
 /** The selection outline: full when selected, faint under the pointer (as iD). */
 const outlineOpacity: ExpressionSpecification = [
 	"case",
@@ -204,6 +211,8 @@ export type Presentation = "edit" | "view";
 export interface IndoorStyleOptions {
 	/** The selection's colour (A.4), drawn over a white casing. */
 	readonly selection?: string;
+	/** The colour of the line or area being drawn (A.4), over a white casing. */
+	readonly drawing?: string;
 	/** The palette of "Highlight changes" (A.4). */
 	readonly edits?: EditPalette;
 	/** Fonts available from the basemap's glyph server. */
@@ -286,6 +295,7 @@ export function indoorLayers(
 		fill = "partial",
 		scope,
 		selection = C_SELECTION,
+		drawing = INDOOR_COLORS.drawing,
 		edits = "indoorid",
 	}: IndoorStyleOptions = {},
 ): LayerSpecification[] {
@@ -645,6 +655,30 @@ export function indoorLayers(
 					faded(1, fade),
 				],
 				"icon-opacity": faded(1, fade),
+			},
+		},
+		// The line or area being drawn (A.4): its own colour, so it doesn't read as the grid, a
+		// guide or the selection; under the selection, which takes over once it is finished.
+		{
+			id: "indoor-drawing-casing",
+			type: "line",
+			source: INDOOR_SOURCE,
+			filter: onLevel(["any", isPolygon, isLine]),
+			paint: {
+				"line-color": SELECTION_CASING,
+				"line-width": 6,
+				"line-opacity": drawingOpacity,
+			},
+		},
+		{
+			id: "indoor-drawing-line",
+			type: "line",
+			source: INDOOR_SOURCE,
+			filter: onLevel(["any", isPolygon, isLine]),
+			paint: {
+				"line-color": drawing,
+				"line-width": 3,
+				"line-opacity": drawingOpacity,
 			},
 		},
 		// The selection (A.4): a dark core over a light casing, a cue that isn't hue alone.

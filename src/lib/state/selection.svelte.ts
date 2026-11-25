@@ -1,5 +1,6 @@
 /**
- * The selected features and the one under the pointer, by id. The map highlights both; the
+ * The selected features, the one under the pointer and the one being drawn, by id. The map
+ * highlights them; the
  * Inspector edits the selection when it holds a single feature.
  */
 import type { EntityId } from "#lib/osm/entity.ts";
@@ -9,6 +10,8 @@ export class Selection {
 	ids = $state.raw<readonly EntityId[]>([]);
 	/** The feature under the pointer, selected or not. */
 	hover = $state<EntityId | null>(null);
+	/** The line or area being drawn, until it is finished or dropped. */
+	drawing = $state<EntityId | null>(null);
 	/** The one feature selected, or null when none or several are. */
 	readonly single = $derived(this.ids.length === 1 ? this.ids[0] : null);
 
@@ -31,6 +34,10 @@ export class Selection {
 
 	setHover(id: EntityId | null): void {
 		this.hover = id;
+	}
+
+	setDrawing(id: EntityId | null): void {
+		this.drawing = id;
 	}
 
 	/** Follows the ids an upload gave to new features. */

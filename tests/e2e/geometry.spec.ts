@@ -273,3 +273,21 @@ test("a line drawn and left untagged stays on the map, and can be selected again
 	await page.getByRole("button", { name: "Delete it" }).click();
 	await expect(page.getByTestId("edit-count")).toHaveText("0");
 });
+
+test("the line being drawn has its own colour, not the guides' magenta", async ({
+	page,
+}) => {
+	await serveOsm(page, []);
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	await page.keyboard.press("2");
+	await page.mouse.click(x - 100, y);
+	await page.mouse.click(x + 100, y);
+	await page.mouse.move(x + 100, y - 100);
+	// Teal (#0e7490) while drawing.
+	await expectPixel(page, x - 50, y, [14, 116, 144], 12);
+	// Once finished it is selected: the selection's blue (#1d4ed8).
+	await page.keyboard.press("Enter");
+	await expectPixel(page, x - 50, y, [29, 78, 216], 12);
+});

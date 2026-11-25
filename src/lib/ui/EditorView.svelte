@@ -1365,6 +1365,7 @@
 								level,
 								snap: snapNode,
 								onfinish: drawingEnded,
+								ondrawing: (id) => editor.selection.setDrawing(id),
 								precision: {
 									frameAt,
 									step: () => precision.step,

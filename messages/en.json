@@ -306,6 +306,7 @@
 	"edit_palette_id_hint": "A wide halo in light green, yellow and orange, as iD draws it: clearer over dark imagery.",
 	"appearance_colors": "Colours",
 	"appearance_selection": "Selection",
+	"appearance_drawing": "Line being drawn",
 	"appearance_grid": "Grid",
 	"appearance_guide": "New guides",
 	"appearance_grid_minor": "Grid lines",
