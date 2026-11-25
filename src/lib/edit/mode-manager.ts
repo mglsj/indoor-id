@@ -2,7 +2,7 @@
  * Hands the map's pointer events and keys to the editing mode in force, as gestures: a click, a
  * hover (the cursor), or a drag the mode takes from a press. Pointer events: a mouse, a finger
  * or a pen, one pointer at a time (a second finger is the map's). A drag starts once the
- * pointer has moved 3 px, moves at most once per frame, ends on release (even off the map, the
+ * pointer has moved 3 px, moves at most once per frame (hovers too, M4), ends on release (even off the map, the
  * pointer being captured) and swallows the click that follows; Escape cancels it. A press of
  * the middle button pans the map in every mode, the mode seeing none of it (MapLibre pans with
  * the primary button only, which drawing tools take). The only listener on the map's pointer
@@ -36,8 +36,6 @@ interface Press {
 	readonly start: { x: number; y: number };
 	dragging: boolean;
 	last: MapPoint;
-	/** A move waiting for the next frame. */
-	pending: boolean;
 	/** The map's handlers turned off for the press, turned on again after it. */
 	readonly held: Handler[];
 }
@@ -54,6 +52,10 @@ export class ModeManager {
 		null;
 	/** The click following a drag's release is the release itself. */
 	#swallowClick = false;
+	/** Where the pointer last moved, handled at the next frame (null: nothing waits). */
+	#moved: { readonly at: MapPoint; readonly touch: boolean } | null = null;
+	/** A frame is asked for. */
+	#framePending = false;
 
 	constructor(map: MapLibreMap, options: ModeManagerOptions = {}) {
 		this.#map = map;
@@ -86,6 +88,7 @@ export class ModeManager {
 		this.#endPan();
 		this.#mode.exit?.();
 		this.#mode = mode;
+		this.#moved = null;
 		this.#applyGestures(mode.gestures ?? {});
 		this.#map.getCanvas().style.cursor = "";
 		mode.enter?.();
@@ -155,6 +158,8 @@ export class ModeManager {
 		if (this.#press || !event.isPrimary || event.button !== 0) return;
 		this.#swallowClick = false;
 		const at = this.#toPoint(event);
+		// A hover still waiting would come after the press.
+		this.#moved = null;
 		const drag = this.#mode.press?.(at) ?? null;
 		if (!drag) return;
 		// Keep the map still: this press belongs to the mode. No mouse events follow it.
@@ -170,7 +175,6 @@ export class ModeManager {
 			start: at.point,
 			dragging: false,
 			last: at,
-			pending: false,
 			held,
 		};
 	};
@@ -208,37 +212,45 @@ export class ModeManager {
 
 	readonly #onMove = (event: PointerEvent) => {
 		if (this.#movePan(event)) return;
-		if (event.pointerType !== "touch")
-			this.#onpointer?.(this.#toPoint(event).point);
+		const touch = event.pointerType === "touch";
 		const press = this.#press;
-		if (!press) {
-			// A finger has nothing to hover.
-			if (event.pointerType === "touch") return;
-			this.#map.getCanvas().style.cursor =
-				this.#mode.hover?.(this.#toPoint(event)) ?? "";
-			return;
-		}
-		if (event.pointerId !== press.pointerId) return;
+		// A finger has nothing to hover.
+		if (!press && touch) return;
+		if (press && event.pointerId !== press.pointerId) return;
 		const at = this.#toPoint(event);
-		press.last = at;
-		if (!press.dragging) {
-			const moved = Math.hypot(
-				at.point.x - press.start.x,
-				at.point.y - press.start.y,
-			);
-			if (moved < DRAG_THRESHOLD) return;
-			press.dragging = true;
-			if (press.drag.cursor) {
-				this.#map.getCanvas().style.cursor = press.drag.cursor;
+		if (press) {
+			press.last = at;
+			if (!press.dragging) {
+				const moved = Math.hypot(
+					at.point.x - press.start.x,
+					at.point.y - press.start.y,
+				);
+				if (moved < DRAG_THRESHOLD) return;
+				press.dragging = true;
+				if (press.drag.cursor) {
+					this.#map.getCanvas().style.cursor = press.drag.cursor;
+				}
 			}
 		}
-		if (press.pending) return;
-		press.pending = true;
-		this.#requestFrame(() => {
-			if (this.#press !== press || !press.dragging) return;
-			press.pending = false;
-			press.drag.move(press.last);
-		});
+		this.#moved = { at, touch };
+		if (this.#framePending) return;
+		this.#framePending = true;
+		this.#requestFrame(this.#frame);
+	};
+
+	/** The last move of the frame: the pointer shown, then a hover or a drag's move. */
+	readonly #frame = () => {
+		this.#framePending = false;
+		const moved = this.#moved;
+		this.#moved = null;
+		if (!moved) return;
+		if (!moved.touch) this.#onpointer?.(moved.at.point);
+		const press = this.#press;
+		if (press) {
+			if (press.dragging) press.drag.move(press.last);
+			return;
+		}
+		this.#map.getCanvas().style.cursor = this.#mode.hover?.(moved.at) ?? "";
 	};
 
 	readonly #onUp = (event: PointerEvent) => {
@@ -276,7 +288,10 @@ export class ModeManager {
 	readonly #onLeave = (event: PointerEvent) => {
 		// The pointer is captured while panning: it comes back.
 		if (this.#pan) return;
-		if (!this.#press) this.#onpointer?.(null);
+		if (!this.#press) {
+			this.#moved = null;
+			this.#onpointer?.(null);
+		}
 		if (this.#press || event.pointerType === "touch") return;
 		// What the pointer hovered may change before it comes back (a plan locked with Done).
 		this.#map.getCanvas().style.cursor = "";
@@ -286,6 +301,8 @@ export class ModeManager {
 	/** The press is over: the map's handlers come back, the pointer is let go. */
 	#end(press: Press): void {
 		this.#press = null;
+		// The drag's last move, should it still wait: the drag ended without it.
+		this.#moved = null;
 		for (const handler of press.held) handler.enable();
 		if (this.#target.hasPointerCapture?.(press.pointerId)) {
 			this.#target.releasePointerCapture(press.pointerId);

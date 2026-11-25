@@ -96,6 +96,34 @@ describe("MapLoader", () => {
 		expect(maxInFlight()).toBe(4);
 	});
 
+	it("downloads the tiles of the latest load first, those panned away from after (M7)", async () => {
+		const { download, calls } = controlledDownload();
+		const loader = new MapLoader({
+			download,
+			onData: () => {},
+			concurrency: 1,
+		});
+
+		const old = loader.load(area(100, 200, 102, 200));
+		await flush();
+		expect(calls.map((c) => c.bbox)).toEqual([area(100, 200)]);
+		const latest = loader.load(area(200, 300, 201, 300));
+		calls[0]?.resolve([]);
+		for (let i = 0; i < 4; i++) {
+			await flush();
+			calls.at(-1)?.resolve([]);
+		}
+		await Promise.all([old, latest]);
+
+		expect(calls.map((c) => c.bbox)).toEqual([
+			area(100, 200),
+			area(200, 300),
+			area(201, 300),
+			area(101, 200),
+			area(102, 200),
+		]);
+	});
+
 	it("retries failed tiles on a later load", async () => {
 		const { download, calls } = controlledDownload();
 		let time = 0;

@@ -26,6 +26,7 @@ import type {
 } from "#lib/osm/entity.ts";
 import type { Extent } from "#lib/osm/geometry.ts";
 import type { Graph } from "#lib/osm/graph.ts";
+import type { Tags } from "#lib/osm/tags.ts";
 import { extentOfGeometry } from "#lib/view/geometry.ts";
 import {
 	type BuildOptions,
@@ -67,6 +68,11 @@ export interface StoredFeatures {
 	 * the building entered, `scopeFloors`).
 	 */
 	levelsIn(extent: Extent, floors?: Levels | null): LevelEntry[];
+	/**
+	 * The level outlines and buildings whose extent holds `loc`, on any level: what
+	 * `containerAt` picks from (a drawing frame, the unmapped floor) without a full scan (M6).
+	 */
+	containersAt(loc: Loc): IndoorFeature[];
 }
 
 /** A side of a drawn way, between two nodes that follow each other in it. */
@@ -109,6 +115,28 @@ export class FeatureStore {
 		() => this.#drafts.keys(),
 		(id) => this.#segments(id),
 	);
+	/** The extents of level outlines and buildings, for `containersAt`. */
+	readonly #containerIndex = new DraftIndex<Box & { readonly id: EntityId }>(
+		() => this.#drafts.keys(),
+		(id) => {
+			const draft = this.#drafts.get(id);
+			const extent =
+				draft &&
+				isContainer(draft.properties) &&
+				extentOfGeometry(draft.geometry);
+			return extent
+				? [
+						{
+							id,
+							minX: extent.west,
+							minY: extent.south,
+							maxX: extent.east,
+							maxY: extent.north,
+						},
+					]
+				: [];
+		},
+	);
 	/** What each drawn feature says about levels, by extent, for the level switcher. */
 	readonly #levelIndex = new DraftIndex<LevelItem>(
 		() => this.#drafts.keys(),
@@ -139,6 +167,7 @@ export class FeatureStore {
 			this.#nodeIndex.reset();
 			this.#segmentIndex.reset();
 			this.#levelIndex.reset();
+			this.#containerIndex.reset();
 			// Encoded below, once the levels of the data are known.
 			for (const entity of graph.entities()) this.#redraft(entity.id, false);
 		} else {
@@ -161,6 +190,7 @@ export class FeatureStore {
 		const nodeIndex = this.#nodeIndex;
 		const segmentIndex = this.#segmentIndex;
 		const levelIndex = this.#levelIndex;
+		const containerIndex = this.#containerIndex;
 		const result: StoredFeatures = {
 			nodesNear(extent, level) {
 				const found = new Map<NodeId, Loc>();
@@ -184,6 +214,20 @@ export class FeatureStore {
 			levelsIn(extent, floors = null) {
 				return levelsOf(levelIndex.search(extent), extent, floors);
 			},
+			containersAt([x, y]) {
+				const found: IndoorFeature[] = [];
+				const hits = containerIndex.search({
+					west: x,
+					south: y,
+					east: x,
+					north: y,
+				});
+				for (const { id } of hits) {
+					const feature = features.get(id);
+					if (feature) found.push(feature);
+				}
+				return found;
+			},
 			byId: features,
 			labels,
 			levels: this.#levels,
@@ -206,6 +250,7 @@ export class FeatureStore {
 		this.#nodeIndex.changed(id);
 		this.#segmentIndex.changed(id);
 		this.#levelIndex.changed(id);
+		this.#containerIndex.changed(id);
 		if (draft) {
 			this.#drafts.set(id, draft);
 			if (encode) this.#put(id, encodeFeature(draft, this.#levels));
@@ -342,6 +387,16 @@ class DraftIndex<T extends Box> {
 		this.#unindexed = new Set();
 		return this.#index;
 	}
+}
+
+/** A level outline or a building: what `containerAt` looks for. */
+function isContainer(tags: Tags): boolean {
+	return (
+		tags.indoor === "level" ||
+		(tags.indoor === undefined &&
+			tags.building !== undefined &&
+			tags.building !== "no")
+	);
 }
 
 /** What a drawn feature says about levels, in the level index. */

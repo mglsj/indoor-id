@@ -24,6 +24,7 @@ import {
 	INDOOR_SOURCE,
 	indoorLayers,
 	LABEL_SOURCE,
+	MARK_SOURCE,
 	type Presentation,
 	type ScopeLook,
 	selectableLayers,
@@ -86,6 +87,8 @@ export class IndoorMap {
 	#sent = new Map<string, IndoorFeature>();
 	/** The label points the label source holds (by entity id). */
 	#sentLabels = new Map<string, IndoorFeature>();
+	/** The selected, hovered and being-drawn features the mark source holds (M5). */
+	#sentMarks = new Map<string, IndoorFeature>();
 	/** Features were sent since the map last finished drawing. */
 	#drawing = false;
 	#level = 0;
@@ -126,6 +129,7 @@ export class IndoorMap {
 		if (labels) {
 			this.#sentLabels = this.#send(labels, this.#sentLabels, features.labels);
 		}
+		this.#updateMarks();
 		this.#updateBands();
 	}
 
@@ -380,11 +384,13 @@ export class IndoorMap {
 	/** Outlines the selected features, by `@id`. */
 	setSelected(ids: readonly string[]): void {
 		this.#selected = this.#mark("selected", this.#selected, ids);
+		this.#updateMarks();
 	}
 
 	/** Outlines the feature under the pointer faintly, by `@id`, or none. */
 	setHover(id: string | null): void {
 		this.#hover = this.#mark("hover", this.#hover, id === null ? [] : [id]);
+		this.#updateMarks();
 	}
 
 	/** Marks the line or area being drawn, by `@id`, or none. */
@@ -394,6 +400,21 @@ export class IndoorMap {
 			this.#beingDrawn,
 			id === null ? [] : [id],
 		);
+		this.#updateMarks();
+	}
+
+	/** Sends the mark source the selected, hovered and being-drawn features, as they are now. */
+	#updateMarks(): void {
+		if (!this.#ready) return;
+		const source = this.#map.getSource<GeoJSONSource>(MARK_SOURCE);
+		const byId = this.#features?.byId;
+		if (!source || !byId) return;
+		const marked = new Map<string, IndoorFeature>();
+		for (const id of [...this.#selected, ...this.#hover, ...this.#beingDrawn]) {
+			const feature = byId.get(id);
+			if (feature) marked.set(id, feature);
+		}
+		this.#sentMarks = this.#send(source, this.#sentMarks, marked);
 	}
 
 	/** Moves a feature-state flag from the features in `before` to those in `after`. */
@@ -407,13 +428,13 @@ export class IndoorMap {
 			for (const id of before) {
 				if (kept.has(id)) continue;
 				this.#map.setFeatureState(
-					{ source: INDOOR_SOURCE, id },
+					{ source: MARK_SOURCE, id },
 					{ [flag]: false },
 				);
 			}
 			for (const id of after) {
 				this.#map.setFeatureState(
-					{ source: INDOOR_SOURCE, id },
+					{ source: MARK_SOURCE, id },
 					{ [flag]: true },
 				);
 			}
@@ -497,7 +518,12 @@ export class IndoorMap {
 			if (this.#map.getLayer(id)) this.#map.removeLayer(id);
 		}
 		this.#map.off("moveend", this.#updateBands);
-		for (const source of [INDOOR_SOURCE, BAND_SOURCE, LABEL_SOURCE]) {
+		for (const source of [
+			INDOOR_SOURCE,
+			BAND_SOURCE,
+			LABEL_SOURCE,
+			MARK_SOURCE,
+		]) {
 			if (this.#map.getSource(source)) this.#map.removeSource(source);
 		}
 		this.#ready = false;
@@ -527,8 +553,14 @@ export class IndoorMap {
 			data: { type: "FeatureCollection", features: [...labels.values()] },
 			promoteId: "@id",
 		});
+		map.addSource(MARK_SOURCE, {
+			type: "geojson",
+			data: { type: "FeatureCollection", features: [] },
+			promoteId: "@id",
+		});
 		this.#sent = new Map(this.#features?.byId ?? []);
 		this.#sentLabels = new Map(labels);
+		this.#sentMarks = new Map();
 		this.#drawing = true;
 		for (const layer of indoorLayers(this.#level, this.#look)) {
 			map.addLayer(layer, slotId(SLOTS[layer.id] ?? "indoor-top"));
@@ -557,6 +589,7 @@ export class IndoorMap {
 		this.#mark("selected", [], this.#selected);
 		this.#mark("hover", [], this.#hover);
 		this.#mark("drawing", [], this.#beingDrawn);
+		this.#updateMarks();
 	}
 
 	#source(): GeoJSONSource | undefined {

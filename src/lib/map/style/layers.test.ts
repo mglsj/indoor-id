@@ -11,6 +11,7 @@ import {
 	INDOOR_SOURCE,
 	indoorLayers,
 	LABEL_SOURCE,
+	MARK_SOURCE,
 	scopeFade,
 	selectableLayers,
 } from "./layers.ts";
@@ -59,6 +60,10 @@ describe("indoorLayers", () => {
 					data: { type: "FeatureCollection", features: [] },
 				},
 				[LABEL_SOURCE]: {
+					type: "geojson",
+					data: { type: "FeatureCollection", features: [] },
+				},
+				[MARK_SOURCE]: {
 					type: "geojson",
 					data: { type: "FeatureCollection", features: [] },
 				},
@@ -225,6 +230,18 @@ describe("indoorLayers: presentation", () => {
 		expect(band).toMatchObject({ type: "fill", source: BAND_SOURCE });
 	});
 
+	it("draws the selection, hover and drawing from the small source of marked features (M5)", () => {
+		const marks = indoorLayers(0).filter(
+			(l) =>
+				l.id.startsWith("indoor-selection") ||
+				l.id.startsWith("indoor-drawing"),
+		);
+		expect(marks).toHaveLength(6);
+		for (const layer of marks) {
+			expect(layer).toMatchObject({ source: MARK_SOURCE });
+		}
+	});
+
 	it("picks areas by their band or outline unless they are filled whole", () => {
 		expect(selectableLayers("partial")).toContain("indoor-fill-band");
 		expect(selectableLayers("partial")).not.toContain("indoor-fill");
@@ -251,6 +268,10 @@ describe("indoorLayers: presentation", () => {
 						type: "geojson",
 						data: { type: "FeatureCollection", features: [] },
 					},
+					[MARK_SOURCE]: {
+						type: "geojson",
+						data: { type: "FeatureCollection", features: [] },
+					},
 				},
 				layers: indoorLayers(0, { presentation }),
 			};
@@ -269,6 +290,10 @@ describe("indoorLayers: presentation", () => {
 						data: { type: "FeatureCollection", features: [] },
 					},
 					[LABEL_SOURCE]: {
+						type: "geojson",
+						data: { type: "FeatureCollection", features: [] },
+					},
+					[MARK_SOURCE]: {
 						type: "geojson",
 						data: { type: "FeatureCollection", features: [] },
 					},

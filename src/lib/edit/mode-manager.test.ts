@@ -245,24 +245,61 @@ describe("ModeManager", () => {
 	});
 
 	it("shows the mode's cursor while hovering, and the map's own outside", () => {
-		const { fire, canvas } = setup({
+		const { fire, canvas, raf } = setup({
 			name: "test",
 			hover: (at) => (at.point.x > 50 ? "pointer" : ""),
 		});
 		fire("mousemove", 60, 0);
+		raf.flush();
 		expect(canvas.style.cursor).toBe("pointer");
 		fire("mousemove", 10, 0);
+		raf.flush();
 		expect(canvas.style.cursor).toBe("");
+	});
+
+	it("hovers at most once a frame, where the pointer last was (M4)", () => {
+		const hovered: string[] = [];
+		const pointer: string[] = [];
+		const fake = fakeMap();
+		const raf = frames();
+		const manager = new ModeManager(fake.map, {
+			requestFrame: raf.request,
+			onpointer: (point) =>
+				pointer.push(point ? `${point.x},${point.y}` : "out"),
+		});
+		manager.setMode({
+			name: "test",
+			hover: (at) => {
+				hovered.push(`${at.point.x},${at.point.y}`);
+				return "pointer";
+			},
+		});
+		fake.fire("mousemove", 10, 0);
+		fake.fire("mousemove", 20, 0);
+		fake.fire("mousemove", 30, 0);
+		expect(hovered).toEqual([]);
+		raf.flush();
+		expect(hovered).toEqual(["30,0"]);
+		expect(pointer).toEqual(["30,0"]);
+		expect(fake.canvas.style.cursor).toBe("pointer");
+		// Left before its frame: the hover waiting is dropped.
+		fake.fire("mousemove", 40, 0);
+		fake.fire("mouseout");
+		raf.flush();
+		expect(hovered).toEqual(["30,0"]);
+		expect(pointer).toEqual(["30,0", "out"]);
+		expect(fake.canvas.style.cursor).toBe("");
 	});
 
 	it("drops the hover cursor when the pointer leaves the map, and tells the mode", () => {
 		const leave = vi.fn();
-		const { fire, canvas } = setup({
+		const { fire, canvas, raf } = setup({
 			name: "test",
 			hover: () => "move",
 			leave,
 		});
 		fire("mousemove", 60, 0);
+		raf.flush();
 		fire("mouseout");
 		expect(canvas.style.cursor).toBe("");
 		expect(leave).toHaveBeenCalledOnce();
@@ -355,7 +392,7 @@ describe("ModeManager", () => {
 	it("pans the map with the middle button in any mode, the mode seeing nothing", () => {
 		const { drag, log } = recordingDrag();
 		const hovered: string[] = [];
-		const { fire, panned, captured, canvas } = setup({
+		const { fire, panned, captured, canvas, raf } = setup({
 			name: "draw",
 			press: () => drag,
 			hover: (at) => {
@@ -379,6 +416,7 @@ describe("ModeManager", () => {
 		expect(hovered).toEqual([]);
 		// Back to the mode: hovering shows its cursor again.
 		fire("mousemove", 40, 0);
+		raf.flush();
 		expect(canvas.style.cursor).toBe("crosshair");
 		expect(panned).toHaveLength(2);
 	});
