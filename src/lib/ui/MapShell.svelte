@@ -377,11 +377,12 @@
 {@render children?.()}
 
 <!-- The page's tools (A.2), never under the right column: as wide as the map leaves them, a
-     container their labels follow (`@min-[44rem]:`). -->
+     container their labels follow (`@min-[44rem]:`); on a phone the right column is narrower
+     (A.7). -->
 <div
-	class="pointer-events-none absolute top-4 z-20 flex flex-col items-start gap-2 @container *:pointer-events-auto"
+	class="pointer-events-none absolute top-4 z-20 flex w-[calc(100%-var(--covered)-15rem)] flex-col items-start gap-2 @container *:pointer-events-auto max-sm:w-[calc(100%-var(--covered)-10rem)]"
 	style:left={left > 0 ? `calc(${left}px + 1rem)` : "1rem"}
-	style:width="calc(100% - {left}px - {paneOpen ? PANE_WIDTH : 0}px - 15rem)"
+	style:--covered="{left + (paneOpen ? PANE_WIDTH : 0)}px"
 >
 	{@render controls?.()}
 	{@render tools?.()}

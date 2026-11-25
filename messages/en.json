@@ -485,6 +485,8 @@
 	"shortcuts_none": "No shortcut for “{query}”",
 	"skip_to_map": "Skip to the map",
 	"skip_to_panel": "Skip to the side panel",
+	"search_open": "Search a place",
+	"search_close": "Close the search",
 	"undo_named": "Undo: {step}",
 	"redo_named": "Redo: {step}",
 	"with_shortcut": "{label} ({keys})",

@@ -2183,7 +2183,8 @@
 		onclick={() => (saving = true)}
 	>
 		<Upload data-icon="inline-start" />
-		{t(msg("save"))}
+		<!-- The icon and count on a phone, so the header fits (A.7). -->
+		<span class="max-sm:sr-only">{t(msg("save"))}</span>
 		<Badge
 			variant={editor.history.editCount > 0 ? "secondary" : "default"}
 			class="tabular-nums"
