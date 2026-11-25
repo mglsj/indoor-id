@@ -418,8 +418,10 @@ export function savedTabs(page: Page): Promise<number> {
 export async function reloadDiscardingEdits(page: Page): Promise<void> {
 	await expect.poll(() => savedTabs(page)).toBe(1);
 	await page.reload();
-	await page
-		.getByRole("alertdialog", { name: "Restore your unsaved edits?" })
-		.getByRole("button", { name: "Discard" })
-		.click();
+	const dialog = page.getByRole("alertdialog", {
+		name: "Restore your unsaved edits?",
+	});
+	await dialog.getByRole("button", { name: "Discard" }).click();
+	// Its overlay takes clicks until it has faded out.
+	await expect(dialog).toBeHidden();
 }
