@@ -1,42 +1,16 @@
 <script lang="ts">
-	import ArrowRightFromLine from "@lucide/svelte/icons/arrow-right-from-line";
-	import BetweenVerticalStart from "@lucide/svelte/icons/between-vertical-start";
 	import Building from "@lucide/svelte/icons/building";
-	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import ChevronRight from "@lucide/svelte/icons/chevron-right";
 	import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
-	import ClipboardPaste from "@lucide/svelte/icons/clipboard-paste";
-	import Combine from "@lucide/svelte/icons/combine";
-	import Copy from "@lucide/svelte/icons/copy";
 	import DoorOpen from "@lucide/svelte/icons/door-open";
-	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import FileImage from "@lucide/svelte/icons/file-image";
-	import Grid2x2Check from "@lucide/svelte/icons/grid-2x2-check";
-	import Layers2 from "@lucide/svelte/icons/layers-2";
-	import MapPin from "@lucide/svelte/icons/map-pin";
-	import Move from "@lucide/svelte/icons/move";
-	import Octagon from "@lucide/svelte/icons/octagon";
 	import OctagonAlert from "@lucide/svelte/icons/octagon-alert";
 	import PaintBucket from "@lucide/svelte/icons/paint-bucket";
-	import Pentagon from "@lucide/svelte/icons/pentagon";
-	import RectangleHorizontal from "@lucide/svelte/icons/rectangle-horizontal";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
-	import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
-	import Ruler from "@lucide/svelte/icons/ruler";
 	import RulerDimensionLine from "@lucide/svelte/icons/ruler-dimension-line";
-	import Scaling from "@lucide/svelte/icons/scaling";
-	import Scan from "@lucide/svelte/icons/scan";
-	import Scissors from "@lucide/svelte/icons/scissors";
-	import ScissorsSquare from "@lucide/svelte/icons/scissors-square";
 	import Shapes from "@lucide/svelte/icons/shapes";
-	import Spline from "@lucide/svelte/icons/spline";
-	import Square from "@lucide/svelte/icons/square";
-	import SquareSquare from "@lucide/svelte/icons/square-square";
-	import SquaresSubtract from "@lucide/svelte/icons/squares-subtract";
-	import Trash from "@lucide/svelte/icons/trash";
 	import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 	import Undo2 from "@lucide/svelte/icons/undo-2";
-	import Unlink from "@lucide/svelte/icons/unlink";
 	import Upload from "@lucide/svelte/icons/upload";
 	import X from "@lucide/svelte/icons/x";
 	import { type Component, untrack } from "svelte";
@@ -200,6 +174,7 @@
 	} from "#lib/state/precision.svelte.ts";
 	import { Session } from "#lib/state/session.svelte.ts";
 	import BuildingPanel from "#lib/ui/BuildingPanel.svelte";
+	import DrawToolbar from "#lib/ui/DrawToolbar.svelte";
 	import FloorPanel from "#lib/ui/FloorPanel.svelte";
 	import FloorPlansPanel from "#lib/ui/FloorPlansPanel.svelte";
 	import GuidesPane from "#lib/ui/GuidesPane.svelte";
@@ -209,6 +184,7 @@
 	import MapShell, { type MapPane } from "#lib/ui/MapShell.svelte";
 	import MeasureLabels from "#lib/ui/MeasureLabels.svelte";
 	import MultiInspector from "#lib/ui/MultiInspector.svelte";
+	import OperationItem from "#lib/ui/OperationItem.svelte";
 	import PanelResizer from "#lib/ui/PanelResizer.svelte";
 	import {
 		clampWidth,
@@ -220,6 +196,7 @@
 	import RestoreDialog from "#lib/ui/RestoreDialog.svelte";
 	import { roving } from "#lib/ui/roving.ts";
 	import SaveDialog from "#lib/ui/SaveDialog.svelte";
+	import SelectionBar from "#lib/ui/SelectionBar.svelte";
 	import ShortcutsDialog from "#lib/ui/ShortcutsDialog.svelte";
 	import SnapMenu, { type FrameControls } from "#lib/ui/SnapMenu.svelte";
 	import StatusPill from "#lib/ui/StatusPill.svelte";
@@ -451,9 +428,6 @@
 	let guidesPaneShown = false;
 
 	/** Turns the measure and guide tool on, placing guides (the guides pane's button). */
-	/** The measure split button's menu (A.2). */
-	let measureMenuOpen = $state(false);
-
 	function placeGuides() {
 		if (drawing !== "measure") draw("measure");
 		measureVariant = "guide";
@@ -826,27 +800,6 @@
 			},
 		};
 	});
-
-	const OPERATION_ICONS: Record<Operation["id"], Component> = {
-		copy: Copy,
-		repeat: Layers2,
-		paste: ClipboardPaste,
-		disconnect: Unlink,
-		square: Square,
-		merge: Combine,
-		multipolygon: SquaresSubtract,
-		"cut-out": ScissorsSquare,
-		delete: Trash,
-		move: Move,
-		rotate: RotateCcw,
-		scale: Scaling,
-		side: ArrowRightFromLine,
-		offset: SquareSquare,
-		"square-frame": Grid2x2Check,
-		straighten: Octagon,
-		symmetric: BetweenVerticalStart,
-		split: Scissors,
-	};
 
 	/** An operation's first key, or the draw tool's that does the same (split: X). */
 	function operationKey(operation: Operation): string {
@@ -1839,126 +1792,6 @@
 	</Tooltip.Root>
 {/snippet}
 
-{#snippet drawButton(
-	kind: DrawTool,
-	label: string,
-	action: string,
-	key: string,
-	Icon: Component,
-)}
-	{@const outside = !offered.draw.has(kind)}
-	<Tooltip.Root>
-		<Tooltip.Trigger onclick={() => draw(kind)}>
-			{#snippet child({ props })}
-				<!-- Tools of building mode stay in their place on the map (A.2), aria-disabled so
-				     that the tooltip still says why. -->
-				<Button
-					{...props}
-					variant="outline"
-					size="icon"
-					aria-label={action}
-					aria-pressed={drawing === kind}
-					aria-disabled={outside || undefined}
-					aria-describedby={outside ? "tool-outside-reason" : undefined}
-					class={outside ? "opacity-50" : ""}
-					disabled={editor.history.locked}
-				>
-					<Icon />
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content side="bottom"
-			>{t(msg("with_shortcut", { label, keys: key }))}{outside
-				? `: ${t(msg("tool_inside_building_only"))}`
-				: ""}</Tooltip.Content
-		>
-	</Tooltip.Root>
-{/snippet}
-
-{#snippet operationButton(operation: Operation, disabled: Message | null)}
-	{@const Icon = OPERATION_ICONS[operation.id]}
-	{@const label = t(operation.label)}
-	{@const reasonId = `operation-reason-${operation.id}`}
-	<Tooltip.Root>
-		<Tooltip.Trigger onclick={() => runOperation(operation)}>
-			{#snippet child({ props })}
-				<!-- aria-disabled, not disabled: the tooltip still says why, and so does the
-				     description (A.3). Labelled: the six main actions (A.3). -->
-				<Button
-					{...props}
-					variant="outline"
-					aria-label={label}
-					aria-disabled={disabled !== null}
-					aria-describedby={disabled ? reasonId : undefined}
-					class={disabled ? "opacity-50" : ""}
-				>
-					<Icon data-icon="inline-start" />
-					<!-- Icons only when the map is narrow (the side panel open on a small screen). -->
-					<span class="hidden @min-[44rem]:inline"
-						>{t(operation.short ?? operation.label)}</span
-					>
-				</Button>
-			{/snippet}
-		</Tooltip.Trigger>
-		<Tooltip.Content side="bottom">
-			{@const key = operationKey(operation)}
-			{label}{key ? ` (${key})` : ""}{disabled ? `: ${t(disabled)}` : ""}
-		</Tooltip.Content>
-	</Tooltip.Root>
-	{#if disabled}
-		<span id={reasonId} class="sr-only">{t(disabled)}</span>
-	{/if}
-{/snippet}
-
-<!-- An operation in a menu (the bar's More and Transform, the right-click menu): a disabled
-     one says why under its name (A.3). -->
-{#snippet operationItem(operation: Operation, disabled: Message | null)}
-	{@const Icon = OPERATION_ICONS[operation.id]}
-	<DropdownMenu.Item
-		disabled={disabled !== null}
-		class={disabled ? "items-start" : ""}
-		onSelect={() => runOperation(operation)}
-	>
-		<Icon />
-		<span class="flex min-w-0 flex-col">
-			{t(operation.label)}
-			{#if disabled}
-				<span class="text-xs text-muted-foreground">{t(disabled)}</span>
-			{/if}
-		</span>
-		<DropdownMenu.Shortcut>{operationKey(operation)}</DropdownMenu.Shortcut>
-	</DropdownMenu.Item>
-{/snippet}
-
-<!-- More ▾ or Transform ▾ in the selection bar (A.3). -->
-{#snippet operationMenu(
-	label: string,
-	Icon: Component,
-	entries: readonly { operation: Operation; disabled: Message | null }[],
-)}
-	<DropdownMenu.Root>
-		<DropdownMenu.Trigger>
-			{#snippet child({ props })}
-				<Button {...props} variant="outline">
-					<Icon data-icon="inline-start" />
-					{label}
-					<ChevronDown data-icon="inline-end" />
-				</Button>
-			{/snippet}
-		</DropdownMenu.Trigger>
-		<!-- Focus stays off the trigger: a transform tool takes typed values next. -->
-		<DropdownMenu.Content
-			align="start"
-			class="w-64"
-			onCloseAutoFocus={(event) => event.preventDefault()}
-		>
-			{#each entries as { operation, disabled } (operation.id)}
-				{@render operationItem(operation, disabled)}
-			{/each}
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
-{/snippet}
-
 <!-- A note under the toolbar's tools: what a tool asks for, why an operation was refused. -->
 {#snippet statusNote(testid: string, text: string)}
 	<StatusPill {testid}>{text}</StatusPill>
@@ -2130,101 +1963,18 @@
 				</ButtonGroup.Root>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
-				<ButtonGroup.Root
-					role="toolbar"
-					aria-label={t(msg("toolbar_draw"))}
-					{@attach roving()}
-				>
-					{@render drawButton(
-						"point",
-						t(msg("tool_point")),
-						t(msg("tool_point_action")),
-						"1",
-						MapPin,
-					)}
-					{@render drawButton(
-						"line",
-						t(msg("tool_line")),
-						t(msg("tool_line_action")),
-						"2",
-						Spline,
-					)}
-					{@render drawButton(
-						"area",
-						t(msg("tool_area")),
-						t(msg("tool_area_action")),
-						"3",
-						Pentagon,
-					)}
-					<!-- Building mode's tools (B.3), shown disabled on the map with the reason. -->
-					{@render drawButton(
-						"rectangle",
-						t(msg("tool_rectangle")),
-						t(msg("tool_rectangle_action")),
-						"4",
-						RectangleHorizontal,
-					)}
-					{@render drawButton(
-						"split",
-						t(msg("tool_split")),
-						t(msg("tool_split_action")),
-						"X",
-						Scissors,
-					)}
-					{@render drawButton(
-						"measure",
-						t(msg("measure_tool")),
-						t(msg("measure_tool")),
-						"M",
-						measureVariant === "guide" && drawing === "measure"
-							? RulerDimensionLine
-							: Ruler,
-					)}
-					<!-- Measure or place guides: a split button, not a row of its own (A.2). -->
-					<DropdownMenu.Root bind:open={measureMenuOpen}>
-						<DropdownMenu.Trigger disabled={!offered.draw.has("measure")}>
-							{#snippet child({ props })}
-								<Button
-									{...props}
-									variant="outline"
-									size="icon"
-									class="w-6"
-									aria-label={t(msg("measure_tool_mode"))}
-									data-testid="measure-mode"
-								>
-									<ChevronDown />
-								</Button>
-							{/snippet}
-						</DropdownMenu.Trigger>
-						<!-- Focus stays off the trigger: keys typed next go to the tool, and Enter
-						     would open the menu again. -->
-						<DropdownMenu.Content
-							align="start"
-							onCloseAutoFocus={(event) => event.preventDefault()}
-						>
-							<DropdownMenu.RadioGroup
-								value={drawing === "measure" ? measureVariant : ""}
-								onValueChange={(value) => {
-									measureMenuOpen = false;
-									if (value === "guide") placeGuides();
-									else if (value === "measure") {
-										if (drawing !== "measure") draw("measure");
-										measureAs("measure");
-									}
-								}}
-							>
-								<DropdownMenu.RadioItem value="measure">
-									<Ruler />
-									{t(msg("measure_mode_measure"))}
-								</DropdownMenu.RadioItem>
-								<DropdownMenu.RadioItem value="guide">
-									<RulerDimensionLine />
-									{t(msg("measure_mode_guide"))}
-								</DropdownMenu.RadioItem>
-							</DropdownMenu.RadioGroup>
-						</DropdownMenu.Content>
-					</DropdownMenu.Root>
-				</ButtonGroup.Root>
+				<DrawToolbar
+					{offered}
+					{drawing}
+					{measureVariant}
+					locked={editor.history.locked}
+					ondraw={draw}
+					onplaceguides={placeGuides}
+					onmeasure={() => {
+						if (drawing !== "measure") draw("measure");
+						measureAs("measure");
+					}}
+				/>
 			</div>
 			<div class="rounded-md bg-background shadow-md">
 				<SnapMenu
@@ -2244,47 +1994,12 @@
 			</div>
 			{#if operations.length > 0}
 				<!-- The selection bar (A.3): the main actions labelled, the rest in two menus. -->
-				<div class="flex flex-wrap gap-2" data-testid="selection-bar">
-					<div class="rounded-md bg-background shadow-md">
-						<ButtonGroup.Root
-							role="toolbar"
-							aria-label={t(msg("toolbar_selection"))}
-							{@attach roving()}
-						>
-							{#each grouped.main as { operation, disabled } (operation.id)}
-								{@render operationButton(operation, disabled)}
-							{/each}
-							{#if grouped.more.length > 0}
-								{@render operationMenu(
-									t(msg("operations_more")),
-									Ellipsis,
-									grouped.more,
-								)}
-							{/if}
-							{#if grouped.transform.length > 0}
-								{@render operationMenu(
-									t(msg("operations_transform")),
-									Shapes,
-									grouped.transform,
-								)}
-							{/if}
-						</ButtonGroup.Root>
-					</div>
-					<div class="rounded-md bg-background shadow-md">
-						{@render iconButton(
-							t(msg("zoom_to_selection")),
-							t(
-								msg("with_shortcut", {
-									label: t(msg("zoom_to_selection")),
-									keys: "Z",
-								}),
-							),
-							Scan,
-							false,
-							() => zoomToAll(editor.selection.ids),
-						)}
-					</div>
-				</div>
+				<SelectionBar
+					{grouped}
+					keyOf={operationKey}
+					onrun={runOperation}
+					onzoom={() => zoomToAll(editor.selection.ids)}
+				/>
 			{/if}
 		{/if}
 	{/snippet}
@@ -2511,12 +2226,22 @@
 		>
 			<!-- The bar's groups (A.3): the main actions, More's, then Transform as a submenu. -->
 			{#each grouped.main as { operation, disabled } (operation.id)}
-				{@render operationItem(operation, disabled)}
+				<OperationItem
+					{operation}
+					{disabled}
+					keys={operationKey(operation)}
+					onrun={runOperation}
+				/>
 			{/each}
 			{#if grouped.more.length > 0}
 				<DropdownMenu.Separator />
 				{#each grouped.more as { operation, disabled } (operation.id)}
-					{@render operationItem(operation, disabled)}
+					<OperationItem
+						{operation}
+						{disabled}
+						keys={operationKey(operation)}
+						onrun={runOperation}
+					/>
 				{/each}
 			{/if}
 			{#if grouped.transform.length > 0}
@@ -2528,7 +2253,12 @@
 					</DropdownMenu.SubTrigger>
 					<DropdownMenu.SubContent class="w-64">
 						{#each grouped.transform as { operation, disabled } (operation.id)}
-							{@render operationItem(operation, disabled)}
+							<OperationItem
+								{operation}
+								{disabled}
+								keys={operationKey(operation)}
+								onrun={runOperation}
+							/>
 						{/each}
 					</DropdownMenu.SubContent>
 				</DropdownMenu.Sub>

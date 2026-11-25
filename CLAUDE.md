@@ -142,7 +142,9 @@ runs the same commands.
   on `actions/copy.ts`, `disconnect.ts`, `orthogonalize.ts`, `merge-areas.ts`, `delete.ts`,
   `split-areas.ts` (with `edit/modes/split.ts`), `repeat-levels.ts` (`ui/RepeatDialog.svelte`),
   `multipolygon.ts`; add a new one to that list, not as a button of its own (the toolbar and
-  the right-click menu, `Mode.contextMenu`, both list it). Several features
+  the right-click menu, `Mode.contextMenu`, both list it: `ui/SelectionBar.svelte` and
+  `ui/OperationItem.svelte`, icons in `ui/operation-icons.ts`; the drawing tools are
+  `ui/DrawToolbar.svelte`). Several features
   (P5.3.6): Shift+click and `edit/lasso.ts`, edited in `ui/MultiInspector.svelte`; a press on
   a selected feature moves the selection (`edit/feature-drag.ts`). Spatial checks (P5.3.9) are
   `validation/spatial.ts`; `BLOCKING_RULES` stop the upload; `Editor.editIssues` leaves out
