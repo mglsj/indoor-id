@@ -24,9 +24,14 @@ import {
 
 const FILES = path.join(import.meta.dirname, "files");
 
-// Wide enough that plans and their control points stay clear of the floor plans pane, which
-// covers the right of the map (A.2).
-test.use({ viewport: { width: 1600, height: 900 } });
+/**
+ * Wide enough that plans and their control points stay clear of the floor plans pane, which
+ * covers the right of the map (A.2). Only where it is needed: a bigger map is slower to draw
+ * under SwiftShader, and CI's PDF tests are slow already.
+ */
+async function wide(page: Page) {
+	await page.setViewportSize({ width: 1600, height: 900 });
+}
 const RED: [number, number, number] = [255, 0, 0];
 /** Colour of building outlines in floor plan mode. */
 const BUILDING_OUTLINE: [number, number, number] = [0xd6, 0x24, 0x9f];
@@ -502,6 +507,7 @@ function nodesOnLevel(level: string, ...offsets: [number, number][]) {
 test("aligns a plan with control points snapped to OSM nodes", async ({
 	page,
 }) => {
+	await wide(page);
 	// Nodes A and B, 360 × 260 screen px apart: plan pixels (20, 20) and (380, 280) go there.
 	const A: [number, number] = [-180, -130];
 	const B: [number, number] = [180, 130];
@@ -568,6 +574,7 @@ test("snaps a control point to a vector plan's own corner", async ({
 test("control points don't snap to nodes on another level", async ({
 	page,
 }) => {
+	await wide(page);
 	const A: [number, number] = [-180, -130];
 	const B: [number, number] = [180, 130];
 	// The wall is on level 1; level 0 is shown.
@@ -594,6 +601,7 @@ test("control points don't snap to nodes on another level", async ({
 test("shows how far each control point is from where the plan puts it", async ({
 	page,
 }) => {
+	await wide(page);
 	const A: [number, number] = [-180, -130];
 	const B: [number, number] = [180, 130];
 	await serveOsm(page, nodesAt(A, B));
@@ -1286,6 +1294,7 @@ test("puts a plan back as it was when Edit was pressed on Cancel", async ({
 test("asks to save or discard a plan's changes when closing floor plans", async ({
 	page,
 }) => {
+	await wide(page);
 	// Three rounds (keep editing, discard, save and reload) while the worker still encodes the
 	// imported plan's tiles: 22–27 s of the default 30 under SwiftShader, so it timed out.
 	test.slow();
