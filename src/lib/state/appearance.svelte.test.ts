@@ -30,12 +30,14 @@ describe("AppearanceSettings (A.4)", () => {
 			gridColor: "#FF0000",
 			gridMinorOpacity: 0.3,
 			selectionColor: "#00aa00",
+			drawingColor: "#AA0000",
 			editPalette: "id",
 		});
 		const again = new AppearanceSettings(saved);
 		expect(again.gridColor).toBe("#ff0000");
 		expect(again.gridMinorOpacity).toBe(0.3);
 		expect(again.selectionColor).toBe("#00aa00");
+		expect(again.drawingColor).toBe("#aa0000");
 		expect(again.editPalette).toBe("id");
 		again.reset();
 		expect(new AppearanceSettings(saved).current).toEqual(DEFAULT_APPEARANCE);

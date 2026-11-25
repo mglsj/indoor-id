@@ -86,6 +86,8 @@ export interface DrawOptions {
 	readonly snap: DrawSnap;
 	/** Drawing ended: the feature made, or null when nothing was. */
 	readonly onfinish: (id: EntityId | null) => void;
+	/** The feature being drawn, from the start, then null once the drawing ends either way. */
+	readonly ondrawing?: (id: EntityId | null) => void;
 	readonly precision?: DrawPrecision;
 	/** Tracing along existing ways (P6), toggled with `T`; none where it isn't offered. */
 	readonly tracing?: DrawTracing;
@@ -106,9 +108,18 @@ const ANNOTATIONS = {
 
 export function drawWayMode(
 	kind: DrawKind,
-	{ history, level, snap, onfinish, precision, tracing }: DrawOptions,
+	{
+		history,
+		level,
+		snap,
+		onfinish,
+		ondrawing,
+		precision,
+		tracing,
+	}: DrawOptions,
 ): Mode {
 	const drawing = new WayDrawing(history.graph, kind, level);
+	ondrawing?.(drawing.wayId);
 	let ended = false;
 	const cursor = new Set([drawing.cursorId]);
 	/** The drawing's own sides can't be snapped onto (only its corners, to finish). */
@@ -243,6 +254,7 @@ export function drawWayMode(
 		ended = true;
 		clearTimeout(timer);
 		precision?.show(null);
+		ondrawing?.(null);
 		if (drawing.canFinish) {
 			history.commit(drawing.action(), ANNOTATIONS[kind]);
 			onfinish(drawing.wayId);
@@ -343,6 +355,7 @@ export function drawWayMode(
 			precision?.show(null);
 			if (!ended) {
 				ended = true;
+				ondrawing?.(null);
 				history.cancelPreview();
 			}
 		},

@@ -132,6 +132,33 @@ describe("buildFeatures", () => {
 		expect(ids.sort()).toEqual(["n5", "n6", "w1"]);
 	});
 
+	it("draws a way with only a level as a line, so a new untagged line stays visible", () => {
+		const line = feature(
+			[
+				node("n1", {}, [0, 0]),
+				node("n2", {}, [1, 0]),
+				way("w1", ["n1", "n2"], { level: "0" }),
+			],
+			"w1",
+		);
+		expect(line?.geometry.type).toBe("LineString");
+		expect(line?.properties["@kind"]).toBe("line");
+	});
+
+	it("draws a point with only a level, so a new untagged point stays visible", () => {
+		const point = feature([node("n1", { level: "0" }, [0, 0])], "n1");
+		expect(point?.properties["@kind"]).toBe("poi");
+	});
+
+	it("doesn't draw untagged vertices as points", () => {
+		const ids = featuresOf([
+			node("n1", { level: "0" }, [0, 0]),
+			node("n2", {}, [1, 0]),
+			way("w1", ["n1", "n2"], { indoor: "wall", level: "0" }),
+		]).collection.features.map((f) => f.properties["@id"]);
+		expect(ids).toEqual(["w1"]);
+	});
+
 	it("draws multipolygons with holes, and not their untagged member ways", () => {
 		const entities = [
 			...square(1, 0, 0, 10),
