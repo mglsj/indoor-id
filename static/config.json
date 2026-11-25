@@ -1,7 +1,7 @@
 {
 	"osm_api_url": "https://api.openstreetmap.org",
 	"oauth_url": "https://www.openstreetmap.org",
-	"oauth_client_id": "",
+	"oauth_client_id": "KfCUdxMvc1g-qlZsAeKfdC76yt0HSGiTXtPCFMI-sv0",
 	"data_min_zoom": 18,
 	"map_initial_zoom": 18,
 	"map_initial_latlng": [
