@@ -70,11 +70,12 @@ export class Guides {
 		return this.#all.filter((g) => g.level === level).length;
 	}
 
-	/** Places a guide on a level (and in a building), shown at once. */
+	/** Places a guide on a level (and in a building, in a colour of its own), shown at once. */
 	add(
 		line: DirectionLine,
 		level: number,
 		building?: string,
+		color?: string,
 	): ConstructionGuide {
 		const guide: ConstructionGuide = {
 			id: crypto.randomUUID(),
@@ -82,6 +83,7 @@ export class Guides {
 			angle: line.angle,
 			level,
 			...(building ? { building } : {}),
+			...(color ? { color } : {}),
 		};
 		this.addAll([guide]);
 		return guide;

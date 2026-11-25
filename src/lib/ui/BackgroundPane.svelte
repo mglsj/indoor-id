@@ -2,14 +2,14 @@
 	/**
 	 * The background settings, in a pane on the right of the map as iD's: the vector map,
 	 * Esri's imagery, a custom tile URL or a solid colour, and the imagery's offset (iD's
-	 * Imagery Offset section: a gray area to drag, arrows around it and the value in it).
+	 * Imagery Offset section: a gray area to drag, arrows around it and the value in it), shown
+	 * while imagery is (A.4). The area fill and Highlight changes are in the Map data pane.
 	 */
 	import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 	import Undo2 from "@lucide/svelte/icons/undo-2";
 	import X from "@lucide/svelte/icons/x";
 	import { onDestroy, untrack } from "svelte";
 	import { Button } from "#lib/components/shadcn/button/index.ts";
-	import { Checkbox } from "#lib/components/shadcn/checkbox/index.ts";
 	import * as Field from "#lib/components/shadcn/field/index.ts";
 	import { Input } from "#lib/components/shadcn/input/index.ts";
 	import * as RadioGroup from "#lib/components/shadcn/radio-group/index.ts";
@@ -22,7 +22,6 @@
 		ESRI_IMAGERY,
 		type ImageryDisplay,
 	} from "#lib/map/backgrounds.ts";
-	import type { AreaFill } from "#lib/map/style/colors.ts";
 	import {
 		type BackgroundSettings,
 		formatOffset,
@@ -31,8 +30,8 @@
 
 	interface Props {
 		settings: BackgroundSettings;
-		/** Whether the area fill is offered (the editor's; the viewer fills areas whole). */
-		showFill?: boolean;
+		/** Whether Mod+B's swap is mentioned (the editor's key). */
+		showSwap?: boolean;
 		/** Ground metres per screen pixel at the map's centre, for dragging the offset. */
 		metresPerPixel?: () => number;
 		onclose: () => void;
@@ -40,7 +39,7 @@
 
 	let {
 		settings,
-		showFill = false,
+		showSwap = false,
 		metresPerPixel = () => 0,
 		onclose,
 	}: Props = $props();
@@ -133,24 +132,6 @@
 		stopNudge();
 		if (frame !== undefined) cancelAnimationFrame(frame);
 	});
-
-	const FILLS: { fill: AreaFill; name: Message; hint: Message }[] = [
-		{
-			fill: "wireframe",
-			name: msg("area_fill_wireframe"),
-			hint: msg("area_fill_wireframe_hint"),
-		},
-		{
-			fill: "partial",
-			name: msg("area_fill_partial"),
-			hint: msg("area_fill_partial_hint"),
-		},
-		{
-			fill: "full",
-			name: msg("area_fill_full"),
-			hint: msg("area_fill_full_hint"),
-		},
-	];
 
 	/** Metres moved by a nudge button, and with Shift. */
 	const STEP = 0.5;
@@ -260,7 +241,7 @@
 	<div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-4">
 		<Field.Set>
 			<Field.Legend variant="label">{t(msg("background_choice"))}</Field.Legend>
-			{#if showFill}
+			{#if showSwap}
 				<Field.Description>
 					{t(
 						msg("background_swap_hint", { key: formatCombo("Mod+B", isMac()) }),
@@ -326,167 +307,134 @@
 			{/if}
 		</Field.Set>
 
-		<Field.Set disabled={!imageryShown}>
-			<Field.Legend variant="label">{t(msg("imagery_display"))}</Field.Legend>
-			{#each DISPLAY as { name, label, min } (name)}
-				<Field.Field>
-					<div class="flex items-center justify-between">
-						<Field.Label for="imagery-{name}">{t(label)}</Field.Label>
-						<span class="text-sm text-muted-foreground tabular-nums"
-							>{Math.round(settings.display[name] * 100)}%</span
-						>
-					</div>
-					<Slider
-						id="imagery-{name}"
-						type="single"
-						{min}
-						max={2}
-						step={0.05}
-						disabled={!imageryShown}
-						value={settings.display[name]}
-						onValueChange={(value: number) => settings.setDisplay(name, value)}
-					/>
-				</Field.Field>
-			{/each}
-			<Button
-				variant="ghost"
-				size="sm"
-				class="self-end"
-				disabled={!imageryShown || !displayChanged}
-				onclick={() => {
-					for (const { name } of DISPLAY) settings.setDisplay(name, 1);
-				}}
-			>
-				<RotateCcw data-icon="inline-start" />
-				{t(msg("imagery_display_reset"))}
-			</Button>
-		</Field.Set>
-
-		<Field.Set disabled={!imageryShown}>
-			<Field.Legend variant="label">{t(msg("background_offset"))}</Field.Legend>
-			<div
-				class={[
-					"flex flex-col gap-3 rounded-md border p-3",
-					!imageryShown && "opacity-50",
-				]}
-			>
-				<Field.Description>
-					{imageryShown
-						? t(msg("background_offset_hint"))
-						: t(msg("background_offset_map"))}
-				</Field.Description>
-				<div
-					class="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] grid-rows-[2rem_auto_2.5rem] items-center justify-items-center"
-				>
-					{#each NUDGES as nudge (nudge.key)}
-						<button
-							type="button"
-							class={[
-								"flex size-8 items-center justify-center rounded-md text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none",
-								nudge.cell,
-							]}
-							aria-label={t(msg(nudge.key))}
-							title={t(msg(nudge.key))}
-							disabled={!imageryShown}
-							onpointerdown={(event) =>
-								startNudge(event, nudge.east, nudge.north)}
-							onpointerup={stopNudge}
-							onpointerleave={stopNudge}
-							onpointercancel={stopNudge}
-							onclick={(event) => {
-								// Keyboard presses; pointer presses moved it on pointerdown.
-								if (event.detail === 0)
-									nudgeBy(nudge.east, nudge.north, event.shiftKey);
-							}}
-						>
-							<svg
-								viewBox="0 0 10 10"
-								class="size-2.5 fill-current"
-								style:rotate="{nudge.turn}deg"
-								aria-hidden="true"
-							>
-								<path d="M5 1.5 9.5 8.5H.5Z" />
-							</svg>
-						</button>
-					{/each}
-					<div
-						role="application"
-						aria-label={t(msg("background_offset_drag"))}
-						aria-disabled={!imageryShown}
-						data-testid="offset-drag"
-						class={[
-							"col-start-2 row-start-2 flex h-24 w-full touch-none items-center justify-center rounded-md border bg-muted select-none",
-							imageryShown && "cursor-move",
-						]}
-						onpointerdown={startDrag}
-						onpointermove={moveDrag}
-						onpointerup={endDrag}
-						onpointercancel={endDrag}
-					>
-						<Input
-							id="background-offset"
-							inputmode="decimal"
-							class="h-10 w-3/5 bg-background text-center tabular-nums"
-							disabled={!imageryShown}
-							aria-label={t(msg("background_offset_field"))}
-							title={t(msg("background_offset_field"))}
-							aria-invalid={offsetInvalid || undefined}
-							value={offsetText}
-							oninput={(event) => (offsetDraft = event.currentTarget.value)}
-							onchange={applyOffset}
-							onkeydown={(event) => {
-								if (event.key === "Enter") applyOffset();
-								if (event.key === "Escape") offsetDraft = null;
-							}}
-						/>
-					</div>
-					<Button
-						variant="secondary"
-						size="icon"
-						class="col-start-3 row-start-3 mt-2 size-10"
-						aria-label={t(msg("background_offset_reset"))}
-						title={t(msg("background_offset_reset"))}
-						disabled={!imageryShown || !moved}
-						onclick={() => {
-							offsetDraft = null;
-							settings.setOffset({ east: 0, north: 0 });
-						}}
-					>
-						<Undo2 />
-					</Button>
-				</div>
-				{#if offsetInvalid}
-					<Field.Error>{t(msg("background_offset_invalid"))}</Field.Error>
-				{/if}
-			</div>
-		</Field.Set>
-
-		{#if showFill}
+		{#if imageryShown}
 			<Field.Set>
-				<Field.Legend variant="label">{t(msg("area_fill"))}</Field.Legend>
-				<RadioGroup.Root
-					value={settings.areaFill}
-					onValueChange={(fill) => settings.setAreaFill(fill as AreaFill)}
+				<Field.Legend variant="label">{t(msg("imagery_display"))}</Field.Legend>
+				{#each DISPLAY as { name, label, min } (name)}
+					<Field.Field>
+						<div class="flex items-center justify-between">
+							<Field.Label for="imagery-{name}">{t(label)}</Field.Label>
+							<span class="text-sm text-muted-foreground tabular-nums"
+								>{Math.round(settings.display[name] * 100)}%</span
+							>
+						</div>
+						<Slider
+							id="imagery-{name}"
+							type="single"
+							{min}
+							max={2}
+							step={0.05}
+							value={settings.display[name]}
+							onValueChange={(value: number) =>
+								settings.setDisplay(name, value)}
+						/>
+					</Field.Field>
+				{/each}
+				<Button
+					variant="ghost"
+					size="sm"
+					class="self-end"
+					disabled={!displayChanged}
+					onclick={() => {
+						for (const { name } of DISPLAY) settings.setDisplay(name, 1);
+					}}
 				>
-					{#each FILLS as { fill, name, hint } (fill)}
-						{@render option("area-fill", fill, t(name), t(hint))}
-					{/each}
-				</RadioGroup.Root>
-				<Field.Field orientation="horizontal">
-					<Checkbox
-						id="highlight-edits"
-						checked={settings.highlightEdits}
-						onCheckedChange={(on) => settings.setHighlightEdits(on === true)}
-					/>
-					<Field.Content>
-						<Field.Label for="highlight-edits" class="font-normal"
-							>{t(msg("highlight_edits"))}</Field.Label
+					<RotateCcw data-icon="inline-start" />
+					{t(msg("imagery_display_reset"))}
+				</Button>
+			</Field.Set>
+
+			<Field.Set>
+				<Field.Legend variant="label"
+					>{t(msg("background_offset"))}</Field.Legend
+				>
+				<div class="flex flex-col gap-3 rounded-md border p-3">
+					<Field.Description
+						>{t(msg("background_offset_hint"))}</Field.Description
+					>
+					<!-- The value field's visible name (A.4), above the area it sits in. -->
+					<Field.Label for="background-offset"
+						>{t(msg("background_offset_field"))}</Field.Label
+					>
+					<div
+						class="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] grid-rows-[2rem_auto_2.5rem] items-center justify-items-center"
+					>
+						{#each NUDGES as nudge (nudge.key)}
+							<button
+								type="button"
+								class={[
+									"flex size-8 items-center justify-center rounded-md text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:pointer-events-none",
+									nudge.cell,
+								]}
+								aria-label={t(msg(nudge.key))}
+								title={t(msg(nudge.key))}
+								onpointerdown={(event) =>
+									startNudge(event, nudge.east, nudge.north)}
+								onpointerup={stopNudge}
+								onpointerleave={stopNudge}
+								onpointercancel={stopNudge}
+								onclick={(event) => {
+									// Keyboard presses; pointer presses moved it on pointerdown.
+									if (event.detail === 0)
+										nudgeBy(nudge.east, nudge.north, event.shiftKey);
+								}}
+							>
+								<svg
+									viewBox="0 0 10 10"
+									class="size-2.5 fill-current"
+									style:rotate="{nudge.turn}deg"
+									aria-hidden="true"
+								>
+									<path d="M5 1.5 9.5 8.5H.5Z" />
+								</svg>
+							</button>
+						{/each}
+						<div
+							role="application"
+							aria-label={t(msg("background_offset_drag"))}
+							data-testid="offset-drag"
+							class={[
+								"col-start-2 row-start-2 flex h-24 w-full cursor-move touch-none items-center justify-center rounded-md border bg-muted select-none",
+							]}
+							onpointerdown={startDrag}
+							onpointermove={moveDrag}
+							onpointerup={endDrag}
+							onpointercancel={endDrag}
 						>
-						<Field.Description
-							>{t(msg("highlight_edits_hint"))}</Field.Description
+							<Input
+								id="background-offset"
+								inputmode="decimal"
+								class="h-10 w-3/5 bg-background text-center tabular-nums"
+								title={t(msg("background_offset_field"))}
+								aria-invalid={offsetInvalid || undefined}
+								value={offsetText}
+								oninput={(event) => (offsetDraft = event.currentTarget.value)}
+								onchange={applyOffset}
+								onkeydown={(event) => {
+									if (event.key === "Enter") applyOffset();
+									if (event.key === "Escape") offsetDraft = null;
+								}}
+							/>
+						</div>
+						<Button
+							variant="secondary"
+							size="icon"
+							class="col-start-3 row-start-3 mt-2 size-10"
+							aria-label={t(msg("background_offset_reset"))}
+							title={t(msg("background_offset_reset"))}
+							disabled={!moved}
+							onclick={() => {
+								offsetDraft = null;
+								settings.setOffset({ east: 0, north: 0 });
+							}}
 						>
-					</Field.Content>
-				</Field.Field>
+							<Undo2 />
+						</Button>
+					</div>
+					{#if offsetInvalid}
+						<Field.Error>{t(msg("background_offset_invalid"))}</Field.Error>
+					{/if}
+				</div>
 			</Field.Set>
 		{/if}
 	</div>

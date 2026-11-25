@@ -57,6 +57,7 @@
 	import type { Presentation } from "#lib/map/style/layers.ts";
 	import { visibleExtent } from "#lib/map/view.ts";
 	import { EARTH_RADIUS } from "#lib/osm/geometry.ts";
+	import { AppearanceSettings } from "#lib/state/appearance.svelte.ts";
 	import { BackgroundSettings } from "#lib/state/background.svelte.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
 	import BackgroundPane from "#lib/ui/BackgroundPane.svelte";
@@ -79,6 +80,8 @@
 		camera?: Camera;
 		/** The background and area fill settings, for the editor's shortcuts. */
 		background?: BackgroundSettings;
+		/** The editor's colours for the grid, guides, selection and changes (A.4). */
+		appearance?: AppearanceSettings;
 		/** The indoor features' layers on the map, once the map exists. */
 		indoor?: IndoorMap;
 		/** Pixels the left side covers (a side panel): the controls go right of it. */
@@ -118,6 +121,7 @@
 		camera = $bindable(),
 		indoor = $bindable(),
 		background = $bindable(),
+		appearance = $bindable(),
 		left = 0,
 		planTiles,
 		presentation = "edit",
@@ -144,6 +148,8 @@
 	let lastHash = "";
 	const settings = new BackgroundSettings(browserStorage());
 	background = settings;
+	const looks = new AppearanceSettings(browserStorage());
+	appearance = looks;
 	/** The background pane, on the right of the map. */
 	const backgroundOpen = $derived(openPane === "background");
 	const shownPane = $derived(panes.find((pane) => pane.id === openPane));
@@ -174,6 +180,10 @@
 			layers.setLook({
 				presentation,
 				fill: settings.areaFill,
+				// The Map data pane's colours (A.4), the editor's only.
+				...(presentation === "edit"
+					? { selection: looks.selectionColor, edits: looks.editPalette }
+					: {}),
 				// Building mode (B.1): the map fades indoor features, a building what is outside
 				// (or hides it, its surroundings off: B.2).
 				scope:
@@ -393,7 +403,7 @@
 	>
 		<BackgroundPane
 			{settings}
-			showFill={presentation === "edit"}
+			showSwap={presentation === "edit"}
 			metresPerPixel={() => metresPerPixel(map)}
 			onclose={closePane}
 		/>

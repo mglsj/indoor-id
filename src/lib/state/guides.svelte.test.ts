@@ -40,6 +40,18 @@ describe("Guides", () => {
 		expect(again.all).toHaveLength(2);
 	});
 
+	it("gives a new guide the colour asked for (A.4, Map data)", () => {
+		const guides = new Guides();
+		expect(
+			guides.add({ origin: [1, 2], angle: 0 }, 0, undefined, "#0ea5e9"),
+		).toMatchObject({
+			color: "#0ea5e9",
+		});
+		expect(guides.add({ origin: [1, 2], angle: 0 }, 0)).not.toHaveProperty(
+			"color",
+		);
+	});
+
 	it("hides guides without forgetting them", () => {
 		const guides = new Guides();
 		guides.add({ origin: [1, 2], angle: 30 }, 0);

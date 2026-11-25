@@ -43,12 +43,23 @@ export class EditOverlay {
 	#ready = false;
 	/** Removed before the style was ready: never installed. */
 	#removed = false;
+	/** The selection's colour (A.4): the floor selected, untagged members, midpoints. */
+	#selection: string = C.selection;
 
 	constructor(map: MapLibreMap) {
 		this.#map = map;
 		void slotsReady(map).then(() => {
 			if (!this.#removed) this.#install();
 		});
+	}
+
+	setSelectionColor(color: string): void {
+		this.#selection = color;
+		if (!this.#ready) return;
+		this.#map.setPaintProperty(FLOOR_FILL_LAYER, "fill-color", color);
+		this.#map.setPaintProperty(FLOOR_LINE_LAYER, "line-color", color);
+		this.#map.setPaintProperty(MEMBER_LAYER, "line-color", color);
+		this.#map.setPaintProperty(MIDPOINT_LAYER, "circle-color", color);
 	}
 
 	setData(data: OverlayData): void {
@@ -134,7 +145,7 @@ export class EditOverlay {
 				type: "fill",
 				source: SOURCE,
 				filter: role("floor"),
-				paint: { "fill-color": C.selection, "fill-opacity": 0.15 },
+				paint: { "fill-color": this.#selection, "fill-opacity": 0.15 },
 			},
 			edit,
 		);
@@ -145,7 +156,7 @@ export class EditOverlay {
 				source: SOURCE,
 				filter: role("floor"),
 				paint: {
-					"line-color": C.selection,
+					"line-color": this.#selection,
 					"line-width": 2,
 					"line-dasharray": [2, 1],
 				},
@@ -159,7 +170,7 @@ export class EditOverlay {
 				source: SOURCE,
 				filter: role("member"),
 				paint: {
-					"line-color": C.selection,
+					"line-color": this.#selection,
 					"line-width": 1.5,
 					"line-dasharray": [3, 2],
 				},
@@ -188,7 +199,7 @@ export class EditOverlay {
 				filter: role("midpoint"),
 				paint: {
 					"circle-radius": 3,
-					"circle-color": C.selection,
+					"circle-color": this.#selection,
 					"circle-opacity": 0.85,
 					"circle-stroke-color": C.pointStroke,
 					"circle-stroke-width": 1,

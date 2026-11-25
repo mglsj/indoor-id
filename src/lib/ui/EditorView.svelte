@@ -17,6 +17,7 @@
 	import Move from "@lucide/svelte/icons/move";
 	import Octagon from "@lucide/svelte/icons/octagon";
 	import OctagonAlert from "@lucide/svelte/icons/octagon-alert";
+	import PaintBucket from "@lucide/svelte/icons/paint-bucket";
 	import Pentagon from "@lucide/svelte/icons/pentagon";
 	import RectangleHorizontal from "@lucide/svelte/icons/rectangle-horizontal";
 	import Redo2 from "@lucide/svelte/icons/redo-2";
@@ -158,7 +159,7 @@
 		planFrames,
 		toolFeatures,
 	} from "#lib/map/floorplan-layers.ts";
-	import { GridLayer } from "#lib/map/grid-layer.ts";
+	import { GridLayer, type GridStyle } from "#lib/map/grid-layer.ts";
 	import { GuideLayer } from "#lib/map/guide-layer.ts";
 	import { parseHash, type MapView as View } from "#lib/map/hash.ts";
 	import type { IndoorMap } from "#lib/map/indoor-map.ts";
@@ -178,6 +179,11 @@
 	import { hasInterestingTags } from "#lib/osm/tags.ts";
 	import { Autosave } from "#lib/persist/autosave.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
+	import {
+		type Appearance,
+		type AppearanceSettings,
+		DEFAULT_APPEARANCE,
+	} from "#lib/state/appearance.svelte.ts";
 	import { EditAutosave } from "#lib/state/autosave.svelte.ts";
 	import type { BackgroundSettings } from "#lib/state/background.svelte.ts";
 	import { performEdit } from "#lib/state/commands.ts";
@@ -204,6 +210,7 @@
 	import GuidesPane from "#lib/ui/GuidesPane.svelte";
 	import { getHeader, useHeaderSlot } from "#lib/ui/header.svelte.ts";
 	import Inspector from "#lib/ui/Inspector.svelte";
+	import MapDataPane from "#lib/ui/MapDataPane.svelte";
 	import MapShell, { type MapPane } from "#lib/ui/MapShell.svelte";
 	import MeasureLabels from "#lib/ui/MeasureLabels.svelte";
 	import MultiInspector from "#lib/ui/MultiInspector.svelte";
@@ -595,6 +602,10 @@
 			line,
 			level,
 			frames.at([...editor.features.byId.values()], line.origin, level)?.id,
+			// The Map data pane's colour, kept on the guide only when it isn't the default.
+			looks.guideColor === DEFAULT_APPEARANCE.guideColor
+				? undefined
+				: looks.guideColor,
 		);
 		if (!guidesPaneShown && openPane !== "guides") {
 			guidesPaneShown = true;
@@ -690,6 +701,17 @@
 	let indoor = $state.raw<IndoorMap>();
 	/** The background and area fill settings (W toggles the wireframe). */
 	let backgroundSettings = $state.raw<BackgroundSettings>();
+	/** The colours of the grid, new guides, the selection and changes (A.4, Map data). */
+	let appearance = $state.raw<AppearanceSettings>();
+	const looks = $derived(appearance?.current ?? DEFAULT_APPEARANCE);
+	/** The grid's colour and opacities, from the Map data pane. */
+	function gridStyle(look: Appearance): GridStyle {
+		return {
+			color: look.gridColor,
+			minorOpacity: look.gridMinorOpacity,
+			majorOpacity: look.gridMajorOpacity,
+		};
+	}
 	let background: Imagery | null = null;
 	/** Imagery shown since the last upload, for the changeset's imagery_used tag. */
 	let imageryUsed = $state<string[]>([]);
@@ -1043,6 +1065,7 @@
 			indoorLayers.setBuildingsVisible(floorplans.buildings.visible),
 		);
 		const overlay = new EditOverlay(instance);
+		$effect(() => overlay.setSelectionColor(looks.selectionColor));
 		const guides = new GuideLayer(instance);
 		$effect(() => guides.show(feedback));
 		// Arrow keys nudge the selection (C.6): the map's keyboard panning waits for none.
@@ -1057,7 +1080,8 @@
 				highlightedGuide,
 			),
 		);
-		const grid = new GridLayer(instance);
+		const grid = new GridLayer(instance, gridStyle(looks));
+		$effect(() => grid.setStyle(gridStyle(looks)));
 		$effect(() => {
 			void camera;
 			const frame = planMode ? null : gridFrame;
@@ -1819,6 +1843,14 @@
 						content: guidesPane,
 					},
 				]),
+		// How the data is drawn (A.4): area fill, Highlight changes, colours.
+		{
+			id: "map-data",
+			label: t(msg("map_data")),
+			title: t(msg("map_data_toggle")),
+			icon: PaintBucket,
+			content: mapDataPane,
+		},
 	]);
 
 	/** What the map keys do (`edit/keymap.ts`), in every mode but floor plan mode. */
@@ -2073,6 +2105,12 @@
 	/>
 {/snippet}
 
+{#snippet mapDataPane(close: () => void)}
+	{#if backgroundSettings && appearance}
+		<MapDataPane settings={backgroundSettings} {appearance} onclose={close} />
+	{/if}
+{/snippet}
+
 {#snippet guidesPane(close: () => void)}
 	<GuidesPane
 		guides={construction}
@@ -2180,6 +2218,7 @@
 	bind:camera
 	bind:indoor
 	bind:background={backgroundSettings}
+	bind:appearance
 	bind:openPane
 	panes={guidePanes}
 	left={panelOpen ? shownPanelWidth : 0}

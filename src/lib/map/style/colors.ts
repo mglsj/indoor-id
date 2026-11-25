@@ -25,7 +25,8 @@ export const INDOOR_COLORS = {
 	point: "#757575",
 	pointStroke: "#ffffff",
 	text: "#333333",
-	selection: "#f59e0b",
+	/** The selection's default (A.4): blue, 5.8:1 on the light map; was amber, 1.8:1. */
+	selection: "#1d4ed8",
 	/** Snap guides and markers (C.1). */
 	guide: "#d946ef",
 	textHalo: "rgba(255, 255, 255, 0.8)",
