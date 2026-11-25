@@ -46,7 +46,7 @@ describe("placePoint", () => {
 		const id = placed?.id ?? "n0";
 		expect(after?.entity(id)).toMatchObject({
 			loc: [1, 1],
-			tags: { indoor: "door", door: "yes" },
+			tags: { indoor: "door", door: "yes", level: "0" },
 		});
 		expect(after?.entity("w3")).toMatchObject({ nodes: ["n5", id, "n6"] });
 		expect(after?.entity("w2")).toMatchObject({
@@ -79,8 +79,8 @@ describe("placePoint", () => {
 		expect(placed?.annotation).toEqual(msg("undo_add_gate"));
 		const after = placed?.action(g);
 		const id = placed?.id ?? "n0";
-		// The fence's level is its own, as a door takes its wall's.
-		expect(after?.entity(id)?.tags).toEqual({ barrier: "gate" });
+		// On the shown level, as osm-simple3d-editor needs to draw it.
+		expect(after?.entity(id)?.tags).toEqual({ barrier: "gate", level: "0" });
 		expect(after?.entity("w4")).toMatchObject({ nodes: ["n8", id, "n9"] });
 	});
 
@@ -93,6 +93,7 @@ describe("placePoint", () => {
 		expect(after?.entity(id)?.tags).toEqual({
 			entrance: "yes",
 			door: "yes",
+			indoor: "door",
 			level: "0",
 		});
 		// In the building and in the room along it.
@@ -111,6 +112,7 @@ describe("placePoint", () => {
 		expect(placed?.action(g).entity("n5")?.tags).toEqual({
 			indoor: "door",
 			door: "yes",
+			level: "0",
 		});
 	});
 

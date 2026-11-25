@@ -37,7 +37,8 @@ ISC license:
 Some tools follow [osm-simple3d-editor](https://github.com/FelisPimeja/osm-simple3d-editor)
 (unmapped floor, place point, merge and split across rooms, split levels, repeat on levels,
 detach, and validation rules: escalators, slivers, jitter, walls drawn twice, doors on a side,
-overlapping buildings, the pre-upload check), and the 3D phase ports more of it; it is distributed under the ISC license:
+overlapping buildings, the pre-upload check, the indoor tagging conventions of
+`presets/indoor-conventions.ts`), and the 3D phase ports more of it; it is distributed under the ISC license:
 
 > Copyright (c) 2026 Aleksandr Petrov (FelisPimeja)
 >
