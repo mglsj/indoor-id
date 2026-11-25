@@ -251,12 +251,13 @@ report's). One PR per slice, each with a test that fails before the fix.
   main-thread time 36 s on master, 29–31 s after; most of what remains is software WebGL
   drawing, JavaScript was under 2 s. Left for later: incremental level counts in
   `FeatureStore`, bands from the index.
-- **R6.4, refactors with no behaviour change (M–L).** R1: `EditorView.svelte` split (building
-  scope controller, mode factory, layer wiring, operations menu, draw toolbar), one PR per
-  cut unless the user says otherwise; the building scope controller is done
-  (`state/building-scope-controller.svelte.ts`, 2026-11-25). R4: one `isVertical`, one set of room spaces, a
-  `pixelsAtZ17` helper. R5: the `polyclip-ts` call sites moved to Clipper2, one clipping
-  library left.
+- ~~**R6.4, refactors with no behaviour change**~~: done ✅ (2026-11-25). R1: `EditorView.svelte`
+  split in four cuts, 2,690 lines down to 2,126: the building scope controller
+  (`state/building-scope-controller.svelte.ts`), the draw toolbar and selection bar with its
+  operations menu (`ui/DrawToolbar.svelte`, `ui/SelectionBar.svelte`), the mode factory
+  (`edit/mode-factory.ts`) and the layer wiring (`map/editor-layers.svelte.ts`). R4: one
+  `isVertical`, one set of room spaces, a `pixelsAtZ17` helper. R5: the `polyclip-ts` call
+  sites moved to Clipper2, one clipping library left.
 - **R6.5, dependencies and tests (S).** Minor and patch updates (MapLibre 6.19, Kit 3.4, Svelte
   5.59, pdf.js 6.5, Vitest 5.1, Playwright 1.65); runtime libraries moved to `dependencies`;
   Renovate or Dependabot; CI actions v5. Majors (osm-auth 4, TypeScript 7, tailwind-variants
