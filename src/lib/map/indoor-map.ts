@@ -23,6 +23,7 @@ import {
 	FILL_BAND_LAYER,
 	INDOOR_SOURCE,
 	indoorLayers,
+	LABEL_SOURCE,
 	type Presentation,
 	type ScopeLook,
 	selectableLayers,
@@ -83,6 +84,8 @@ export class IndoorMap {
 	/** The features last given, and those the source holds (by entity id). */
 	#features: StoredFeatures | null = null;
 	#sent = new Map<string, IndoorFeature>();
+	/** The label points the label source holds (by entity id). */
+	#sentLabels = new Map<string, IndoorFeature>();
 	/** Features were sent since the map last finished drawing. */
 	#drawing = false;
 	#level = 0;
@@ -118,23 +121,34 @@ export class IndoorMap {
 		if (!this.#ready) return;
 		const source = this.#source();
 		if (!source) return;
-		this.#send(source, features);
+		this.#sent = this.#send(source, this.#sent, features.byId);
+		const labels = this.#map.getSource<GeoJSONSource>(LABEL_SOURCE);
+		if (labels) {
+			this.#sentLabels = this.#send(labels, this.#sentLabels, features.labels);
+		}
 		this.#updateBands();
 	}
 
-	#send(source: GeoJSONSource, features: StoredFeatures): void {
-		const { add, remove } = diffFeatures(this.#sent, features.byId);
-		if (add.length + remove.length === 0) return;
+	/** Sends a source what changed from `sent` to `next`; gives what it then holds. */
+	#send(
+		source: GeoJSONSource,
+		sent: Map<string, IndoorFeature>,
+		next: ReadonlyMap<string, IndoorFeature>,
+	): Map<string, IndoorFeature> {
+		const { add, remove } = diffFeatures(sent, next);
+		if (add.length + remove.length === 0) return sent;
 		this.#drawing = true;
-		if (add.length + remove.length > features.byId.size / 2) {
-			void source.setData(features.collection);
-			this.#sent = new Map(features.byId);
-			return;
+		if (add.length + remove.length > next.size / 2) {
+			void source.setData({
+				type: "FeatureCollection",
+				features: [...next.values()],
+			});
+			return new Map(next);
 		}
 		void source.updateData({ add, remove });
-		for (const id of remove) this.#sent.delete(id);
-		for (const feature of add)
-			this.#sent.set(feature.properties["@id"], feature);
+		for (const id of remove) sent.delete(id);
+		for (const feature of add) sent.set(feature.properties["@id"], feature);
+		return sent;
 	}
 
 	/** Built bands of the areas in view (iD's partial fill). */
@@ -289,7 +303,7 @@ export class IndoorMap {
 
 	#applyInside(before: ReadonlySet<string>, after: ReadonlySet<string>): void {
 		const set = (id: string, inside: boolean) => {
-			for (const source of [INDOOR_SOURCE, BAND_SOURCE]) {
+			for (const source of [INDOOR_SOURCE, BAND_SOURCE, LABEL_SOURCE]) {
 				this.#map.setFeatureState({ source, id }, { inside });
 			}
 		};
@@ -349,14 +363,14 @@ export class IndoorMap {
 		for (const id of this.#nearPointer) {
 			if (!near.has(id))
 				this.#map.setFeatureState(
-					{ source: INDOOR_SOURCE, id },
+					{ source: LABEL_SOURCE, id },
 					{ nearPointer: false },
 				);
 		}
 		for (const id of near) {
 			if (!this.#nearPointer.has(id))
 				this.#map.setFeatureState(
-					{ source: INDOOR_SOURCE, id },
+					{ source: LABEL_SOURCE, id },
 					{ nearPointer: true },
 				);
 		}
@@ -436,7 +450,7 @@ export class IndoorMap {
 			if (
 				fill !== "full" &&
 				feature.layer.id === LABELS_LAYER &&
-				feature.geometry.type !== "Point"
+				feature.properties["@area"] === "yes"
 			)
 				return false;
 			return pickable ? pickable(feature.properties) : true;
@@ -483,7 +497,7 @@ export class IndoorMap {
 			if (this.#map.getLayer(id)) this.#map.removeLayer(id);
 		}
 		this.#map.off("moveend", this.#updateBands);
-		for (const source of [INDOOR_SOURCE, BAND_SOURCE]) {
+		for (const source of [INDOOR_SOURCE, BAND_SOURCE, LABEL_SOURCE]) {
 			if (this.#map.getSource(source)) this.#map.removeSource(source);
 		}
 		this.#ready = false;
@@ -507,7 +521,14 @@ export class IndoorMap {
 			data: { type: "FeatureCollection", features: [] },
 			promoteId: "@id",
 		});
+		const labels = this.#features?.labels ?? new Map();
+		map.addSource(LABEL_SOURCE, {
+			type: "geojson",
+			data: { type: "FeatureCollection", features: [...labels.values()] },
+			promoteId: "@id",
+		});
 		this.#sent = new Map(this.#features?.byId ?? []);
+		this.#sentLabels = new Map(labels);
 		this.#drawing = true;
 		for (const layer of indoorLayers(this.#level, this.#look)) {
 			map.addLayer(layer, slotId(SLOTS[layer.id] ?? "indoor-top"));

@@ -59,19 +59,23 @@ export function classify(tags: Tags, geometry: GeometryType): FeatureKind {
 		return "column";
 	}
 	if (surface) {
+		// SIT's `indoor=*` says what kind of space it is; the older `room=*` and `buildingpart=*`
+		// only decide when it is missing or just `yes` (`indoor=area` + `room=toilets` is an open
+		// space).
+		if (tags.indoor === "room") return "room";
+		if (isSpace(tags)) return "space";
 		if (
-			tags.indoor === "room" ||
-			tags.buildingpart === "room" ||
-			(tags.room !== undefined && !SPACE_ROOMS.has(tags.room))
+			(tags.indoor === undefined || tags.indoor === "yes") &&
+			(tags.buildingpart === "room" ||
+				(tags.room !== undefined && !SPACE_ROOMS.has(tags.room)))
 		) {
 			return "room";
 		}
-		if (isSpace(tags)) return "space";
 		// A building part that is also an indoor space is drawn as indoor, on its level (W2;
 		// `building-part-indoor` still warns about it).
 		const indoor = tags.indoor !== undefined && tags.indoor !== "no";
 		if (
-			tags.building !== undefined ||
+			(tags.building !== undefined && tags.building !== "no") ||
 			(tags["building:part"] !== undefined && !indoor)
 		) {
 			return "building";
@@ -315,19 +319,24 @@ export function arrowOf(tags: Tags): ArrowDirection | null {
  * be read or isn't between 0.3 and 20 m.
  */
 export function doorWidth(tags: Tags): number | null {
-	const value = tags.width?.trim();
+	const value = tags.width?.trim().replace(",", ".");
 	if (!value) return null;
-	const match = /^(\d+(?:\.\d+)?)\s*(m|cm|mm|'|ft)?$/.exec(value);
-	if (!match) return null;
-	const number = Number(match[1]);
-	const unit = match[2] ?? "m";
-	const metres =
-		unit === "cm"
-			? number / 100
-			: unit === "mm"
-				? number / 1000
-				: unit === "'" || unit === "ft"
-					? number * 0.3048
-					: number;
+	const imperial =
+		/^(?:(\d+(?:\.\d+)?)\s*(?:'|ft))?\s*(?:(\d+(?:\.\d+)?)\s*(?:"|in))?$/.exec(
+			value,
+		);
+	const match = /^(\d+(?:\.\d+)?)\s*(m|cm|mm)?$/.exec(value);
+	let metres: number;
+	if (match) {
+		const number = Number(match[1]);
+		const unit = match[2] ?? "m";
+		metres =
+			unit === "cm" ? number / 100 : unit === "mm" ? number / 1000 : number;
+	} else if (imperial && (imperial[1] || imperial[2])) {
+		metres =
+			Number(imperial[1] ?? 0) * 0.3048 + Number(imperial[2] ?? 0) * 0.0254;
+	} else {
+		return null;
+	}
 	return metres >= 0.3 && metres <= 20 ? metres : null;
 }

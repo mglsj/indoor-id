@@ -47,7 +47,9 @@ runs the same commands.
   what the edit set. Avoid full scans (`changes()`, iterating every entity) on each edit.
 - Viewer (P2): `map/features.ts` (graph → GeoJSON with `@lv`, `@kind`, `@icon`, `@label`),
   `map/feature-store.ts` (P5.2: features rebuilt only for changed entities, sent to the map
-  with `updateData`; an rbush index of drawn nodes, `nodesNear`, for snapping; `levelsIn(extent)`, the named levels in view for `LevelControl`),
+  with `updateData`; an rbush index of drawn nodes, `nodesNear`, for snapping; `levelsIn(extent)`, the named levels in view for `LevelControl`; an area's label and icon are one point,
+  `labelPoint`, sent to `LABEL_SOURCE` under the same `@id`: not drawn from the polygon, which
+  MapLibre labels once per tile),
   `map/classify.ts` (all tag → drawing rules), `map/style/layers.ts`, `map/indoor-map.ts` (source
   and layers on the map), `api/map-loader.ts`, `state/editor.svelte.ts` (`Editor`: `history`
   (`EditHistory`), `selection`, `sync` (`DataSync`), `catalog` (presets, upgrades, web

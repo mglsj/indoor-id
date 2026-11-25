@@ -441,3 +441,21 @@ describe("StoredFeatures.segmentsNear: sides to snap onto, on the shown level", 
 		expect(near[0]?.b.loc).toEqual([50, 50]);
 	});
 });
+
+describe("StoredFeatures.labels: the label points sent to the map", () => {
+	it("follows the features: one per labelled feature, kept while it is", () => {
+		const store = new FeatureStore();
+		const graph = rooms();
+		const first = store.update(graph);
+		expect([...first.labels.keys()]).toEqual(["w1"]);
+		const label = first.labels.get("w1");
+
+		const moved = graph.replace({
+			...(graph.entity("w2") as Entity),
+			tags: { indoor: "room", level: "0-2", ref: "B" },
+		} as Entity);
+		const next = store.update(moved);
+		expect(next.labels.get("w1")).toBe(label);
+		expect(next.labels.get("w2")?.properties["@label"]).toBe("B");
+	});
+});

@@ -4,6 +4,7 @@
  * - `@lv`: the known levels it is on, as `;-1;0;0.5;`, or `*` when it has no level, so that a
  *   level switch is a filter change (`levelFilter`) rather than a data rebuild.
  */
+
 import type {
 	Feature,
 	FeatureCollection,
@@ -11,6 +12,7 @@ import type {
 	MultiPolygon,
 	Position,
 } from "geojson";
+import polylabel from "polylabel";
 import {
 	featureLevels,
 	isFromBuildingLevels,
@@ -232,6 +234,64 @@ function drawingProperties(
 		props["@rail-r17"] = pixels.toFixed(4);
 	}
 	return props;
+}
+
+/**
+ * Where a feature's label and icon go, or null when it has neither: a point where it is, an
+ * area at the point of its largest polygon farthest from its edges (polylabel). MapLibre would
+ * put one at that point of each tile's piece of an area, so a room crossing a tile edge got two
+ * labels that moved as the map zoomed; label points, sent as a source of their own, get one.
+ */
+export function labelPoint(feature: IndoorFeature): IndoorFeature | null {
+	const p = feature.properties;
+	if (
+		p["@label"] === undefined &&
+		p["@icon"] === undefined &&
+		p["@entrance"] === undefined
+	)
+		return null;
+	const { geometry } = feature;
+	if (geometry.type === "Point") return feature;
+	const polygons =
+		geometry.type === "Polygon"
+			? [geometry.coordinates]
+			: geometry.type === "MultiPolygon"
+				? geometry.coordinates
+				: [];
+	const largest = polygons
+		.map((polygon) => ({ polygon, area: Math.abs(ringArea(polygon[0] ?? [])) }))
+		.sort((a, b) => b.area - a.area)[0]?.polygon;
+	if (!largest?.[0]?.length) return null;
+	return {
+		type: "Feature",
+		geometry: { type: "Point", coordinates: poleOf(largest) },
+		properties: { ...p, "@area": "yes" },
+	};
+}
+
+/** Twice the signed area of a ring, in degrees². */
+function ringArea(ring: readonly Position[]): number {
+	let sum = 0;
+	for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+		const [x1 = 0, y1 = 0] = ring[j] ?? [];
+		const [x2 = 0, y2 = 0] = ring[i] ?? [];
+		sum += (x1 - x2) * (y1 + y2);
+	}
+	return sum;
+}
+
+/** About 5 cm in degrees of latitude: finer than any room. */
+const LABEL_PRECISION = 5e-7;
+
+/** polylabel's pole, with longitudes scaled so that a degree east is as long as one north. */
+function poleOf(polygon: readonly Position[][]): Position {
+	const lat = ((polygon[0]?.[0]?.[1] ?? 0) * Math.PI) / 180;
+	const scale = Math.cos(lat) || 1;
+	const rings = polygon.map((ring) =>
+		ring.map(([x = 0, y = 0]): [number, number] => [x * scale, y]),
+	);
+	const [x, y] = polylabel(rings, LABEL_PRECISION);
+	return [x / scale, y];
 }
 
 /** MapLibre filter keeping the features on `level`, and those without level information. */

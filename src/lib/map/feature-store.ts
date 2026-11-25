@@ -35,12 +35,18 @@ import {
 	type FeatureProperties,
 	type IndoorFeature,
 	knownLevels,
+	labelPoint,
 	listedLevels,
 } from "./features.ts";
 
 export interface StoredFeatures {
 	/** Every feature by entity id; a feature left alone stays the same object. */
 	readonly byId: ReadonlyMap<string, IndoorFeature>;
+	/**
+	 * The label point of each feature with a label or icon (`labelPoint`), by entity id; one
+	 * left alone stays the same object.
+	 */
+	readonly labels: ReadonlyMap<string, IndoorFeature>;
 	/** Every level present in the data, sorted (see `buildFeatures`). */
 	readonly levels: number[];
 	/** All the features, for a full `setData`. */
@@ -87,6 +93,7 @@ export class FeatureStore {
 	#options: BuildOptions = {};
 	readonly #drafts = new Map<EntityId, FeatureDraft>();
 	readonly #features = new Map<string, IndoorFeature>();
+	readonly #labels = new Map<string, IndoorFeature>();
 	#levels: number[] = [];
 	#result: StoredFeatures | null = null;
 	/**
@@ -128,6 +135,7 @@ export class FeatureStore {
 		if (whole) {
 			this.#drafts.clear();
 			this.#features.clear();
+			this.#labels.clear();
 			this.#nodeIndex.reset();
 			this.#segmentIndex.reset();
 			this.#levelIndex.reset();
@@ -143,11 +151,13 @@ export class FeatureStore {
 		if (whole || !sameNumbers(levels, this.#levels)) {
 			this.#levels = levels;
 			this.#features.clear();
+			this.#labels.clear();
 			for (const [id, draft] of this.#drafts) {
-				this.#features.set(id, encodeFeature(draft, levels));
+				this.#put(id, encodeFeature(draft, levels));
 			}
 		}
 		const features = this.#features;
+		const labels = this.#labels;
 		const nodeIndex = this.#nodeIndex;
 		const segmentIndex = this.#segmentIndex;
 		const levelIndex = this.#levelIndex;
@@ -175,6 +185,7 @@ export class FeatureStore {
 				return levelsOf(levelIndex.search(extent), extent, floors);
 			},
 			byId: features,
+			labels,
 			levels: this.#levels,
 			get collection() {
 				return {
@@ -197,11 +208,20 @@ export class FeatureStore {
 		this.#levelIndex.changed(id);
 		if (draft) {
 			this.#drafts.set(id, draft);
-			if (encode) this.#features.set(id, encodeFeature(draft, this.#levels));
+			if (encode) this.#put(id, encodeFeature(draft, this.#levels));
 		} else {
 			this.#drafts.delete(id);
 			this.#features.delete(id);
+			this.#labels.delete(id);
 		}
+	}
+
+	/** Keeps a feature and its label point. */
+	#put(id: string, feature: IndoorFeature): void {
+		this.#features.set(id, feature);
+		const label = labelPoint(feature);
+		if (label) this.#labels.set(id, label);
+		else this.#labels.delete(id);
 	}
 
 	/** A drawn feature's sides, for the index: its way's, or its multipolygon's ways'. */

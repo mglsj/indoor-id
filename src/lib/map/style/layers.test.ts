@@ -10,6 +10,7 @@ import {
 	FADED_OPACITY,
 	INDOOR_SOURCE,
 	indoorLayers,
+	LABEL_SOURCE,
 	scopeFade,
 	selectableLayers,
 } from "./layers.ts";
@@ -57,6 +58,10 @@ describe("indoorLayers", () => {
 					type: "geojson",
 					data: { type: "FeatureCollection", features: [] },
 				},
+				[LABEL_SOURCE]: {
+					type: "geojson",
+					data: { type: "FeatureCollection", features: [] },
+				},
 			},
 			layers: indoorLayers(0),
 		};
@@ -78,12 +83,15 @@ describe("indoorLayers", () => {
 			"indoor-fill-band",
 			"indoor-outline",
 		]);
+		// Labelled at its label point (`labelPoint`), not as an area: once, not once a tile.
 		expect(drawnBy(0, "Polygon", { ...room, "@label": "B12" })).toEqual([
 			"indoor-fill",
 			"indoor-fill-band",
 			"indoor-outline",
-			"indoor-labels",
 		]);
+		expect(
+			drawnBy(0, "Point", { ...room, "@label": "B12", "@area": "yes" }),
+		).toContain("indoor-labels");
 	});
 
 	it("draws walls as lines", () => {
@@ -239,6 +247,10 @@ describe("indoorLayers: presentation", () => {
 						type: "geojson",
 						data: { type: "FeatureCollection", features: [] },
 					},
+					[LABEL_SOURCE]: {
+						type: "geojson",
+						data: { type: "FeatureCollection", features: [] },
+					},
 				},
 				layers: indoorLayers(0, { presentation }),
 			};
@@ -253,6 +265,10 @@ describe("indoorLayers: presentation", () => {
 						data: { type: "FeatureCollection", features: [] },
 					},
 					[BAND_SOURCE]: {
+						type: "geojson",
+						data: { type: "FeatureCollection", features: [] },
+					},
+					[LABEL_SOURCE]: {
 						type: "geojson",
 						data: { type: "FeatureCollection", features: [] },
 					},

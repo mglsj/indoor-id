@@ -51,7 +51,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
 | P6     | Parity and polish                          | Done         |
 | A      | Accessibility and layout (Nov. audit)      | Done         |
-| R6     | Fixes from the 2026-11-25 code audit       | R6.1 done    |
+| R6     | Fixes from the 2026-11-25 code audit       | R6.2 done    |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -216,7 +216,7 @@ Done ✅ (2026-11-25, PRs #60–#63, #65, #66 and A.7's); see "A" in
 [docs/history.md](docs/history.md). Left for later: popovers (the snapping menu) still render
 outside a landmark (axe's moderate `region`), and the editor itself stays desktop only.
 
-### R6: Fixes from the 2026-11-25 code audit — M–L (R6.1–R6.5) — R6.1 done
+### R6: Fixes from the 2026-11-25 code audit — M–L (R6.1–R6.5) — R6.2 done
 
 From the code audit of `master` at `ba63562`, in
 [docs/code-audit-2026-11-25.md](docs/code-audit-2026-11-25.md) (item ids below are the
@@ -232,10 +232,13 @@ report's). One PR per slice, each with a test that fails before the fix.
   `implausible-level-range` issue. M1: `persist/storage.ts` (`browserStorage`, `NO_STORAGE`)
   is the one way to read Web Storage; `openAutosave()` gives null where storage is blocked and
   the editor edits without autosave; a full storage no longer throws from the heartbeat.
-- **R6.2, rendering and tagging (S–M).** M2: label points per area (polylabel on the whole
-  ring), not per tile. M3: `indoor=*` decides before `room=*`. L2: `building=no`, the
-  sub-preset prefix test, iD's `addTags` bonus and `searchable` penalty in `matchScore`,
-  country-only presets, door widths with decimal commas and feet and inches.
+- ~~**R6.2, rendering and tagging**~~: done ✅ (2026-11-25). M2: an area's label and icon are
+  one point per feature (`labelPoint`, polylabel on the largest polygon) in their own source,
+  `LABEL_SOURCE`, keyed by the same `@id`, so a room's name no longer repeats at tile edges.
+  M3: `indoor=*` decides before `room=*` (`indoor=area` + `room=toilets` is a space). L2:
+  `building=no` is no building, the sub-preset test needs a `/`, `matchScore` has iD's
+  `addTags` bonus and `searchable` penalty, country-only presets are left out at build time
+  (3), and door widths read `0,9`, `3'6"` and `36"`. `name:<locale>` labels stay for later.
 - **R6.3, performance (M).** M4: hover and label hiding once a frame. M5: selection, hover and
   drawing from a small overlay source, not six layers over every feature. M6: frames and
   containers looked up in an rbush. M7: stale tile downloads dropped or aborted. Incremental
