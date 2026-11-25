@@ -69,7 +69,8 @@ export const DRAWING_KEYS: readonly KeyEntry[] = [
 
 /** Keys on the selection: the operations', and moving it with the arrows. */
 export const SELECTION_KEYS: readonly KeyEntry[] = [
-	...OPERATIONS.map((o) => ({
+	// Split has no key of its own: the split tool's X is listed with the map's keys.
+	...OPERATIONS.filter((o) => o.keys.length > 0).map((o) => ({
 		combo: o.keys[0] ?? "",
 		also: o.keys.slice(1),
 		action: o.id,

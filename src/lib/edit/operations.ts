@@ -73,7 +73,9 @@ export type OperationResult =
 	/** Repeat on levels asks which levels first (`ui/RepeatDialog.svelte`). */
 	| { readonly kind: "repeat"; readonly id: NodeId | WayId }
 	/** A tool on the map does it, by clicks or typed values (C.6, `edit/modes/transform.ts`). */
-	| { readonly kind: "tool"; readonly tool: TransformTool };
+	| { readonly kind: "tool"; readonly tool: TransformTool }
+	/** The split tool cuts the areas a line crosses (`edit/modes/split.ts`). */
+	| { readonly kind: "split" };
 
 export interface Operation {
 	readonly id:
@@ -93,8 +95,11 @@ export interface Operation {
 		| "offset"
 		| "square-frame"
 		| "straighten"
-		| "symmetric";
+		| "symmetric"
+		| "split";
 	readonly label: Message;
+	/** A shorter label for the selection bar's buttons (A.3), when `label` is long. */
+	readonly short?: Message;
 	/** Shortcuts, the first one shown. */
 	readonly keys: readonly string[];
 	/** Whether it applies to the selection: the toolbar shows it. */
@@ -108,6 +113,54 @@ const keep = (select: readonly EntityId[]) => (graph: Graph) => ({
 	graph,
 	select,
 });
+
+/**
+ * Where the selection bar and the right-click menu list an operation (A.3): the six main
+ * actions as labelled buttons, the rest under "More", the precise transforms under
+ * "Transform".
+ */
+export type OperationGroup = "main" | "more" | "transform";
+
+/** The main actions, in the bar's order; the others keep `OPERATIONS`'s order. */
+const MAIN: readonly Operation["id"][] = [
+	"delete",
+	"copy",
+	"square",
+	"merge",
+	"repeat",
+	"split",
+];
+
+const TRANSFORMS: ReadonlySet<Operation["id"]> = new Set([
+	"move",
+	"rotate",
+	"scale",
+	"side",
+	"offset",
+	"square-frame",
+	"straighten",
+	"symmetric",
+]);
+
+export function groupOf(id: Operation["id"]): OperationGroup {
+	if (MAIN.includes(id)) return "main";
+	return TRANSFORMS.has(id) ? "transform" : "more";
+}
+
+/** Operations sorted into the bar's and the menu's groups (A.3). */
+export function groupOperations<T extends { readonly id: Operation["id"] }>(
+	operations: readonly T[],
+): Record<OperationGroup, T[]> {
+	const groups: Record<OperationGroup, T[]> = {
+		main: [],
+		more: [],
+		transform: [],
+	};
+	for (const operation of operations)
+		groups[groupOf(operation.id)].push(operation);
+	groups.main.sort((a, b) => MAIN.indexOf(a.id) - MAIN.indexOf(b.id));
+	return groups;
+}
 
 const deleteOperation: Operation = {
 	id: "delete",
@@ -181,6 +234,7 @@ const SQUARE_REFUSALS = {
 const squareOperation: Operation = {
 	id: "square",
 	label: msg("operation_square"),
+	short: msg("operation_square_short"),
 	keys: ["Q"],
 	available: ({ graph, selected }) => singleArea(graph, selected) !== null,
 	disabled: ({ graph, selected }) => {
@@ -209,6 +263,7 @@ const MERGE_REFUSALS = {
 const mergeOperation: Operation = {
 	id: "merge",
 	label: msg("operation_merge"),
+	short: msg("operation_merge_short"),
 	keys: ["C"],
 	available: ({ selected }) => selected.length > 1,
 	disabled: ({ graph, selected }) => {
@@ -503,6 +558,18 @@ function keepsOutline(
 }
 
 /** Deleting removes the selected nodes from the ways they are on; a way's own nodes stay used. */
+/** The split tool, from the selection bar: offered when an area is selected. */
+const splitOperation: Operation = {
+	id: "split",
+	label: msg("operation_split"),
+	// The split tool's own key, X, is a map key (`keymap.ts`).
+	keys: [],
+	available: ({ graph, selected }) =>
+		selected.some((id) => singleClosedWay(graph, [id]) !== null),
+	disabled: () => null,
+	run: () => ({ kind: "split" }),
+};
+
 const selectedNodes = ({ selected }: OperationContext) =>
 	selected.filter((id): id is NodeId => id.startsWith("n"));
 
@@ -548,5 +615,6 @@ export const OPERATIONS: readonly Operation[] = [
 	keepsOutline(inView(squareFrameOperation)),
 	keepsOutline(inView(straightenOperation)),
 	keepsOutline(inView(symmetricOperation)),
+	splitOperation,
 	keepsOutline(inView(deleteOperation), selectedNodes),
 ];

@@ -320,9 +320,12 @@ test("inside, the outline is locked: a corner it shares with a room stays until 
 	await expect(page.getByTestId("edit-count")).toHaveText("0");
 	// Operations that move the room's corners are refused the same way.
 	await clickRoom();
-	await expect(
-		page.getByRole("button", { name: "Move by a distance" }),
-	).toHaveAttribute("aria-disabled", "true");
+	await page.getByRole("button", { name: "Transform" }).click();
+	const move = page.getByRole("menuitem", { name: /^Move by a distance/ });
+	await expect(move).toHaveAttribute("aria-disabled", "true");
+	// The reason shows in the menu itself (A.3).
+	await expect(move).toContainText("Shared with the building outline");
+	await page.keyboard.press("Escape");
 	await page.keyboard.press("Shift+M");
 	await expect(page.getByTestId("operation-note")).toContainText(
 		"Shared with the building outline",

@@ -83,7 +83,9 @@ test("a room mostly out of view can't be deleted or moved until it is seen (iD)"
 	);
 	await expect.poll(async () => (await camera(page)).zoom).toBe(22);
 	await page.keyboard.press("Delete");
-	await expect(page.getByText("Not enough of it is visible")).toBeVisible();
+	await expect(page.getByTestId("operation-note")).toContainText(
+		"Not enough of it is visible",
+	);
 	await expect(page.getByTestId("edit-count")).toHaveText("0");
 
 	// Z fits the selection in view (iD), and then it can be deleted.

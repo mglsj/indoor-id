@@ -16,7 +16,6 @@ import {
 	lngLatAt,
 	mapDrawn,
 	mapLocator,
-	pixelAt,
 	room,
 	serveOsm,
 	test,

@@ -9,6 +9,7 @@
 	import Combine from "@lucide/svelte/icons/combine";
 	import Copy from "@lucide/svelte/icons/copy";
 	import DoorOpen from "@lucide/svelte/icons/door-open";
+	import Ellipsis from "@lucide/svelte/icons/ellipsis";
 	import FileImage from "@lucide/svelte/icons/file-image";
 	import Grid2x2Check from "@lucide/svelte/icons/grid-2x2-check";
 	import Layers2 from "@lucide/svelte/icons/layers-2";
@@ -23,8 +24,10 @@
 	import Ruler from "@lucide/svelte/icons/ruler";
 	import RulerDimensionLine from "@lucide/svelte/icons/ruler-dimension-line";
 	import Scaling from "@lucide/svelte/icons/scaling";
+	import Scan from "@lucide/svelte/icons/scan";
 	import Scissors from "@lucide/svelte/icons/scissors";
 	import ScissorsSquare from "@lucide/svelte/icons/scissors-square";
+	import Shapes from "@lucide/svelte/icons/shapes";
 	import Spline from "@lucide/svelte/icons/spline";
 	import Square from "@lucide/svelte/icons/square";
 	import SquareSquare from "@lucide/svelte/icons/square-square";
@@ -91,6 +94,7 @@
 	} from "#lib/edit/modes/transform.ts";
 	import { type NodeGrab, nodeDrag } from "#lib/edit/node-drag.ts";
 	import {
+		groupOperations,
 		OPERATIONS,
 		type Operation,
 		type OperationContext,
@@ -869,6 +873,10 @@
 			transformTool = result.tool;
 			return;
 		}
+		if (result.kind === "split") {
+			draw("split");
+			return;
+		}
 		if (result.kind === "copy") {
 			clipboard = result.clipboard;
 			const count = result.clipboard.roots.length;
@@ -941,7 +949,27 @@
 		"square-frame": Grid2x2Check,
 		straighten: Octagon,
 		symmetric: BetweenVerticalStart,
+		split: Scissors,
 	};
+
+	/** An operation's first key, or the draw tool's that does the same (split: X). */
+	function operationKey(operation: Operation): string {
+		const key = operation.keys[0] ?? (operation.id === "split" ? "X" : "");
+		return key ? formatCombo(key, mac) : "";
+	}
+
+	/** The selection's operations, in the bar's and the menu's groups (A.3). */
+	const grouped = $derived(
+		groupOperations(
+			operations.map((entry) => ({ ...entry, id: entry.operation.id })),
+		),
+	);
+
+	/** The menu opens upward when the right-click was in the lower half of the map (A.3). */
+	const menuSide = $derived.by(() => {
+		const height = map?.getCanvas().clientHeight ?? 0;
+		return menuAt && menuAt.y > height / 2 ? "top" : "bottom";
+	});
 
 	/** The tool editing the selection by clicks or typed values (C.6), or null. */
 	let transformTool = $state<TransformTool | null>(null);
@@ -1944,29 +1972,85 @@
 {#snippet operationButton(operation: Operation, disabled: Message | null)}
 	{@const Icon = OPERATION_ICONS[operation.id]}
 	{@const label = t(operation.label)}
+	{@const reasonId = `operation-reason-${operation.id}`}
 	<Tooltip.Root>
 		<Tooltip.Trigger onclick={() => runOperation(operation)}>
 			{#snippet child({ props })}
-				<!-- aria-disabled, not disabled: the tooltip still says why. -->
+				<!-- aria-disabled, not disabled: the tooltip still says why, and so does the
+				     description (A.3). Labelled: the six main actions (A.3). -->
 				<Button
 					{...props}
 					variant="outline"
-					size="icon"
 					aria-label={label}
 					aria-disabled={disabled !== null}
+					aria-describedby={disabled ? reasonId : undefined}
 					class={disabled ? "opacity-50" : ""}
 				>
-					<Icon />
+					<Icon data-icon="inline-start" />
+					<!-- Icons only when the map is narrow (the side panel open on a small screen). -->
+					<span class="hidden @min-[44rem]:inline"
+						>{t(operation.short ?? operation.label)}</span
+					>
 				</Button>
 			{/snippet}
 		</Tooltip.Trigger>
 		<Tooltip.Content side="bottom">
-			{label}
-			({formatCombo(operation.keys[0] ?? "", mac)}){disabled
-				? `: ${t(disabled)}`
-				: ""}
+			{@const key = operationKey(operation)}
+			{label}{key ? ` (${key})` : ""}{disabled ? `: ${t(disabled)}` : ""}
 		</Tooltip.Content>
 	</Tooltip.Root>
+	{#if disabled}
+		<span id={reasonId} class="sr-only">{t(disabled)}</span>
+	{/if}
+{/snippet}
+
+<!-- An operation in a menu (the bar's More and Transform, the right-click menu): a disabled
+     one says why under its name (A.3). -->
+{#snippet operationItem(operation: Operation, disabled: Message | null)}
+	{@const Icon = OPERATION_ICONS[operation.id]}
+	<DropdownMenu.Item
+		disabled={disabled !== null}
+		class={disabled ? "items-start" : ""}
+		onSelect={() => runOperation(operation)}
+	>
+		<Icon />
+		<span class="flex min-w-0 flex-col">
+			{t(operation.label)}
+			{#if disabled}
+				<span class="text-xs text-muted-foreground">{t(disabled)}</span>
+			{/if}
+		</span>
+		<DropdownMenu.Shortcut>{operationKey(operation)}</DropdownMenu.Shortcut>
+	</DropdownMenu.Item>
+{/snippet}
+
+<!-- More ▾ or Transform ▾ in the selection bar (A.3). -->
+{#snippet operationMenu(
+	label: string,
+	Icon: Component,
+	entries: readonly { operation: Operation; disabled: Message | null }[],
+)}
+	<DropdownMenu.Root>
+		<DropdownMenu.Trigger>
+			{#snippet child({ props })}
+				<Button {...props} variant="outline">
+					<Icon data-icon="inline-start" />
+					{label}
+					<ChevronDown data-icon="inline-end" />
+				</Button>
+			{/snippet}
+		</DropdownMenu.Trigger>
+		<!-- Focus stays off the trigger: a transform tool takes typed values next. -->
+		<DropdownMenu.Content
+			align="start"
+			class="w-64"
+			onCloseAutoFocus={(event) => event.preventDefault()}
+		>
+			{#each entries as { operation, disabled } (operation.id)}
+				{@render operationItem(operation, disabled)}
+			{/each}
+		</DropdownMenu.Content>
+	</DropdownMenu.Root>
 {/snippet}
 
 <!-- A note under the toolbar's tools: what a tool asks for, why an operation was refused. -->
@@ -2236,12 +2320,43 @@
 				/>
 			</div>
 			{#if operations.length > 0}
-				<div class="rounded-md bg-background shadow-md">
-					<ButtonGroup.Root aria-label={t(msg("toolbar_selection"))}>
-						{#each operations as { operation, disabled } (operation.id)}
-							{@render operationButton(operation, disabled)}
-						{/each}
-					</ButtonGroup.Root>
+				<!-- The selection bar (A.3): the main actions labelled, the rest in two menus. -->
+				<div class="flex flex-wrap gap-2" data-testid="selection-bar">
+					<div class="rounded-md bg-background shadow-md">
+						<ButtonGroup.Root aria-label={t(msg("toolbar_selection"))}>
+							{#each grouped.main as { operation, disabled } (operation.id)}
+								{@render operationButton(operation, disabled)}
+							{/each}
+							{#if grouped.more.length > 0}
+								{@render operationMenu(
+									t(msg("operations_more")),
+									Ellipsis,
+									grouped.more,
+								)}
+							{/if}
+							{#if grouped.transform.length > 0}
+								{@render operationMenu(
+									t(msg("operations_transform")),
+									Shapes,
+									grouped.transform,
+								)}
+							{/if}
+						</ButtonGroup.Root>
+					</div>
+					<div class="rounded-md bg-background shadow-md">
+						{@render iconButton(
+							t(msg("zoom_to_selection")),
+							t(
+								msg("with_shortcut", {
+									label: t(msg("zoom_to_selection")),
+									keys: "Z",
+								}),
+							),
+							Scan,
+							false,
+							() => zoomToAll(editor.selection.ids),
+						)}
+					</div>
 				</div>
 			{/if}
 		{/if}
@@ -2458,26 +2573,35 @@
 	>
 		<DropdownMenu.Content
 			customAnchor={menuAnchor}
-			side="bottom"
+			side={menuSide}
 			align="start"
-			class="w-56"
+			class="w-64"
 			aria-label={t(msg("operations_menu"))}
 		>
-			{#each operations as { operation, disabled } (operation.id)}
-				{@const Icon = OPERATION_ICONS[operation.id]}
-				<DropdownMenu.Item
-					aria-disabled={disabled !== null}
-					class={disabled ? "opacity-50" : ""}
-					title={disabled ? t(disabled) : undefined}
-					onSelect={() => runOperation(operation)}
-				>
-					<Icon />
-					{t(operation.label)}
-					<DropdownMenu.Shortcut>
-						{formatCombo(operation.keys[0] ?? "", mac)}
-					</DropdownMenu.Shortcut>
-				</DropdownMenu.Item>
+			<!-- The bar's groups (A.3): the main actions, More's, then Transform as a submenu. -->
+			{#each grouped.main as { operation, disabled } (operation.id)}
+				{@render operationItem(operation, disabled)}
 			{/each}
+			{#if grouped.more.length > 0}
+				<DropdownMenu.Separator />
+				{#each grouped.more as { operation, disabled } (operation.id)}
+					{@render operationItem(operation, disabled)}
+				{/each}
+			{/if}
+			{#if grouped.transform.length > 0}
+				<DropdownMenu.Separator />
+				<DropdownMenu.Sub>
+					<DropdownMenu.SubTrigger>
+						<Shapes />
+						{t(msg("operations_transform"))}
+					</DropdownMenu.SubTrigger>
+					<DropdownMenu.SubContent class="w-64">
+						{#each grouped.transform as { operation, disabled } (operation.id)}
+							{@render operationItem(operation, disabled)}
+						{/each}
+					</DropdownMenu.SubContent>
+				</DropdownMenu.Sub>
+			{/if}
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
 
