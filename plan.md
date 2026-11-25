@@ -51,6 +51,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
 | P6     | Parity and polish                          | Done         |
 | A      | Accessibility and layout (Nov. audit)      | Done         |
+| R6     | Fixes from the 2026-11-25 code audit       | Planned      |
 | 3D     | 3D floors (3D.1, 3D.3, 3D.2)               | Later        |
 
 Finished phases (what was built, measured and decided) are in [docs/history.md](docs/history.md).
@@ -214,6 +215,39 @@ check in the background every few edits (osm-simple3d-editor `9ed266f`).
 Done ✅ (2026-11-25, PRs #60–#63, #65, #66 and A.7's); see "A" in
 [docs/history.md](docs/history.md). Left for later: popovers (the snapping menu) still render
 outside a landmark (axe's moderate `region`), and the editor itself stays desktop only.
+
+### R6: Fixes from the 2026-11-25 code audit — M–L (R6.1–R6.5) — planned
+
+From the code audit of `master` at `ba63562`, in
+[docs/code-audit-2026-11-25.md](docs/code-audit-2026-11-25.md) (item ids below are the
+report's). One PR per slice, each with a test that fails before the fix.
+
+- **R6.1, upload and data safety (S, first).** H1: a refused upload (409, 410, 412, 400) no
+  longer sets `failedChangeset`; only `network` and `server` failures do, and a retry always
+  rebases after checking the old changeset. H2: one capped helper expands level ranges
+  (`knownLevels`, `encodeLevels`, `listLevels`), with a validator issue for an implausible
+  range. M1: one `safeStorage()` (R3), and autosave built behind a try.
+- **R6.2, rendering and tagging (S–M).** M2: label points per area (polylabel on the whole
+  ring), not per tile. M3: `indoor=*` decides before `room=*`. L2: `building=no`, the
+  sub-preset prefix test, iD's `addTags` bonus and `searchable` penalty in `matchScore`,
+  country-only presets, door widths with decimal commas and feet and inches.
+- **R6.3, performance (M).** M4: hover and label hiding once a frame. M5: selection, hover and
+  drawing from a small overlay source, not six layers over every feature. M6: frames and
+  containers looked up in an rbush. M7: stale tile downloads dropped or aborted. Incremental
+  level counts in `FeatureStore`, bands from the index. Measured with `bun run bench` and a
+  10,000-room pointer-move trace, before and after.
+- **R6.4, refactors with no behaviour change (M–L).** R1: `EditorView.svelte` split (building
+  scope controller, mode factory, layer wiring, operations menu, draw toolbar), one PR per
+  cut unless the user says otherwise. R4: one `isVertical`, one set of room spaces, a
+  `pixelsAtZ17` helper. R5: the `polyclip-ts` call sites moved to Clipper2, one clipping
+  library left.
+- **R6.5, dependencies and tests (S).** Minor and patch updates (MapLibre 6.19, Kit 3.4, Svelte
+  5.59, pdf.js 6.5, Vitest 5.1, Playwright 1.65); runtime libraries moved to `dependencies`;
+  Renovate or Dependabot; CI actions v5. Majors (osm-auth 4, TypeScript 7, tailwind-variants
+  4) each on their own once checked. L1: the JPEG XL codec tests follow `probeSupport()`. The
+  e2e test `inspector.spec.ts:80` that fails after a reload is looked at: a test race or a bug.
+
+Open questions in the report (section 5) are asked before R6.1 and R6.4 start.
 
 ## Later: 3D
 
