@@ -167,7 +167,9 @@ runs the same commands.
   `show` callback; `map/guide-layer.ts` draws guides and marks, `ui/MeasureLabels.svelte` the lengths.
 - Building mode (B): `edit/scope.ts` (`scopeOf`, `inScope`, `scopeAt`: what can be entered
   and what belongs to it, by position only, never by relation membership),
-  `state/scope.svelte.ts` (`BuildingScope`, held as `editor.scope`), `&building=w123` in the
+  `state/scope.svelte.ts` (`BuildingScope`, held as `editor.scope`),
+  `state/building-scope-controller.svelte.ts` (entering and leaving, its hint, the download of
+  the building entered; `EditorView` gives it a `ScopeHost`), `&building=w123` in the
   URL hash (`map/hash.ts`). Entering (B.2): a double-click (`Mode.doubleClick`), "Edit indoor"
   or "Edit indoor here" fit the camera; the building is downloaded whole (`DataSync.loadArea`);
   with nothing selected the side panel is `ui/BuildingPanel.svelte`. What each scope offers

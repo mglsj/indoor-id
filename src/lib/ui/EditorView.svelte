@@ -125,14 +125,8 @@
 		type SnapTarget,
 		snapAt,
 	} from "#lib/edit/precision/snap.ts";
-	import {
-		isMapFeature,
-		type Scope,
-		scopeAt,
-		scopeFor,
-		scopeOf,
-	} from "#lib/edit/scope.ts";
-	import { type DrawTool, toolsFor } from "#lib/edit/scope-tools.ts";
+	import { isMapFeature } from "#lib/edit/scope.ts";
+	import type { DrawTool } from "#lib/edit/scope-tools.ts";
 	import { tracePath } from "#lib/edit/trace.ts";
 	import { unmappedFloorAt } from "#lib/edit/unmapped-floor.ts";
 	import { tooLargeToEdit } from "#lib/edit/visibility.ts";
@@ -187,6 +181,7 @@
 	} from "#lib/state/appearance.svelte.ts";
 	import { EditAutosave } from "#lib/state/autosave.svelte.ts";
 	import type { BackgroundSettings } from "#lib/state/background.svelte.ts";
+	import { BuildingScopeController } from "#lib/state/building-scope-controller.svelte.ts";
 	import { performEdit } from "#lib/state/commands.ts";
 	import { Editor, setEditor } from "#lib/state/editor.svelte.ts";
 	import {
@@ -203,7 +198,6 @@
 		type SnapOption,
 		setPrecision,
 	} from "#lib/state/precision.svelte.ts";
-	import type { ScopeId } from "#lib/state/scope.svelte.ts";
 	import { Session } from "#lib/state/session.svelte.ts";
 	import BuildingPanel from "#lib/ui/BuildingPanel.svelte";
 	import FloorPanel from "#lib/ui/FloorPanel.svelte";
@@ -387,158 +381,44 @@
 		});
 	});
 
-	/** The selected building or level outline, which "Edit indoor" enters (B.1). */
-	const enterable = $derived.by(() => {
-		const id = editor.selection.single;
-		if (!id || editor.scope.active || planMode) return null;
-		return scopeOf(editor.graph, id) ? (id as ScopeId) : null;
-	});
-
-	/** The name of the building entered, for the header chip. */
-	const scopeName = $derived.by(() => {
-		if (editor.scope.loose) return t(msg("building_loose"));
-		const scope = editor.scope.current;
-		if (!scope) return "";
-		const tags = editor.graph.entity(scope.id)?.tags ?? {};
-		return tags.name ?? tags.ref ?? tags["addr:housenumber"] ?? scope.id;
-	});
-
-	/**
-	 * The building (or level outline) around the last click on the empty map, which "Edit indoor
-	 * here" enters (B.2); null elsewhere.
-	 */
-	let here = $state.raw<ScopeId | null>(null);
-	/** On the map with nothing selected, "Edit indoor here" is offered (B.3: the loose data). */
-	const hereOffered = $derived(
-		!editor.scope.active && !planMode && editor.selection.ids.length === 0,
-	);
-
-	/** "Edit indoor here": the building last clicked in, else the indoor data no building holds. */
-	function enterHere() {
-		if (here) enterBuilding(here);
-		else {
+	/** Entering and leaving buildings (B), its hint and the download of the one entered. */
+	const scopeControl = new BuildingScopeController(editor, {
+		finishTools: () => {
 			modes?.finish();
 			drawing = null;
-			editor.scope.enterLoose();
-			editor.select(null);
-		}
-	}
-
-	/**
-	 * A hint the first few times a building is entered (A.2), counted in this browser.
-	 */
-	let enteredHint = $state.raw<Message | null>(null);
-	let enteredTimer: ReturnType<typeof setTimeout> | undefined;
-	const ENTERED_HINTS = 3;
-	const ENTERED_KEY = "indoorid.building-hints";
-	function hintEntered() {
-		let shown = 0;
-		try {
-			shown = Number(localStorage.getItem(ENTERED_KEY) ?? 0) || 0;
-			if (shown >= ENTERED_HINTS) return;
-			localStorage.setItem(ENTERED_KEY, String(shown + 1));
-		} catch {
-			// No storage: hint every time.
-		}
-		enteredHint = msg("building_entered_hint", { name: scopeName });
-		clearTimeout(enteredTimer);
-		enteredTimer = setTimeout(() => (enteredHint = null), 6000);
-	}
-	$effect(() => {
-		if (!editor.scope.active) {
-			enteredHint = null;
-			return;
-		}
-		void editor.scope.id;
-		untrack(hintEntered);
-	});
-
-	/** What map mode or building mode offers (B.3). */
-	const offered = $derived(toolsFor(editor.scope.active ? "building" : "map"));
-
-	/**
-	 * Enters a building or level outline (B.1): its features become the ones worked on. Asked
-	 * for (a double-click, "Edit indoor"), the camera fits it (B.2).
-	 */
-	function enterBuilding(id: ScopeId, { fit = true } = {}) {
-		modes?.finish();
-		here = null;
-		drawing = null;
-		if (!editor.scope.enter(id)) return;
-		editor.select(null);
-		const scope = editor.scope.current;
-		if (fit && scope) fitScope(scope);
-	}
-
-	/**
-	 * Shows the whole of a building, right of the side panel its entering opens. At the next
-	 * frame: MapLibre stops a camera move started while it handles a double-click.
-	 */
-	function fitScope({ extent }: Scope) {
-		requestAnimationFrame(() =>
-			map?.fitBounds(
-				[
-					[extent.west, extent.south],
-					[extent.east, extent.north],
-				],
-				{
-					padding: {
-						top: 60,
-						bottom: 60,
-						right: 60,
-						left: shownPanelWidth + 60,
+		},
+		planMode: () => planMode,
+		// At the next frame: MapLibre stops a camera move started while it handles a double-click.
+		fit: (extent) =>
+			requestAnimationFrame(() =>
+				map?.fitBounds(
+					[
+						[extent.west, extent.south],
+						[extent.east, extent.north],
+					],
+					{
+						padding: {
+							top: 60,
+							bottom: 60,
+							right: 60,
+							left: shownPanelWidth + 60,
+						},
+						maxZoom: 20,
 					},
-					maxZoom: 20,
-				},
+				),
 			),
-		);
-	}
-
-	// A building entered is downloaded whole, once (B.2): the view may show only part of it.
-	let downloaded: ScopeId | null = null;
-	$effect(() => {
-		const id = editor.scope.id;
-		if (!id) {
-			downloaded = null;
-			return;
-		}
-		const scope = editor.scope.current;
-		if (!scope || id === downloaded) return;
-		downloaded = id;
-		untrack(() => void editor.sync.loadArea(scope.extent));
+		groundFloor: () => (level = 0),
+		buildingAt: (point, except) =>
+			indoor?.hitTest(
+				point,
+				(p) => p["@kind"] === "building" && p["@id"] !== except,
+			) ?? null,
 	});
-
-	/**
-	 * What a double-click enters (B.2): the building drawn under it, else the smallest holding
-	 * that position; null where there is none, the building already entered, or a neighbour
-	 * hidden with the surroundings.
-	 */
-	function enterableAt(at: MapPoint): ScopeId | null {
-		if (planMode) return null;
-		if (editor.scope.active && !editor.scope.surroundings) return null;
-		const hit = indoor?.hitTest(
-			at.point,
-			(p) => p["@kind"] === "building" && p["@id"] !== editor.scope.id,
-		);
-		const id =
-			hit && scopeOf(editor.graph, hit as EntityId)
-				? (hit as ScopeId)
-				: (scopeAt(editor.graph, at.lngLat)?.id as ScopeId | undefined);
-		return id && id !== editor.scope.id ? id : null;
-	}
-
-	/** Back to the map, selecting the building left (B.1). */
-	function leaveBuilding() {
-		const id = editor.scope.id;
-		modes?.finish();
-		// Tools of building mode end with it (B.3).
-		drawing = null;
-		editor.scope.leave();
-		// The map has no level switcher (B.3): back to the ground floor, or an upper floor
-		// left shown would stay with no way down.
-		level = 0;
-		editor.select(id && editor.graph.entity(id) ? id : null);
-	}
+	$effect(() => scopeControl.scopeChanged());
+	$effect(() => scopeControl.downloadEntered());
+	$effect(() => () => scopeControl.destroy());
+	/** What map mode or building mode offers (B.3). */
+	const offered = $derived(scopeControl.offered);
 
 	/**
 	 * Closes the floor plans pane (and calls `then`), once unsaved changes to the plan in Edit
@@ -1200,25 +1080,8 @@
 		 * Selects a feature; on the map, an indoor one enters its building first (B.1), and a
 		 * click on the empty map offers to enter the building around it ("Edit indoor here", B.2).
 		 */
-		const selectOrEnter = (id: EntityId | null, at?: MapPoint) => {
-			here =
-				!id && at && !editor.scope.active
-					? ((scopeAt(editor.graph, at.lngLat)?.id as ScopeId | undefined) ??
-						null)
-					: null;
-			const properties = id ? editor.features.byId.get(id)?.properties : null;
-			if (
-				id &&
-				properties &&
-				!editor.scope.active &&
-				!isMapFeature(properties)
-			) {
-				const scope = scopeFor(editor.graph, id);
-				// The room clicked stays where it is: no camera move.
-				if (scope) enterBuilding(scope.id as ScopeId, { fit: false });
-			}
-			editor.select(id);
-		};
+		const selectOrEnter = (id: EntityId | null, at?: MapPoint) =>
+			scopeControl.selectOrEnter(id, at);
 
 		const layers = new FloorPlanLayers(instance, floorplans.tiles);
 		const stopTiles = layers.onTiles((count) => (planTiles = count));
@@ -1262,16 +1125,16 @@
 								hitTest: pick,
 								select: (id, at) => selectOrEnter(id as EntityId | null, at),
 								enter: (at) => {
-									const id = enterableAt(at);
+									const id = scopeControl.enterableAt(at);
 									if (!id) return false;
-									enterBuilding(id);
+									scopeControl.enter(id);
 									return true;
 								},
 								hasSelection: () =>
 									editor.selection.ids.length > 0 || editor.floor !== null,
 								leave: () => {
 									if (!editor.scope.active) return false;
-									leaveBuilding();
+									scopeControl.leave();
 									return true;
 								},
 								toggle: (id) => editor.selection.toggle(id as EntityId),
@@ -1874,7 +1737,7 @@
 	useHeaderSlot(header, "actions", () => headerActions);
 	// The page's title names the building entered (A.6).
 	$effect(() => {
-		header.place = editor.scope.active ? scopeName : undefined;
+		header.place = editor.scope.active ? scopeControl.name : undefined;
 		return () => {
 			header.place = undefined;
 		};
@@ -2151,13 +2014,13 @@
 				class="size-4 shrink-0 text-muted-foreground"
 				aria-hidden="true"
 			/>
-			<span class="max-w-48 truncate font-medium">{scopeName}</span>
+			<span class="max-w-48 truncate font-medium">{scopeControl.name}</span>
 			<Button
 				variant="ghost"
 				size="icon-xs"
-				aria-label={t(msg("building_leave_named", { name: scopeName }))}
-				title={t(msg("building_leave_named", { name: scopeName }))}
-				onclick={leaveBuilding}
+				aria-label={t(msg("building_leave_named", { name: scopeControl.name }))}
+				title={t(msg("building_leave_named", { name: scopeControl.name }))}
+				onclick={() => scopeControl.leave()}
 			>
 				<X />
 			</Button>
@@ -2451,8 +2314,8 @@
 								: DRAW_HINTS[drawing],
 				),
 			)}
-		{:else if enteredHint && !operationNote && !dragHint}
-			{@render statusNote("building-hint", t(enteredHint))}
+		{:else if scopeControl.enteredHint && !operationNote && !dragHint}
+			{@render statusNote("building-hint", t(scopeControl.enteredHint))}
 		{/if}
 		{#if operationNote && !dragHint}
 			{@render statusNote("operation-note", t(operationNote))}
@@ -2472,7 +2335,7 @@
 			>
 				<Building class="size-4 shrink-0" aria-hidden="true" />
 				<span class="max-w-56 truncate text-sm font-medium">
-					{t(msg("building_editing", { name: scopeName }))}
+					{t(msg("building_editing", { name: scopeControl.name }))}
 				</span>
 				{#if offered.levels}
 					<span class="text-sm whitespace-nowrap" data-testid="mode-level">
@@ -2484,7 +2347,7 @@
 					class="bg-background text-foreground hover:bg-background/90"
 					aria-label={t(msg("building_leave"))}
 					aria-keyshortcuts="Escape"
-					onclick={leaveBuilding}
+					onclick={() => scopeControl.leave()}
 				>
 					{t(msg("building_leave"))}
 					<kbd
@@ -2493,11 +2356,15 @@
 					>
 				</Button>
 			</section>
-		{:else if enterable || hereOffered}
+		{:else if scopeControl.enterable || scopeControl.hereOffered}
+			{@const enterable = scopeControl.enterable}
 			<div class="rounded-md bg-background shadow-md">
 				<Tooltip.Root>
 					<Tooltip.Trigger
-						onclick={() => (enterable ? enterBuilding(enterable) : enterHere())}
+						onclick={() =>
+							enterable
+								? scopeControl.enter(enterable)
+								: scopeControl.enterHere()}
 					>
 						{#snippet child({ props })}
 							<Button {...props} variant="outline">
@@ -2551,7 +2418,7 @@
 				<FloorPanel floor={editor.floor} />
 			{:else if buildingShown}
 				<BuildingPanel
-					name={scopeName}
+					name={scopeControl.name}
 					kind={buildingShown.kind}
 					levels={buildingLevels}
 					{level}
@@ -2563,7 +2430,7 @@
 					}}
 					onshowlevel={(shown) => (level = shown)}
 					onsurroundings={(on) => (editor.scope.surroundings = on)}
-					ondone={leaveBuilding}
+					ondone={() => scopeControl.leave()}
 					onpreview={previewBuilding}
 				/>
 			{/if}

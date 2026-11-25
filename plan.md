@@ -253,7 +253,8 @@ report's). One PR per slice, each with a test that fails before the fix.
   `FeatureStore`, bands from the index.
 - **R6.4, refactors with no behaviour change (M–L).** R1: `EditorView.svelte` split (building
   scope controller, mode factory, layer wiring, operations menu, draw toolbar), one PR per
-  cut unless the user says otherwise. R4: one `isVertical`, one set of room spaces, a
+  cut unless the user says otherwise; the building scope controller is done
+  (`state/building-scope-controller.svelte.ts`, 2026-11-25). R4: one `isVertical`, one set of room spaces, a
   `pixelsAtZ17` helper. R5: the `polyclip-ts` call sites moved to Clipper2, one clipping
   library left.
 - **R6.5, dependencies and tests (S).** Minor and patch updates (MapLibre 6.19, Kit 3.4, Svelte
