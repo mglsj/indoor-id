@@ -5,7 +5,12 @@ import { node } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { History } from "#lib/osm/history.ts";
 import { saveHistory } from "#lib/osm/history-json.ts";
-import { Autosave, type AutosaveOptions, type SavedEdits } from "./autosave.ts";
+import {
+	Autosave,
+	type AutosaveOptions,
+	openAutosave,
+	type SavedEdits,
+} from "./autosave.ts";
 
 let name = "";
 let count = 0;
@@ -133,5 +138,25 @@ describe("Autosave", () => {
 		const [found] = await tab(first.session).autosave.restorable();
 
 		expect(found?.changeset).toBe(42);
+	});
+});
+
+describe("openAutosave", () => {
+	it("opens no autosave where the browser blocks site data, rather than failing", () => {
+		const blocked = {
+			getItem: () => {
+				throw new DOMException("The operation is insecure.", "SecurityError");
+			},
+		} as unknown as Storage;
+		expect(openAutosave({ local: blocked, session: blocked })).toBeNull();
+	});
+
+	it("beats without failing once the storage is full", () => {
+		const full = memoryStorage();
+		full.setItem = () => {
+			throw new DOMException("Quota exceeded", "QuotaExceededError");
+		};
+		const autosave = new Autosave({ local: full, session: memoryStorage() });
+		expect(() => autosave.heartbeat()).not.toThrow();
 	});
 });

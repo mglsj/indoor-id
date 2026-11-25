@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatLevels, isOnLevel, levelToShow, parseLevels } from "./levels.ts";
+import {
+	formatLevels,
+	isOnLevel,
+	levelToShow,
+	listLevels,
+	MAX_LEVEL_SPAN,
+	parseLevels,
+	wholeLevels,
+} from "./levels.ts";
 
 const single = (level: number) => ({ min: level, max: level });
 
@@ -123,5 +131,28 @@ describe("levelToShow", () => {
 		expect(levelToShow("0-2", 1)).toBe(1);
 		expect(levelToShow("0-2", 5)).toBe(0);
 		expect(levelToShow("1;-1", 3)).toBe(-1);
+	});
+});
+
+describe("listLevels", () => {
+	it("lists ranges of whole levels", () => {
+		expect(listLevels("-1;1-3")).toEqual([-1, 1, 2, 3]);
+	});
+
+	it("gives up on a range too wide to be a building's (a stray level=0-10000000)", () => {
+		expect(listLevels("0-10000000")).toBeNull();
+		expect(listLevels(`0-${MAX_LEVEL_SPAN + 1}`)).toBeNull();
+		expect(listLevels(`0-${MAX_LEVEL_SPAN}`)).toHaveLength(MAX_LEVEL_SPAN + 1);
+	});
+});
+
+describe("wholeLevels", () => {
+	it("gives a range's ends and the whole levels between them", () => {
+		expect(wholeLevels({ min: -0.5, max: 2 })).toEqual([-0.5, 0, 1, 2]);
+		expect(wholeLevels({ min: 0.5, max: 0.5 })).toEqual([0.5]);
+	});
+
+	it("gives only the ends of a range too wide to be a building's", () => {
+		expect(wholeLevels({ min: 0, max: 10_000_000 })).toEqual([0, 10_000_000]);
 	});
 });

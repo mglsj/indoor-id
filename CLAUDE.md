@@ -47,7 +47,9 @@ runs the same commands.
   what the edit set. Avoid full scans (`changes()`, iterating every entity) on each edit.
 - Viewer (P2): `map/features.ts` (graph → GeoJSON with `@lv`, `@kind`, `@icon`, `@label`),
   `map/feature-store.ts` (P5.2: features rebuilt only for changed entities, sent to the map
-  with `updateData`; an rbush index of drawn nodes, `nodesNear`, for snapping; `levelsIn(extent)`, the named levels in view for `LevelControl`),
+  with `updateData`; an rbush index of drawn nodes, `nodesNear`, for snapping; `levelsIn(extent)`, the named levels in view for `LevelControl`; an area's label and icon are one point,
+  `labelPoint`, sent to `LABEL_SOURCE` under the same `@id`: not drawn from the polygon, which
+  MapLibre labels once per tile),
   `map/classify.ts` (all tag → drawing rules), `map/style/layers.ts`, `map/indoor-map.ts` (source
   and layers on the map), `api/map-loader.ts`, `state/editor.svelte.ts` (`Editor`: `history`
   (`EditHistory`), `selection`, `sync` (`DataSync`), `catalog` (presets, upgrades, web
@@ -210,7 +212,10 @@ runs the same commands.
   tab, the heartbeat lock; tested on fake-indexeddb), `state/autosave.svelte.ts`
   (`EditAutosave`: saves after changes, offers found edits with `ui/RestoreDialog.svelte`).
   `EditHistory` takes the `Selection`: steps record it, undo and redo select it again. A failed
-  upload's changeset (`DataSync.failedChangeset`) is checked by the next upload (`retryOf`).
+  upload's changeset (`DataSync.failedChangeset`) is checked by the next upload (`retryOf`), only
+  when the server may have applied it (a lost or 5xx answer); a refusal clears it. Reach Web
+  Storage through `persist/storage.ts` (`browserStorage()`) or inside a `try`: a browser
+  blocking site data throws on reading `localStorage` itself.
   E2E tests open a second tab with `context.newPage()` and `blockExternal()`.
 - Rebase and conflicts (P5.4b): `actions/rebase.ts` (`idsToCheck`, `rebase`, `resolveConflict`:
   three-way merges from the downloaded version), run by `DataSync.upload` before sending, over

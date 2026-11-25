@@ -8,6 +8,7 @@ import type { Wikidata } from "#lib/api/wikidata.ts";
 import { entityGeometry } from "#lib/osm/area.ts";
 import type { Entity } from "#lib/osm/entity.ts";
 import type { Graph } from "#lib/osm/graph.ts";
+import { browserStorage, NO_STORAGE } from "#lib/persist/storage.ts";
 import {
 	loadDiscardedKeys,
 	loadPresetIndex,
@@ -78,7 +79,7 @@ export class Catalog {
 
 	constructor({
 		services = {},
-		storage = browserStorage(),
+		storage = browserStorage() ?? NO_STORAGE,
 		load = SCHEMA,
 	}: CatalogOptions = {}) {
 		this.services = services;
@@ -100,14 +101,3 @@ export class Catalog {
 		return this.presets?.match(entity.tags, entityGeometry(graph, entity));
 	}
 }
-
-/** The browser's localStorage, or a stand-in that keeps nothing where it is unavailable. */
-function browserStorage(): RecentStorage {
-	try {
-		return globalThis.localStorage ?? NO_STORAGE;
-	} catch {
-		return NO_STORAGE;
-	}
-}
-
-const NO_STORAGE = { getItem: () => null, setItem: () => {} };

@@ -183,6 +183,72 @@ describe("DataSync: downloads into the history, uploads from it", () => {
 		expect(sync.failedChangeset).toBeUndefined();
 	});
 
+	it("checks their changes again after an upload the server refused (a 409)", async () => {
+		const checks: number[] = [];
+		const retries: (number | undefined)[] = [];
+		const { history, sync } = setup({
+			loadEntities: async () => {
+				checks.push(checks.length);
+				return [];
+			},
+			upload: async (_graph, _tags, options) => {
+				retries.push(options?.retryOf);
+				throw new OsmApiError("Version mismatch", "conflict", 409, 41);
+			},
+		});
+		history.merge([node("n1", { amenity: "bench" }, [2.35, 48.85])]);
+		history.perform(
+			changeTags("n1", { amenity: "bench", backrest: "yes" }),
+			msg("undo_change_tags"),
+		);
+
+		await sync.upload({ comment: "Bench" }).catch(() => undefined);
+		await sync.upload({ comment: "Bench" }).catch(() => undefined);
+
+		// The refusal was an answer: nothing was lost, so nothing to check, and a rebase again.
+		expect(sync.failedChangeset).toBeUndefined();
+		expect(retries).toEqual([undefined, undefined]);
+		expect(checks).toHaveLength(2);
+	});
+
+	it("forgets the changeset it checked, once a retry is refused", async () => {
+		const failures = [
+			new OsmApiError("lost", "network", undefined, 41),
+			new OsmApiError("Version mismatch", "conflict", 409, 42),
+		];
+		const { history, sync } = setup({
+			upload: async () => {
+				throw failures.shift();
+			},
+		});
+		history.perform(
+			(graph) => graph.replace(node("n-1", {}, [0, 0])),
+			msg("undo_add_point"),
+		);
+
+		await sync.upload({ comment: "One" }).catch(() => undefined);
+		expect(sync.failedChangeset).toBe(41);
+		await sync.upload({ comment: "One" }).catch(() => undefined);
+
+		expect(sync.failedChangeset).toBeUndefined();
+	});
+
+	it("keeps the changeset of an upload the server may have applied (a 5xx)", async () => {
+		const { history, sync } = setup({
+			upload: async () => {
+				throw new OsmApiError("Bad gateway", "server", 502, 41);
+			},
+		});
+		history.perform(
+			(graph) => graph.replace(node("n-1", {}, [0, 0])),
+			msg("undo_add_point"),
+		);
+
+		await sync.upload({ comment: "One" }).catch(() => undefined);
+
+		expect(sync.failedChangeset).toBe(41);
+	});
+
 	it("forgets the failed changeset once an upload goes through", async () => {
 		const { history, sync } = setup({
 			upload: async () => ({

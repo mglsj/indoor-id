@@ -400,7 +400,7 @@ export class PresetIndex {
 			keep.push(...Object.keys(to.addTags ?? to.tags));
 			if (from) {
 				// Going to a parent preset drops what defined the sub-preset (pizza → restaurant).
-				const wasSubPreset = from.id.startsWith(to.id);
+				const wasSubPreset = from.id.startsWith(`${to.id}/`);
 				for (const key of this.#fieldKeys(to, geometry)) {
 					if (!wasSubPreset || from.tags[key] === undefined) keep.push(key);
 				}
@@ -528,6 +528,12 @@ function matchScore(preset: Preset, tags: Tags): number {
 		else if (value === "*" && tags[key] !== undefined) score += weight / 2;
 		else return -1;
 	}
+	// As iD's `matchScore` (#6802): each tag the preset adds that the feature has counts too.
+	for (const [key, value] of Object.entries(preset.addTags ?? {})) {
+		if (preset.tags[key] === undefined && tags[key] === value) score += weight;
+	}
+	// A preset left out of search loses a tie to one in it.
+	if (preset.searchable === false) score *= 0.999;
 	return score;
 }
 

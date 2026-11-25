@@ -48,6 +48,12 @@ describe("classify", () => {
 		[{ barrier: "turnstile" }, "Point", "poi"],
 		[{ barrier: "bollard", level: "0" }, "Point", "poi"],
 		[{ landuse: "retail" }, "Polygon", "area"],
+		// SIT: indoor=* is the kind of space; room=* only says what it is for.
+		[{ indoor: "area", room: "toilets" }, "Polygon", "space"],
+		[{ indoor: "corridor", room: "office" }, "Polygon", "space"],
+		[{ indoor: "room", room: "corridor" }, "Polygon", "room"],
+		[{ indoor: "yes", room: "office" }, "Polygon", "room"],
+		[{ building: "no", amenity: "parking" }, "Polygon", "area"],
 	] as const)("%j as %s is a %s", (tags, geometry, kind) => {
 		expect(classify(tags, geometry)).toBe(kind);
 	});
@@ -165,6 +171,12 @@ describe("doorWidth", () => {
 		expect(doorWidth({ width: "1.2 m" })).toBe(1.2);
 		expect(doorWidth({ width: "90 cm" })).toBe(0.9);
 		expect(doorWidth({ width: "3'" })).toBeCloseTo(0.9144, 6);
+	});
+
+	it("reads a decimal comma, and feet with inches", () => {
+		expect(doorWidth({ width: "0,9" })).toBe(0.9);
+		expect(doorWidth({ width: "3'6\"" })).toBeCloseTo(1.0668, 6);
+		expect(doorWidth({ width: '36"' })).toBeCloseTo(0.9144, 6);
 	});
 
 	it("ignores what it can't read, or isn't a door's size", () => {

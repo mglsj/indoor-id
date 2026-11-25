@@ -57,6 +57,7 @@
 	import type { Presentation } from "#lib/map/style/layers.ts";
 	import { visibleExtent } from "#lib/map/view.ts";
 	import { EARTH_RADIUS } from "#lib/osm/geometry.ts";
+	import { browserStorage } from "#lib/persist/storage.ts";
 	import { AppearanceSettings } from "#lib/state/appearance.svelte.ts";
 	import { BackgroundSettings } from "#lib/state/background.svelte.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
@@ -250,14 +251,6 @@
 			(2 * Math.PI * EARTH_RADIUS * Math.cos(lat)) /
 			(512 * 2 ** instance.getZoom())
 		);
-	}
-
-	function browserStorage(): Storage | undefined {
-		try {
-			return localStorage;
-		} catch {
-			return undefined;
-		}
 	}
 
 	// The imagery, its offset and the solid colour follow the settings.

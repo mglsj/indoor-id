@@ -70,6 +70,7 @@ const KEPT_PRESETS =
 function isKept(id: string, preset: Json): boolean {
 	if (id.startsWith("@")) return false;
 	if (preset.replacement) return false; // deprecated presets
+	if (isForSomeCountries(preset)) return false;
 	return KEPT_GROUPS.has(id.split("/")[0] ?? "") || KEPT_PRESETS.test(id);
 }
 
@@ -131,11 +132,12 @@ for (const id of [...usedFields]) {
 }
 
 /**
- * Fields for some countries only (US GNIS ID, French SIRET…) are left out: IndoorID doesn't
- * know which country a feature is in. Fields for the whole world but a few countries stay.
+ * Presets and fields for some countries only (US GNIS ID, French SIRET…) are left out:
+ * IndoorID doesn't know which country a feature is in. Those for the whole world but a few
+ * countries stay.
  */
-function isForSomeCountries(field: Json | undefined): boolean {
-	const include = (field?.locationSet as { include?: unknown[] } | undefined)
+function isForSomeCountries(item: Json | undefined): boolean {
+	const include = (item?.locationSet as { include?: unknown[] } | undefined)
 		?.include;
 	return (
 		include !== undefined &&

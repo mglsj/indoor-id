@@ -4,6 +4,7 @@
  * - `@lv`: the known levels it is on, as `;-1;0;0.5;`, or `*` when it has no level, so that a
  *   level switch is a filter change (`levelFilter`) rather than a data rebuild.
  */
+
 import type {
 	Feature,
 	FeatureCollection,
@@ -11,12 +12,18 @@ import type {
 	MultiPolygon,
 	Position,
 } from "geojson";
+import polylabel from "polylabel";
 import {
 	featureLevels,
 	isFromBuildingLevels,
 	unionOfLevels,
 } from "#lib/levels/feature-levels.ts";
-import { isOnLevel, type Levels } from "#lib/levels/levels.ts";
+import {
+	isOnLevel,
+	type Levels,
+	MAX_LEVEL_SPAN,
+	wholeLevels,
+} from "#lib/levels/levels.ts";
 import { entityGeometry, isArea } from "#lib/osm/area.ts";
 import {
 	type Entity,
@@ -229,6 +236,64 @@ function drawingProperties(
 	return props;
 }
 
+/**
+ * Where a feature's label and icon go, or null when it has neither: a point where it is, an
+ * area at the point of its largest polygon farthest from its edges (polylabel). MapLibre would
+ * put one at that point of each tile's piece of an area, so a room crossing a tile edge got two
+ * labels that moved as the map zoomed; label points, sent as a source of their own, get one.
+ */
+export function labelPoint(feature: IndoorFeature): IndoorFeature | null {
+	const p = feature.properties;
+	if (
+		p["@label"] === undefined &&
+		p["@icon"] === undefined &&
+		p["@entrance"] === undefined
+	)
+		return null;
+	const { geometry } = feature;
+	if (geometry.type === "Point") return feature;
+	const polygons =
+		geometry.type === "Polygon"
+			? [geometry.coordinates]
+			: geometry.type === "MultiPolygon"
+				? geometry.coordinates
+				: [];
+	const largest = polygons
+		.map((polygon) => ({ polygon, area: Math.abs(ringArea(polygon[0] ?? [])) }))
+		.sort((a, b) => b.area - a.area)[0]?.polygon;
+	if (!largest?.[0]?.length) return null;
+	return {
+		type: "Feature",
+		geometry: { type: "Point", coordinates: poleOf(largest) },
+		properties: { ...p, "@area": "yes" },
+	};
+}
+
+/** Twice the signed area of a ring, in degrees². */
+function ringArea(ring: readonly Position[]): number {
+	let sum = 0;
+	for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+		const [x1 = 0, y1 = 0] = ring[j] ?? [];
+		const [x2 = 0, y2 = 0] = ring[i] ?? [];
+		sum += (x1 - x2) * (y1 + y2);
+	}
+	return sum;
+}
+
+/** About 5 cm in degrees of latitude: finer than any room. */
+const LABEL_PRECISION = 5e-7;
+
+/** polylabel's pole, with longitudes scaled so that a degree east is as long as one north. */
+function poleOf(polygon: readonly Position[][]): Position {
+	const lat = ((polygon[0]?.[0]?.[1] ?? 0) * Math.PI) / 180;
+	const scale = Math.cos(lat) || 1;
+	const rings = polygon.map((ring) =>
+		ring.map(([x = 0, y = 0]): [number, number] => [x * scale, y]),
+	);
+	const [x, y] = polylabel(rings, LABEL_PRECISION);
+	return [x / scale, y];
+}
+
 /** MapLibre filter keeping the features on `level`, and those without level information. */
 export function levelFilter(level: number): FilterSpecification {
 	return [
@@ -237,9 +302,6 @@ export function levelFilter(level: number): FilterSpecification {
 		["in", `;${String(level)};`, ["get", "@lv"]],
 	];
 }
-
-/** No feature fills more whole levels than this from its own ranges (a stray `level=0-1e9`). */
-const MAX_OWN_LEVELS = 250;
 
 /**
  * The known levels a feature is on, plus the whole levels inside its own ranges: the shown
@@ -250,11 +312,10 @@ const MAX_OWN_LEVELS = 250;
 function encodeLevels(levels: Levels | null, known: readonly number[]): string {
 	if (!levels) return "*";
 	const on = new Set(known.filter((l) => isOnLevel(levels, l)));
-	for (const { min, max } of levels) {
-		if (max - min > MAX_OWN_LEVELS) continue;
-		on.add(min);
-		on.add(max);
-		for (let l = Math.ceil(min); l <= Math.floor(max); l++) on.add(l);
+	for (const range of levels) {
+		// A stray huge range (`building:levels=100000`) is drawn on the known levels it covers.
+		if (range.max - range.min > MAX_LEVEL_SPAN) continue;
+		for (const l of wholeLevels(range)) on.add(l);
 	}
 	return `;${[...on]
 		.map((l) => (Object.is(l, -0) ? 0 : l))
@@ -263,14 +324,12 @@ function encodeLevels(levels: Levels | null, known: readonly number[]): string {
 		.join(";")};`;
 }
 
-/** Single levels and range ends, plus whole levels inside ranges. */
+/** Single levels and range ends, plus whole levels inside ranges (see `wholeLevels`). */
 export function knownLevels(all: readonly (Levels | null)[]): number[] {
 	const set = new Set<number>();
 	for (const levels of all) {
-		for (const { min, max } of levels ?? []) {
-			set.add(min);
-			set.add(max);
-			for (let l = Math.ceil(min); l <= Math.floor(max); l++) set.add(l);
+		for (const range of levels ?? []) {
+			for (const l of wholeLevels(range)) set.add(l);
 		}
 	}
 	return [...set].map((l) => (Object.is(l, -0) ? 0 : l)).sort((a, b) => a - b);

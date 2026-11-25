@@ -83,6 +83,51 @@ describe("PresetIndex.match", () => {
 	});
 });
 
+describe("PresetIndex.match: iD's score", () => {
+	const scored = new PresetIndex(
+		[
+			preset("point", "Point", ["point"], {}, { matchScore: 0.1 }),
+			preset("amenity/vending", "Vending", ["point"], { amenity: "vending" }),
+			preset(
+				"amenity/vending/tickets",
+				"Ticket Machine",
+				["point"],
+				{ amenity: "vending" },
+				{
+					addTags: { amenity: "vending", vending: "public_transport_tickets" },
+				},
+			),
+			preset(
+				"amenity/old",
+				"Old",
+				["point"],
+				{ amenity: "bench" },
+				{ searchable: false },
+			),
+			preset("amenity/bench", "Bench", ["point"], { amenity: "bench" }),
+		],
+		[],
+	);
+
+	it("counts the tags a preset adds (iD #6802)", () => {
+		expect(
+			scored.match(
+				{ amenity: "vending", vending: "public_transport_tickets" },
+				"point",
+			).id,
+		).toBe("amenity/vending/tickets");
+		expect(scored.match({ amenity: "vending" }, "point").id).toBe(
+			"amenity/vending",
+		);
+	});
+
+	it("prefers a searchable preset to one that isn't, on the same tags", () => {
+		expect(scored.match({ amenity: "bench" }, "point").id).toBe(
+			"amenity/bench",
+		);
+	});
+});
+
 describe("PresetIndex.search, ranked as iD does", () => {
 	const fallbacks = [
 		preset("point", "Point", ["point", "vertex"], {}, { matchScore: 0.1 }),

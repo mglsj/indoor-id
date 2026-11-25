@@ -22,6 +22,11 @@ import {
 export const INDOOR_SOURCE = "osm";
 /** The bands of iD's partial fill, built for the areas in view (`map/area-bands.ts`). */
 export const BAND_SOURCE = "osm-bands";
+/**
+ * One point per labelled feature (`labelPoint`): areas' labels from it, not from the areas,
+ * which MapLibre labels once per tile they cross.
+ */
+export const LABEL_SOURCE = "osm-labels";
 
 const kind: ExpressionSpecification = ["get", "@kind"];
 const isPolygon: ExpressionSpecification = [
@@ -610,10 +615,10 @@ export function indoorLayers(
 		{
 			id: "indoor-labels",
 			type: "symbol",
-			source: INDOOR_SOURCE,
+			source: LABEL_SOURCE,
 			filter: onLevel([
 				"all",
-				["any", isPoint, isPolygon],
+				isPoint,
 				[
 					"any",
 					["has", "@icon"],

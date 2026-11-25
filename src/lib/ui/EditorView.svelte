@@ -177,8 +177,9 @@
 	import { extentOf, extentsIntersect, fromLocal } from "#lib/osm/geometry.ts";
 	import { entityExtent } from "#lib/osm/relations.ts";
 	import { hasInterestingTags } from "#lib/osm/tags.ts";
-	import { Autosave } from "#lib/persist/autosave.ts";
+	import { openAutosave } from "#lib/persist/autosave.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
+	import { browserStorage, NO_STORAGE } from "#lib/persist/storage.ts";
 	import {
 		type Appearance,
 		type AppearanceSettings,
@@ -288,16 +289,7 @@
 
 	/** Snapping, angle step and units (C.1), kept in this browser. */
 	const precision = setPrecision(
-		new PrecisionSettings(
-			(() => {
-				try {
-					return localStorage;
-				} catch {
-					return undefined;
-				}
-			})(),
-			navigator.language,
-		),
+		new PrecisionSettings(browserStorage(), navigator.language),
 	);
 	/** What the pointer snapped to and the lengths shown while drawing or dragging. */
 	let feedback = $state.raw<Feedback | null>(null);
@@ -314,7 +306,7 @@
 	}
 
 	// Edits are saved in this browser as they are made, and offered back on start.
-	const autosave = new EditAutosave(editor, new Autosave());
+	const autosave = new EditAutosave(editor, openAutosave());
 	$effect(() => {
 		// Edits made on JOSM's data aren't OSM's to restore later.
 		if (josm) return;
@@ -688,12 +680,12 @@
 		onnorth: () => map?.easeTo({ bearing: 0 }),
 	});
 	/** The side panel's width, as the user left it, kept within the window. */
-	let panelWidth = $state(rememberedWidth(localStorage));
+	let panelWidth = $state(rememberedWidth(browserStorage() ?? NO_STORAGE));
 	const panelBounds = $derived(widthBounds(innerWidth.current ?? 1280));
 	const shownPanelWidth = $derived(clampWidth(panelWidth, panelBounds));
 	function keepPanelWidth(width: number) {
 		panelWidth = width;
-		rememberWidth(localStorage, width);
+		rememberWidth(browserStorage() ?? NO_STORAGE, width);
 	}
 	let map = $state.raw<MapLibreMap>();
 	let camera = $state.raw<Omit<View, "level">>();

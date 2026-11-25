@@ -4,7 +4,12 @@ import type { Entity, NodeId } from "#lib/osm/entity.ts";
 import { node, relation, way } from "#lib/osm/fixtures.ts";
 import { Graph } from "#lib/osm/graph.ts";
 import { PresetIndex } from "#lib/presets/presets.ts";
-import { buildFeatures, levelFilter } from "./features.ts";
+import {
+	buildFeatures,
+	knownLevels,
+	labelPoint,
+	levelFilter,
+} from "./features.ts";
 
 /** Node id n{prefix}{i}, e.g. n12. */
 const nid = (prefix: number, i: number): NodeId => `n${prefix * 10 + i}`;
@@ -477,5 +482,60 @@ describe("levelFilter", () => {
 
 	it("treats level 0 as a real level", () => {
 		expect(visibleOn(0)).toEqual(["n5", "n7", "w1"]);
+	});
+});
+
+describe("knownLevels", () => {
+	it("lists a stray huge range by its ends only, at once", () => {
+		const started = performance.now();
+		expect(
+			knownLevels([[{ min: 0, max: 10_000_000 }], [{ min: 1, max: 1 }]]),
+		).toEqual([0, 1, 10_000_000]);
+		expect(performance.now() - started).toBeLessThan(50);
+	});
+});
+
+describe("labelPoint: one label per feature, wherever the map's tiles cut it", () => {
+	it("labels an area once, at a point well inside it", () => {
+		// An L-shaped room: its centroid (1.17, 1.17) would sit in the notch, outside it.
+		const entities = [
+			node("n1", {}, [0, 0]),
+			node("n2", {}, [4, 0]),
+			node("n3", {}, [4, 1]),
+			node("n4", {}, [1, 1]),
+			node("n5", {}, [1, 4]),
+			node("n6", {}, [0, 4]),
+			way("w1", ["n1", "n2", "n3", "n4", "n5", "n6", "n1"], {
+				indoor: "room",
+				level: "0",
+				name: "Hall",
+			}),
+		];
+		const room = feature(entities, "w1");
+		const label = room && labelPoint(room);
+		expect(label?.geometry.type).toBe("Point");
+		const [x = Number.NaN, y = Number.NaN] =
+			label?.geometry.type === "Point" ? label.geometry.coordinates : [];
+		// Inside the L, not in its notch.
+		expect(x < 1 || y < 1).toBe(true);
+		expect(x > 0 && y > 0).toBe(true);
+		expect(label?.properties).toMatchObject({
+			"@id": "w1",
+			"@label": "Hall",
+			"@lv": room?.properties["@lv"],
+			"@area": "yes",
+		});
+	});
+
+	it("labels a point where it is, and nothing without a label or icon", () => {
+		const entities = [
+			node("n1", { amenity: "bench", name: "Bench", level: "0" }, [1, 2]),
+			...square(2, 0, 0),
+			way("w2", ring(2), { indoor: "room", level: "0" }),
+		];
+		const bench = feature(entities, "n1");
+		expect(bench && labelPoint(bench)).toBe(bench);
+		const room = feature(entities, "w2");
+		expect(room && labelPoint(room)).toBeNull();
 	});
 });

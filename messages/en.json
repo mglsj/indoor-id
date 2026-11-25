@@ -110,6 +110,7 @@
 	"fix_upgrade_tags": "Upgrade to {tags}",
 	"fix_remove_tags": "Remove {tags}",
 	"issue_unreadable_level": "{key}={value} can't be read. Use numbers like 0, -1, 0.5, lists like 0;1 or ranges like 0-2.",
+	"issue_implausible_level_range": "{key}={value} spans more levels than any building has. Check the value: it may be a typo, like 0-100 for 0-10.",
 	"issue_unreadable_level_comma": "{key}={value} can't be read. Separate levels with ; (e.g. 0;1) and write decimals with . (e.g. 0.5).",
 	"issue_vertical_repeat_on": "Stairs and elevators connect levels: list them all in level, not in repeat_on.",
 	"fix_set_level": "Set level={level}",

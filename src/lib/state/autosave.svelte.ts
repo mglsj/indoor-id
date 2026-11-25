@@ -23,7 +23,8 @@ export class EditAutosave {
 	offer = $state.raw<Offer | null>(null);
 
 	readonly #editor: Editor;
-	readonly #store: Autosave;
+	/** None where the browser's storage can't be used: nothing is saved or offered. */
+	readonly #store: Autosave | null;
 	readonly #delay: number;
 	/** Nothing is saved before the edits found on start are restored or discarded. */
 	#ready = false;
@@ -32,7 +33,7 @@ export class EditAutosave {
 	/** What the last save wrote, to skip saves that would write the same. */
 	#saved: unknown[] = [];
 
-	constructor(editor: Editor, store: Autosave, { delay = 1_000 } = {}) {
+	constructor(editor: Editor, store: Autosave | null, { delay = 1_000 } = {}) {
 		this.#editor = editor;
 		this.#store = store;
 		this.#delay = delay;
@@ -40,9 +41,11 @@ export class EditAutosave {
 
 	/** Beats for the tab's lock and looks for edits to offer. */
 	async start(): Promise<void> {
-		this.#store.heartbeat();
-		this.#beat = setInterval(() => this.#store.heartbeat(), HEARTBEAT_MS);
-		const [edits] = await this.#store.restorable().catch(warn([]));
+		const store = this.#store;
+		if (!store) return;
+		store.heartbeat();
+		this.#beat = setInterval(() => store.heartbeat(), HEARTBEAT_MS);
+		const [edits] = await store.restorable().catch(warn([]));
 		if (!edits) {
 			this.#ready = true;
 			this.changed();
@@ -80,7 +83,8 @@ export class EditAutosave {
 	/** Saves now (the tab is being hidden). */
 	async flush(): Promise<void> {
 		clearTimeout(this.#timer);
-		if (!this.#ready) return;
+		const store = this.#store;
+		if (!this.#ready || !store) return;
 		const { history, sync } = this.#editor;
 		const state = [history.graph, sync.failedChangeset];
 		if (state.every((value, i) => value === this.#saved[i])) return;
@@ -88,8 +92,8 @@ export class EditAutosave {
 		const changeset = sync.failedChangeset;
 		const saving =
 			history.editCount > 0 || changeset !== undefined
-				? this.#store.save(history.save(), { changeset })
-				: this.#store.clear();
+				? store.save(history.save(), { changeset })
+				: store.clear();
 		await saving.catch(warn(undefined));
 	}
 
@@ -99,7 +103,8 @@ export class EditAutosave {
 	}
 
 	async #claim(edits: SavedEdits, restore: boolean): Promise<void> {
-		const claimed = await this.#store.claim(edits).catch(warn(false));
+		const claimed =
+			(await this.#store?.claim(edits).catch(warn(false))) ?? false;
 		if (claimed && restore) {
 			this.#editor.history.restore(edits.history);
 			this.#editor.sync.failedChangeset = edits.changeset;
