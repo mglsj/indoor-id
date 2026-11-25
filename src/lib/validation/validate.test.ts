@@ -70,12 +70,9 @@ describe("upgradeTags", () => {
 
 describe("validate: outdated tags", () => {
 	it.each([
+		[{ room: "stairs" }, { indoor: "room", stairs: "yes" }],
 		[
-			{ indoor: "room", room: "stairs" },
-			{ indoor: "room", stairs: "yes" },
-		],
-		[
-			{ indoor: "room", room: "elevator" },
+			{ room: "elevator" },
 			{ indoor: "room", elevator: "yes", highway: "elevator" },
 		],
 		[
@@ -285,6 +282,15 @@ describe("validate: indoor tagging (osm-simple3d-editor's checks)", () => {
 			expect(issue?.fix).toBeUndefined();
 		},
 	);
+
+	it("keeps room=stairs and room=elevator on an indoor space, as osm-simple3d-editor writes them", () => {
+		for (const tags of [
+			{ indoor: "area", room: "stairs", level: "0;1" },
+			{ indoor: "room", room: "elevator", level: "0;1" },
+		]) {
+			expect(upgradeTags(tags, RULES)).toBe(tags);
+		}
+	});
 
 	it("leaves room=stairs and room=elevator to the upgrades", () => {
 		const rules = issuesOf(roomWith({ room: "stairs" }), "w1").map(

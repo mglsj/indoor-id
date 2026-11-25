@@ -21,6 +21,17 @@ describe("generated presets", () => {
 		[{ entrance: "main" }, "vertex", "Main Entrance"],
 		[{ highway: "elevator" }, "vertex", "Elevator"],
 		[{ indoor: "room", amenity: "toilets" }, "area", "Restroom"],
+		// As osm-simple3d-editor writes them (presets/indoor-conventions.ts).
+		[
+			{ indoor: "room", room: "toilets", amenity: "toilets" },
+			"area",
+			"Restroom",
+		],
+		[
+			{ highway: "steps", indoor: "yes", incline: "up", level: "0;1" },
+			"line",
+			"Steps",
+		],
 	] as const)("names %j (%s) %j", (tags, geometry, name) => {
 		expect(index.match(tags, geometry).name).toBe(name);
 	});

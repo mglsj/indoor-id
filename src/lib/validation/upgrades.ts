@@ -8,6 +8,8 @@ import type { Tags } from "#lib/osm/tags.ts";
 export interface UpgradeRule {
 	readonly old: Tags;
 	readonly replace?: Tags;
+	/** Keys that must be missing for the rule to apply (IndoorID's, not iD's format). */
+	readonly absent?: readonly string[];
 }
 
 /**
@@ -35,10 +37,17 @@ export const LOCAL_UPGRADES: readonly UpgradeRule[] = [
 	{ old: { buildingpart: "room" }, replace: { indoor: "room" } },
 	{ old: { buildingpart: "corridor" }, replace: { indoor: "corridor" } },
 	{ old: { buildingpart: "hall" }, replace: { indoor: "area" } },
-	{ old: { room: "stairs" }, replace: { indoor: "room", stairs: "yes" } },
+	// `room=*` as the main type (no `indoor`). With `indoor`, `room=stairs|elevator` is the
+	// purpose of a room or area, as osm-simple3d-editor writes it: kept.
+	{
+		old: { room: "stairs" },
+		replace: { indoor: "room", stairs: "yes" },
+		absent: ["indoor"],
+	},
 	{
 		old: { room: "elevator" },
 		replace: { indoor: "room", elevator: "yes", highway: "elevator" },
+		absent: ["indoor"],
 	},
 	// osm-simple3d-editor `831fc28`: a column is indoor=column, not a room (W2).
 	{ old: { indoor: "room", room: "column" }, replace: { indoor: "column" } },
@@ -58,6 +67,7 @@ export function upgradeTags(tags: Tags, rules: readonly UpgradeRule[]): Tags {
 	let result = tags;
 	for (const rule of rules) {
 		if (!matches(result, rule.old)) continue;
+		if (rule.absent?.some((key) => result[key] !== undefined)) continue;
 		const wildcard = Object.keys(rule.old).find((k) => rule.old[k] === "*");
 		const matched = wildcard === undefined ? "" : (result[wildcard] ?? "");
 		const next: Record<string, string> = { ...result };

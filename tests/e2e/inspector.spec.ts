@@ -164,11 +164,17 @@ test("Escape and clicking elsewhere close the editor", async ({ page }) => {
 test("fixes outdated tags in one click, and the fix can be undone", async ({
 	page,
 }) => {
-	const editor = await selectRoom(page, { room: "stairs" });
+	// `room=stairs` as the main type, without `indoor` (with it, a purpose: kept).
+	const elements = room(100, LON, LAT, "0");
+	const way = elements.at(-1) as { tags: Record<string, string> };
+	way.tags = { room: "stairs", level: "0" };
+	const editor = await selectRoom(page, {}, elements);
 	const issues = editor.getByRole("region", { name: "Issues" });
 	await expect(issues).toContainText("Outdated tags: room=stairs");
 
-	await issues.getByRole("button", { name: "Upgrade to stairs=yes" }).click();
+	await issues
+		.getByRole("button", { name: "Upgrade to indoor=room, stairs=yes" })
+		.click();
 	await expect(await tagsBox(page)).toHaveValue(
 		"indoor=room\nlevel=0\nstairs=yes",
 	);
@@ -176,9 +182,7 @@ test("fixes outdated tags in one click, and the fix can be undone", async ({
 	await expect(issues).toBeHidden();
 
 	await page.getByRole("button", { name: "Undo" }).click();
-	await expect(await tagsBox(page)).toHaveValue(
-		"indoor=room\nlevel=0\nroom=stairs",
-	);
+	await expect(await tagsBox(page)).toHaveValue("level=0\nroom=stairs");
 });
 
 test("flags a level value it can't read", async ({ page }) => {

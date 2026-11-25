@@ -14,13 +14,16 @@ import type { OperationResult } from "#lib/edit/operations.ts";
 import { mapFloor as drawFloor } from "#lib/edit/unmapped-floor.ts";
 import { msg } from "#lib/i18n/messages.ts";
 import { labelFor } from "#lib/map/classify.ts";
+import { knownLevels } from "#lib/map/features.ts";
 import type {
 	Entity,
 	EntityId,
 	Relation,
 	RelationId,
 } from "#lib/osm/entity.ts";
-import type { Preset } from "#lib/presets/presets.ts";
+import type { Tags } from "#lib/osm/tags.ts";
+import { asFlight, withRoomPurpose } from "#lib/presets/indoor-conventions.ts";
+import type { Preset, PresetGeometry } from "#lib/presets/presets.ts";
 import type { Fix, Issue } from "#lib/validation/validate.ts";
 import type { Editor } from "./editor.svelte.ts";
 
@@ -42,18 +45,42 @@ export function setPreset(
 	preset: Preset,
 ): void {
 	const geometry = editor.geometryOf(entity);
-	const tags =
+	const changed =
 		editor.catalog.presets?.changePreset(
 			entity.tags,
 			editor.presetOf(entity),
 			preset,
 			geometry,
 		) ?? entity.tags;
+	const tags = editor.scope.active
+		? indoorConventions(editor, changed, geometry)
+		: changed;
 	editor.history.perform(
 		changeTags(entity.id, tags),
 		msg("undo_change_preset", { preset: preset.name }),
 	);
 	editor.catalog.recentPresets.add(preset.id, geometry);
+}
+
+/**
+ * Inside a building, a type chosen follows osm-simple3d-editor's indoor tagging
+ * (`presets/indoor-conventions.ts`): a purpose on an area makes it a room with that `room`,
+ * Steps on a line make a flight to the next level.
+ */
+function indoorConventions(
+	editor: Editor,
+	tags: Tags,
+	geometry: PresetGeometry,
+): Tags {
+	if (geometry === "area") return withRoomPurpose(tags);
+	if (geometry === "line") {
+		const levels = knownLevels([
+			...editor.features.levels.map((l) => [{ min: l, max: l }]),
+			editor.floors,
+		]);
+		return asFlight(tags, levels);
+	}
+	return tags;
 }
 
 /** How a relation reads in lists: its type, then its name (iD's `baseDisplayValue`). */
@@ -149,10 +176,11 @@ export function mapFloor(editor: Editor, preset: Preset | null): void {
 	if (!floor || editor.history.locked) return;
 	// As an indoor feature on the level: a preset adds no `building` default.
 	const start = { indoor: "area", level: String(floor.level) };
-	const tags =
+	const tags = withRoomPurpose(
 		(preset &&
 			editor.catalog.presets?.changePreset(start, undefined, preset, "area")) ??
-		start;
+			start,
+	);
 	let select: readonly EntityId[] = [];
 	editor.history.perform((graph) => {
 		const done = drawFloor(graph, floor, tags);

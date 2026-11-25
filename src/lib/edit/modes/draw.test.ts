@@ -379,7 +379,7 @@ describe("drawPointMode", () => {
 		}));
 		drawPointMode(options).click?.(at(1, 0.01));
 		const door = history.graph.entity(finished[0] ?? "n0");
-		expect(door?.tags).toEqual({ indoor: "door", door: "yes" });
+		expect(door?.tags).toEqual({ indoor: "door", door: "yes", level: "1" });
 		expect(history.canUndo).toBe(true);
 	});
 
