@@ -187,6 +187,15 @@ const WORLD_AT_17 = 512 * 2 ** 17;
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6378137;
 
 /**
+ * A length on the ground in pixels at zoom 17, at a latitude in degrees: Web Mercator stretches
+ * lengths by 1 / cos(latitude). The style scales it with the zoom.
+ */
+export function pixelsAtZ17(metres: number, lat: number): number {
+	const stretch = 1 / Math.cos((lat * Math.PI) / 180);
+	return (metres * stretch * WORLD_AT_17) / EARTH_CIRCUMFERENCE;
+}
+
+/**
  * Properties the style uses: `@kind`, and when relevant `@icon`, `@label`, `@entrance` (an
  * entrance's label in the viewer, P6), `@restricted`,
  * `@building` for the building outlines floor plans are placed against, `@part` for building
@@ -220,18 +229,13 @@ function drawingProperties(
 	}
 	const width = kind === "door" && type === "Point" ? doorWidth(tags) : null;
 	if (width !== null && geometry.type === "Point") {
-		// Web Mercator stretches lengths by 1 / cos(latitude).
-		const lat = ((geometry.coordinates[1] ?? 0) * Math.PI) / 180;
-		const pixels =
-			((width / 2 / Math.cos(lat)) * WORLD_AT_17) / EARTH_CIRCUMFERENCE;
-		props["@door-r17"] = pixels.toFixed(3);
+		const lat = geometry.coordinates[1] ?? 0;
+		props["@door-r17"] = pixelsAtZ17(width / 2, lat).toFixed(3);
 	}
 	const gauge = type === "LineString" ? trackGauge(tags) : null;
 	if (gauge !== null && geometry.type === "LineString") {
-		const lat = ((geometry.coordinates[0]?.[1] ?? 0) * Math.PI) / 180;
-		const pixels =
-			((gauge / 2 / Math.cos(lat)) * WORLD_AT_17) / EARTH_CIRCUMFERENCE;
-		props["@rail-r17"] = pixels.toFixed(4);
+		const lat = geometry.coordinates[0]?.[1] ?? 0;
+		props["@rail-r17"] = pixelsAtZ17(gauge / 2, lat).toFixed(4);
 	}
 	return props;
 }

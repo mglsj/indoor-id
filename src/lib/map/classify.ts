@@ -3,7 +3,7 @@
  * expressions. The rules follow the OsmInEdit stylesheet (`public/style.mapcss`) and Simple Indoor
  * Tagging, plus older tags still found in the data (`room=*`, `buildingpart=*`).
  */
-import type { Tags } from "#lib/osm/tags.ts";
+import { isVertical, type Tags } from "#lib/osm/tags.ts";
 import type { Preset } from "#lib/presets/presets.ts";
 
 export type FeatureKind =
@@ -38,7 +38,6 @@ const SPACE_ROOMS = new Set([
 	"collection",
 	"entrance",
 ]);
-const VERTICAL_ROOMS = new Set(["stairs", "escalator", "elevator"]);
 const SPACE_HIGHWAYS = new Set(["pedestrian", "footway", "corridor"]);
 
 export function classify(tags: Tags, geometry: GeometryType): FeatureKind {
@@ -127,18 +126,6 @@ export function isIndoorFence(tags: Tags): boolean {
 export function isBuildingOutline(tags: Tags, geometry: GeometryType): boolean {
 	const surface = geometry === "Polygon" || geometry === "MultiPolygon";
 	return surface && tags.building !== undefined && tags.building !== "no";
-}
-
-function isVertical(tags: Tags): boolean {
-	return (
-		tags.stairs === "yes" ||
-		tags.elevator === "yes" ||
-		tags.highway === "elevator" ||
-		tags.highway === "steps" ||
-		tags.conveying !== undefined ||
-		(tags.room !== undefined && VERTICAL_ROOMS.has(tags.room)) ||
-		tags.buildingpart === "verticalpassage"
-	);
 }
 
 function isSpace(tags: Tags): boolean {
