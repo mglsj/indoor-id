@@ -13,6 +13,11 @@
 		readonly badge?: number;
 		/** The pane, given a function that closes it. */
 		readonly content: Snippet<[close: () => void]>;
+		/**
+		 * Asked before the pane closes or another opens in its place: calls `close` once it may
+		 * (the floor plans pane asks about unsaved changes first). Closes at once when unset.
+		 */
+		readonly beforeClose?: (close: () => void) => void;
 	}
 </script>
 
@@ -21,10 +26,11 @@
 	 * The map every page shows (R5): the MapLibre map with the indoor features of `getEditor()`,
 	 * the shown level and its switcher, the URL hash, the background (the light basemap, imagery
 	 * or a solid colour, chosen in a pane opened from the top right; the map stays light in the
-	 * dark theme), place search and the download status. Pages add their controls and panels
-	 * through the snippets, and panes of their own beside the background's (`panes`, one open at
-	 * a time); the editor
-	 * (`EditorView`) adds modes, drawing, floor plans and upload on top.
+	 * dark theme), place search (in the header, A.2) and the download status. Pages add their
+	 * controls and panels through the snippets, and panes of their own beside the background's
+	 * (`panes`, one open at a time); the editor (`EditorView`) adds modes, drawing, floor plans
+	 * and upload on top. Pills at the bottom middle share one stack (A.2), so they never
+	 * overlap: the page's `hints` on top, the load status, then the page's `modeBar`.
 	 */
 	import CircleAlert from "@lucide/svelte/icons/circle-alert";
 	import Layers from "@lucide/svelte/icons/layers";
@@ -54,9 +60,11 @@
 	import { BackgroundSettings } from "#lib/state/background.svelte.ts";
 	import { getEditor } from "#lib/state/editor.svelte.ts";
 	import BackgroundPane from "#lib/ui/BackgroundPane.svelte";
+	import { getHeader, useHeaderSlot } from "#lib/ui/header.svelte.ts";
 	import LevelControl from "#lib/ui/LevelControl.svelte";
 	import MapView from "#lib/ui/MapView.svelte";
 	import SearchPlace from "#lib/ui/SearchPlace.svelte";
+	import StatusPill from "#lib/ui/StatusPill.svelte";
 	import { goto } from "$app/navigation";
 
 	type Camera = Omit<View, "level">;
@@ -85,10 +93,14 @@
 		levelSwitcher?: boolean;
 		/** The imagery shown changed (null: the map alone), and once at first. */
 		onbackground?: (imagery: Imagery | null) => void;
-		/** Controls under the place search. */
+		/** Controls at the top left of the map. */
 		controls?: Snippet;
-		/** Controls under the place search and `controls`. */
+		/** Controls under `controls`. */
 		tools?: Snippet;
+		/** Hints at the bottom middle, above the load status. */
+		hints?: Snippet;
+		/** The bar at the bottom middle, under the load status (building mode's). */
+		modeBar?: Snippet;
 		/** Panels, hints and dialogs over the map. */
 		children?: Snippet;
 		/** Panes of the page's own, opened from buttons under the background's. */
@@ -114,12 +126,15 @@
 		onbackground,
 		controls,
 		tools,
+		hints,
+		modeBar,
 		children,
 		panes = [],
 		openPane = $bindable(null),
 	}: Props = $props();
 
 	const editor = getEditor();
+	useHeaderSlot(getHeader(), "search", () => searchBox);
 	/** Enters what a link names: a building, or `here`, the loose indoor data (B.3). */
 	function enterFromUrl(building: NonNullable<View["building"]>) {
 		if (building === "here") editor.scope.enterLoose();
@@ -133,10 +148,17 @@
 	const backgroundOpen = $derived(openPane === "background");
 	const shownPane = $derived(panes.find((pane) => pane.id === openPane));
 	const paneOpen = $derived(backgroundOpen || shownPane !== undefined);
-	function toggle(pane: string) {
-		openPane = openPane === pane ? null : pane;
+	/** Opens `next` (null: none), once the pane open now may close. */
+	function switchPane(next: string | null) {
+		const leaving = panes.find((pane) => pane.id === openPane);
+		const go = () => (openPane = next);
+		if (leaving?.beforeClose && next !== openPane) leaving.beforeClose(go);
+		else go();
 	}
-	const closePane = () => (openPane = null);
+	function toggle(pane: string) {
+		switchPane(openPane === pane ? null : pane);
+	}
+	const closePane = () => switchPane(null);
 	/** Its width in pixels (20rem). */
 	const PANE_WIDTH = 320;
 	/** Indoor features the map has drawn (for the e2e tests' `data-drawn`). */
@@ -292,6 +314,14 @@
 
 <svelte:window onhashchange={onHashChange} />
 
+{#snippet searchBox()}
+	<SearchPlace
+		getView={() => visibleExtent(map)}
+		onselect={showPlace}
+		baseUrl={config.nominatim_url}
+	/>
+{/snippet}
+
 <MapView
 	styleUrl={BASEMAP_STYLE}
 	coveredRight={paneOpen ? PANE_WIDTH : 0}
@@ -308,15 +338,13 @@
 
 {@render children?.()}
 
+<!-- The page's tools (A.2), never under the right column: as wide as the map leaves them, a
+     container their labels follow (`@min-[44rem]:`). -->
 <div
-	class="absolute top-4 z-20 flex flex-col items-start gap-2"
+	class="pointer-events-none absolute top-4 z-20 flex flex-col items-start gap-2 @container *:pointer-events-auto"
 	style:left={left > 0 ? `calc(${left}px + 1rem)` : "1rem"}
+	style:width="calc(100% - {left}px - {paneOpen ? PANE_WIDTH : 0}px - 15rem)"
 >
-	<SearchPlace
-		getView={() => visibleExtent(map)}
-		onselect={showPlace}
-		baseUrl={config.nominatim_url}
-	/>
 	{@render controls?.()}
 	{@render tools?.()}
 </div>
@@ -379,20 +407,26 @@
 	</div>
 {/if}
 
-{#if statusMessage}
-	<p
-		role="status"
-		data-testid="load-status"
-		class={[
-			"absolute bottom-10 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-popover px-4 py-1.5 text-sm shadow-md ring-1 ring-foreground/10",
-			editor.sync.status.kind === "error"
-				? "text-destructive"
-				: "text-popover-foreground",
-		]}
-	>
-		{#if editor.sync.status.kind === "error"}
-			<CircleAlert class="size-4 shrink-0" aria-hidden="true" />
-		{/if}
-		{statusMessage}
-	</p>
-{/if}
+<!-- One stack at the bottom middle (A.2), above the attribution: hints, the load status, the
+     mode bar. -->
+<div
+	class="pointer-events-none absolute bottom-9 z-20 flex w-max max-w-[min(90%,40rem)] -translate-x-1/2 flex-col items-center gap-2 *:pointer-events-auto"
+	style:left="calc({left}px + (100% - {left}px - {paneOpen
+		? PANE_WIDTH
+		: 0}px) / 2)"
+	data-testid="bottom-stack"
+>
+	{@render hints?.()}
+	{#if statusMessage}
+		<StatusPill
+			testid="load-status"
+			tone={editor.sync.status.kind === "error" ? "error" : "normal"}
+		>
+			{#if editor.sync.status.kind === "error"}
+				<CircleAlert class="size-4 shrink-0" aria-hidden="true" />
+			{/if}
+			{statusMessage}
+		</StatusPill>
+	{/if}
+	{@render modeBar?.()}
+</div>

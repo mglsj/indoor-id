@@ -58,7 +58,7 @@ describe("BuildingPanel", () => {
 		await userEvent.click(surroundings);
 		expect(onsurroundings).toHaveBeenCalledWith(false);
 		await userEvent.click(
-			page.getByRole("button", { name: "Back to the map (Escape)" }),
+			page.getByRole("button", { name: "Leave building (Esc)" }),
 		);
 		expect(ondone).toHaveBeenCalledOnce();
 	});

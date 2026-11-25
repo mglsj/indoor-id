@@ -65,7 +65,10 @@
 	data-testid="building-panel"
 	class="flex h-full w-full flex-col border-r bg-background shadow-lg"
 >
-	<header class="flex items-center gap-2 border-b px-4 py-3">
+	<!-- The mode's blue stripe, as the mode bar and the map's frame (A.2). -->
+	<header
+		class="flex items-center gap-2 border-b border-l-4 border-l-mode px-4 py-3"
+	>
 		<div class="min-w-0 flex-1">
 			<h2 class="truncate text-base font-semibold">{name}</h2>
 			<p class="text-xs text-muted-foreground">

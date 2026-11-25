@@ -29,6 +29,10 @@ export const test = base.extend({
 		await page.addInitScript(() => {
 			if (!localStorage.getItem("indoorid.area-fill"))
 				localStorage.setItem("indoorid.area-fill", "full");
+			// The hint on entering a building (A.2) is shown its 3 times already: it would sit
+			// over the map's bottom middle. `building-mode.spec.ts` tests it.
+			if (!localStorage.getItem("indoorid.building-hints"))
+				localStorage.setItem("indoorid.building-hints", "3");
 		});
 		await use(page);
 	},

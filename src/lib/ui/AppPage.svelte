@@ -22,6 +22,7 @@
 		localeNames,
 	} from "#lib/i18n/locale.ts";
 	import { msg, t } from "#lib/i18n/messages.ts";
+	import { HeaderSlots, setHeader } from "#lib/ui/header.svelte.ts";
 	import { goto } from "$app/navigation";
 	import { resolve } from "$app/paths";
 
@@ -35,6 +36,8 @@
 
 	// The language is loaded before any page renders (`+layout.ts`).
 	const configPromise = loadConfig();
+	/** What the page shows in the header: the breadcrumb, place search, its actions (A.2). */
+	const header = setHeader(new HeaderSlots());
 	const languages = localeNames();
 
 	const dark = $derived(mode.current === "dark");
@@ -93,11 +96,20 @@
 				t(msg("nav_help_title")),
 			)}
 		</nav>
+		{@render header.crumb?.()}
+		{#if header.search}
+			<div class="w-72 min-w-0 shrink">
+				{@render header.search()}
+			</div>
+		{/if}
+		<div class="ml-auto flex items-center gap-2">
+			{@render header.actions?.()}
+		</div>
 		<!-- The licenses of IndoorID and of what it ships, written by the build (vite.config.ts);
 		     relative, as the app may be served from a subfolder (pages have no trailing slash, so
 		     it is the same file from `/view`). -->
 		<a
-			class="ml-auto text-xs text-muted-foreground underline-offset-2 hover:underline"
+			class="text-xs text-muted-foreground underline-offset-2 hover:underline"
 			href="./licenses.md"
 			target="_blank"
 			rel="noopener"

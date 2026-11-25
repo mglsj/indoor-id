@@ -76,9 +76,15 @@ for (const theme of ["light", "dark"] as const) {
 			const pressed = page.getByRole("button", { name: "Draw line" });
 			await expect(pressed).toHaveAttribute("aria-pressed", "true");
 			const neighbour = page.getByRole("button", { name: "Draw area" });
-			const on = await rgb(page, await background(pressed), surface);
-			const off = await rgb(page, await background(neighbour), surface);
-			expect(contrast(on, off)).toBeGreaterThanOrEqual(3);
+			// Once the buttons' colour transition is over.
+			await expect
+				.poll(async () =>
+					contrast(
+						await rgb(page, await background(pressed), surface),
+						await rgb(page, await background(neighbour), surface),
+					),
+				)
+				.toBeGreaterThanOrEqual(3);
 		});
 
 		test("the selected level stands out from the others by 3:1", async ({
@@ -98,9 +104,14 @@ for (const theme of ["light", "dark"] as const) {
 			const selected = list.getByRole("radio", { name: "Level 0" });
 			const other = list.getByRole("radio", { name: "Level 1" });
 			await expect(selected).toHaveAttribute("data-state", "on");
-			const on = await rgb(page, await background(selected), surface);
-			const off = await rgb(page, await background(other), surface);
-			expect(contrast(on, off)).toBeGreaterThanOrEqual(3);
+			await expect
+				.poll(async () =>
+					contrast(
+						await rgb(page, await background(selected), surface),
+						await rgb(page, await background(other), surface),
+					),
+				)
+				.toBeGreaterThanOrEqual(3);
 		});
 
 		test("the focus ring is drawn at 3:1 or more", async ({ page }) => {

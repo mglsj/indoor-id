@@ -59,13 +59,10 @@
 	}
 </script>
 
-<div
-	class="flex w-80 max-w-[calc(100vw-6rem)] flex-col gap-1"
-	{onkeydown}
-	role="presentation"
->
+<!-- In the header (A.2): the results and errors open below it, over the page. -->
+<div class="relative w-full" {onkeydown} role="presentation">
 	<search>
-		<form onsubmit={search} class="rounded-md bg-background shadow-md">
+		<form onsubmit={search} class="rounded-md bg-background">
 			<InputGroup.Root>
 				<InputGroup.Input
 					type="search"
@@ -94,7 +91,7 @@
 
 	{#if results}
 		<div
-			class="overflow-hidden rounded-md bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
+			class="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-md bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
 		>
 			<ScrollArea class="*:data-[slot=scroll-area-viewport]:max-h-80">
 				<ul
@@ -129,7 +126,10 @@
 	{/if}
 
 	{#if error}
-		<Alert.Root variant="destructive" class="shadow-md">
+		<Alert.Root
+			variant="destructive"
+			class="absolute inset-x-0 top-full z-50 mt-1 shadow-md"
+		>
 			<CircleAlert />
 			<Alert.Description>{error}</Alert.Description>
 		</Alert.Root>

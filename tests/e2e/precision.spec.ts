@@ -384,11 +384,13 @@ test("a guide at a typed distance from a side is snapped to, and kept", async ({
 }) => {
 	await metric(page);
 	const { x, y } = await roomMap(page);
-	await page.getByRole("button", { name: "Measure and guide" }).click();
 	await page
-		.getByTestId("measure-mode")
-		.getByRole("radio", { name: "Guide" })
+		.getByRole("button", { name: "Measure and guide", exact: true })
 		.click();
+	// Measure or Guide: the split button's menu (A.2).
+	await page.getByTestId("measure-mode").click();
+	await page.getByRole("menuitemradio", { name: "Guide" }).click();
+	await expect(page.getByRole("menu")).toBeHidden();
 	await expect(page.getByTestId("draw-hint")).toContainText("guide");
 	// The room's north side, then 2 m north of it.
 	await page.mouse.click(x, y - 223);
@@ -435,10 +437,10 @@ test("guides line up with each other: parallel at a typed distance, or square th
 	await metric(page);
 	const { x, y } = await emptyMap(page);
 	await page.keyboard.press("m");
-	await page
-		.getByTestId("measure-mode")
-		.getByRole("radio", { name: "Guide" })
-		.click();
+	// Measure or Guide: the split button's menu (A.2).
+	await page.getByTestId("measure-mode").click();
+	await page.getByRole("menuitemradio", { name: "Guide" }).click();
+	await expect(page.getByRole("menu")).toBeHidden();
 	// Guide 1 through the centre, 37° from east (north up: the frame's angle is 0).
 	await page.mouse.click(x, y);
 	await page.mouse.move(x + 100, y);
