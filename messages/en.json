@@ -758,5 +758,16 @@
 	"members_role_of": "Role of {item}",
 	"plan_point_moves": "Moves the plan",
 	"relations_new": "New relation…",
-	"time_just_now": "just now"
+	"time_just_now": "just now",
+	"account_sign_in": "Sign in",
+	"account_sign_in_title": "Sign in with your OpenStreetMap account",
+	"account_signing_in": "Signing in…",
+	"account_menu": "Account: {name}",
+	"account_menu_unnamed": "Your account",
+	"account_signed_in_as": "Signed in as",
+	"account_on_osm": "Account on OpenStreetMap",
+	"account_sign_out": "Sign out",
+	"account_sign_out_title": "Sign out of OpenStreetMap?",
+	"account_sign_out_description": "IndoorID forgets your login in this browser. Edits you haven't uploaded stay here; sign in again to upload them.",
+	"account_sign_out_cancel": "Stay signed in"
 }

@@ -128,6 +128,7 @@
 	import { openAutosave } from "#lib/persist/autosave.ts";
 	import { IndexedDbPlanStore } from "#lib/persist/plan-store.ts";
 	import { browserStorage, NO_STORAGE } from "#lib/persist/storage.ts";
+	import { getAppSession } from "#lib/state/app-session.svelte.ts";
 	import {
 		type Appearance,
 		type AppearanceSettings,
@@ -156,7 +157,6 @@
 		type SnapOption,
 		setPrecision,
 	} from "#lib/state/precision.svelte.ts";
-	import { Session } from "#lib/state/session.svelte.ts";
 	import BuildingPanel from "#lib/ui/BuildingPanel.svelte";
 	import DrawToolbar from "#lib/ui/DrawToolbar.svelte";
 	import FloorPanel from "#lib/ui/FloorPanel.svelte";
@@ -189,7 +189,6 @@
 		previewFeatures,
 		previewInIndoorEqual,
 	} from "#lib/view/indoor-equal.ts";
-	import { resolve } from "$app/paths";
 
 	interface Props {
 		config: EditorConfig;
@@ -200,12 +199,8 @@
 	// The configuration is read once: it doesn't change while the editor runs.
 	const { session, editor, websiteUrl, josm } = untrack(() => {
 		const websiteUrl = config.oauth_url ?? config.osm_api_url;
-		const session = new Session({
-			oauthUrl: websiteUrl,
-			apiUrl: config.osm_api_url,
-			clientId: config.oauth_client_id,
-			redirectUri: new URL(resolve("/auth/callback"), location.href).href,
-		});
+		// The header's login (`AppPage`), shared by every page.
+		const session = getAppSession(config);
 		// `?source=josm`: JOSM's active layer, read-only (P6).
 		const josm =
 			new URLSearchParams(location.search).get("source") === "josm"

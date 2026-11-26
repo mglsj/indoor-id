@@ -45,6 +45,8 @@ const LOGIN_TIMEOUT_MS = 5 * 60_000;
 export class Session {
 	/** Display name of the logged-in user, once known. */
 	userName = $state<string | null>(null);
+	/** The user's OSM profile picture, once known (none when they haven't set one). */
+	avatarUrl = $state<string | null>(null);
 	loggedIn = $state(false);
 	readonly configured: boolean;
 
@@ -74,6 +76,13 @@ export class Session {
 				}) as unknown as AuthClient));
 		this.loggedIn = this.#auth?.authenticated() ?? false;
 		if (this.loggedIn) void this.#loadUser();
+	}
+
+	/** The logged-in user's page on the OSM website, once their name is known. */
+	get profileUrl(): string | null {
+		return this.userName === null
+			? null
+			: `${this.#oauthUrl}/user/${encodeURIComponent(this.userName)}`;
 	}
 
 	/** The access token for API calls, or null when logged out. */
@@ -153,6 +162,7 @@ export class Session {
 		this.#auth?.logout();
 		this.loggedIn = false;
 		this.userName = null;
+		this.avatarUrl = null;
 		if (token) void this.#revoke(token);
 	}
 
@@ -183,9 +193,12 @@ export class Session {
 				return;
 			}
 			const details = (await response.json()) as {
-				user?: { display_name?: string };
+				user?: { display_name?: string; img?: { href?: string } };
 			};
+			// Logged out while asking.
+			if (this.token() !== token) return;
 			this.userName = details.user?.display_name ?? null;
+			this.avatarUrl = details.user?.img?.href ?? null;
 		} catch {
 			// The name is only informative; uploading will report real problems.
 		}
