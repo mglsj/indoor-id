@@ -78,7 +78,8 @@ runners), so run those locally when touching PDF import.
   `api/taginfo.ts` (value suggestions; e2e tests serve it with `serveTaginfo()`),
   `api/wikidata.ts` (Wikidata, Wikipedia search), `api/osm-wikibase.ts` (ⓘ documentation; e2e
   `serveWiki()`),
-  `state/session.svelte.ts` (osm-auth login), `ui/Inspector.svelte` (with `ui/PresetList.svelte`,
+  `state/session.svelte.ts` (osm-auth login; one per app, made by `AppPage` and read with
+  `getAppSession()` from `state/app-session.svelte.ts`, shown in the header by `ui/AccountMenu.svelte`), `ui/Inspector.svelte` (with `ui/PresetList.svelte`,
   `ui/FieldsSection.svelte`, `ui/FieldInput.svelte` choosing `ComboField`, `ChipsField`,
   `CheckField`, `RadioField`, `TextField`, `TextareaField`, `LocalizedField`, `AddressField`,
   `AccessField`, `WikidataField` or `WikipediaField`; `TagReference` + `InfoButton` for ⓘ;

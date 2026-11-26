@@ -104,3 +104,40 @@ describe("Session.logout", () => {
 		expect(String(revoke?.[1].body)).toBe("token=secret&client_id=client");
 	});
 });
+
+describe("Session: the logged-in user", () => {
+	const details = {
+		user: {
+			id: 42,
+			display_name: "Jane Mapper",
+			img: { href: "https://osm.example/avatar.png" },
+		},
+	};
+
+	it("reads the name and picture, and links the user's OSM page", async () => {
+		const fetch = vi.fn(async () => Response.json(details));
+		const s = session(fakeAuth("secret").auth, fetch);
+		await vi.waitFor(() => expect(s.userName).toBe("Jane Mapper"));
+		expect(s.avatarUrl).toBe("https://osm.example/avatar.png");
+		expect(s.profileUrl).toBe("https://osm.example/user/Jane%20Mapper");
+	});
+
+	it("has no picture when the user set none", async () => {
+		const fetch = vi.fn(async () =>
+			Response.json({ user: { display_name: "Jane" } }),
+		);
+		const s = session(fakeAuth("secret").auth, fetch);
+		await vi.waitFor(() => expect(s.userName).toBe("Jane"));
+		expect(s.avatarUrl).toBeNull();
+	});
+
+	it("forgets the user on logout", async () => {
+		const fetch = vi.fn(async () => Response.json(details));
+		const s = session(fakeAuth("secret").auth, fetch);
+		await vi.waitFor(() => expect(s.userName).toBe("Jane Mapper"));
+		s.logout();
+		expect(s.userName).toBeNull();
+		expect(s.avatarUrl).toBeNull();
+		expect(s.profileUrl).toBeNull();
+	});
+});

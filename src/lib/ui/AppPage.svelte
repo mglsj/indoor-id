@@ -1,7 +1,8 @@
 <script lang="ts">
 	/**
 	 * A page of the app: the header (name, version, the editor and viewer, licenses, the light or
-	 * dark theme: the system's until toggled, then remembered by mode-watcher, the language) and
+	 * dark theme: the system's until toggled, then remembered by mode-watcher, the language, the OSM
+	 * login: `AccountMenu`) and
 	 * the instance's `config.json` loaded before `children` render with it.
 	 */
 	import ChevronDown from "@lucide/svelte/icons/chevron-down";
@@ -25,6 +26,12 @@
 		localeNames,
 	} from "#lib/i18n/locale.ts";
 	import { msg, t } from "#lib/i18n/messages.ts";
+	import {
+		AppSession,
+		sessionFor,
+		setAppSession,
+	} from "#lib/state/app-session.svelte.ts";
+	import AccountMenu from "#lib/ui/AccountMenu.svelte";
 	import { HeaderSlots, setHeader } from "#lib/ui/header.svelte.ts";
 	import { goto } from "$app/navigation";
 	import { resolve } from "$app/paths";
@@ -37,8 +44,14 @@
 
 	let { page, children }: Props = $props();
 
-	// The language is loaded before any page renders (`+layout.ts`).
-	const configPromise = loadConfig();
+	/** The OSM login (header, uploads), made with the configuration. */
+	const appSession = setAppSession(new AppSession());
+	// The language is loaded before any page renders (`+layout.ts`). The session is set before
+	// `children` render: they read it.
+	const configPromise = loadConfig().then((config) => {
+		appSession.current = sessionFor(config);
+		return config;
+	});
 	/** What the page shows in the header: the breadcrumb, place search, its actions (A.2). */
 	const header = setHeader(new HeaderSlots());
 	const languages = localeNames();
@@ -256,6 +269,10 @@
 				<Moon />
 			{/if}
 		</Button>
+		<!-- The OSM login, last at the right (sign in, or the user's picture and menu). -->
+		{#if appSession.current}
+			<AccountMenu session={appSession.current} />
+		{/if}
 	</header>
 
 	<main class="relative min-h-0 flex-1">

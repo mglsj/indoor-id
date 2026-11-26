@@ -181,6 +181,61 @@ test("lists edits that clash with someone else's, and uploads the version kept",
 	expect(requests[1]?.body).toContain('<tag k="ref" v="B12"/>');
 });
 
+test("signs out from the header's account menu, once confirmed", async ({
+	page,
+}) => {
+	await loggedIn(page);
+	await page.route(`${API}/api/0.6/user/details.json`, (route) =>
+		route.fulfill({
+			json: {
+				user: {
+					display_name: "Tester",
+					img: { href: `${WEBSITE}/avatar.png` },
+				},
+			},
+		}),
+	);
+	// A 1×1 PNG: blocked, the picture would give way to the icon.
+	await page.route(`${WEBSITE}/avatar.png`, (route) =>
+		route.fulfill({
+			contentType: "image/png",
+			body: Buffer.from(
+				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+				"base64",
+			),
+		}),
+	);
+	await editRoomNumber(page);
+
+	const account = page.getByRole("button", { name: "Account: Tester" });
+	await expect(account.locator("img")).toHaveAttribute(
+		"src",
+		`${WEBSITE}/avatar.png`,
+	);
+	await account.click();
+	const popup = page.waitForEvent("popup");
+	await page
+		.getByRole("menuitem", { name: "Account on OpenStreetMap" })
+		.click();
+	await (await popup).waitForURL(`${WEBSITE}/user/Tester`);
+
+	await account.click();
+	await page.getByRole("menuitem", { name: "Sign out" }).click();
+	const confirm = page.getByRole("alertdialog", {
+		name: "Sign out of OpenStreetMap?",
+	});
+	await confirm.getByRole("button", { name: "Sign out" }).click();
+	await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+
+	// The upload shares the header's login.
+	await page.getByRole("button", { name: /Save/ }).click();
+	await expect(
+		page.getByRole("dialog", { name: "Upload your edits" }),
+	).toContainText("You will be asked");
+	// The edits stay.
+	await expect(page.getByTestId("edit-count")).toHaveText("1");
+});
+
 test("explains that login is not set up on this instance", async ({ page }) => {
 	// The shipped config.json has a client id: serve one without it.
 	await page.route("**/config.json", async (route) => {
