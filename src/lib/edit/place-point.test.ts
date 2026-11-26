@@ -84,7 +84,8 @@ describe("placePoint", () => {
 		expect(after?.entity("w4")).toMatchObject({ nodes: ["n8", id, "n9"] });
 	});
 
-	it("makes an entrance on the building's outline, on the shown level", () => {
+	it("makes an entrance on the building's outline, on the shown level, without indoor=door", () => {
+		// SIT (2026): an entrance is tagged entrance=* instead of indoor=door, and keeps door=*.
 		const g = graph();
 		const placed = placePoint(g, [0.5, 0], side("n1", "n2", [0.5, 0]), 0);
 		expect(placed?.kind).toBe("entrance");
@@ -93,7 +94,6 @@ describe("placePoint", () => {
 		expect(after?.entity(id)?.tags).toEqual({
 			entrance: "yes",
 			door: "yes",
-			indoor: "door",
 			level: "0",
 		});
 		// In the building and in the room along it.

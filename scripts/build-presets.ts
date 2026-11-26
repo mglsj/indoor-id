@@ -110,11 +110,29 @@ for (const [id, preset] of Object.entries(presets)) {
 	outPresets.push(own);
 }
 
-// Local presets and fields fill the gaps of the schema for Simple Indoor Tagging.
-for (const preset of overlay.presets) {
-	for (const field of [...preset.fields, ...(preset.moreFields ?? [])]) {
-		usedFields.add(field);
+// Local changes to the schema's presets (2026-11-26 conventions audit): `geometry`, `fields`
+// and `moreFields` are added to, `addTags` replaces the schema's.
+const extensions = overlay.extend as Record<string, Json>;
+for (const [id, change] of Object.entries(extensions)) {
+	const preset = outPresets.find((p) => p.id === id);
+	if (!preset) throw new Error(`overlay.json extends a missing preset: ${id}`);
+	for (const key of ["geometry", "fields", "moreFields"]) {
+		const more = change[key] as string[] | undefined;
+		if (!more) continue;
+		const now = (preset[key] as string[] | undefined) ?? [];
+		preset[key] = [...now, ...more.filter((v) => !now.includes(v))];
+		if (key !== "geometry") for (const field of more) usedFields.add(field);
 	}
+	if (change.addTags) preset.addTags = change.addTags;
+}
+
+// Local presets and fields fill the gaps of the schema for Simple Indoor Tagging.
+for (const preset of overlay.presets as Json[]) {
+	const fields = [
+		...(preset.fields as string[]),
+		...((preset.moreFields as string[] | undefined) ?? []),
+	];
+	for (const field of fields) usedFields.add(field);
 	outPresets.push(preset);
 }
 

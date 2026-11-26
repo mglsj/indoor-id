@@ -150,6 +150,8 @@ test("Repeat on levels puts a copy of the room on the level checked", async ({
 	await expect(inspector(page).root).toBeVisible();
 	await page.keyboard.press("r");
 	const dialog = page.getByRole("dialog", { name: "Repeat on levels" });
+	// SIT lists repeat_on for nodes only: a room isn't offered it.
+	await expect(dialog.getByRole("radio")).toHaveCount(2);
 	await dialog.getByRole("checkbox", { name: /^Level 1/ }).check();
 	await dialog.getByRole("button", { name: "Apply" }).click();
 	await expect(dialog).toBeHidden();

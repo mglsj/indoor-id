@@ -182,9 +182,12 @@ function itemOf(graph: Graph, way: Way): Item | null {
 	const extent = extentOf(ring);
 	if (!extent || ring.length < 4) return null;
 	const nonExistent = building ? nonExistentLevels(tags) : null;
-	// A building's own `level` says where it is drawn, not which levels it has.
+	// A building's own `level` says where it is drawn, not which levels it has. A part's
+	// levels count too: an underground part may reach beyond the outline (forum t/137537).
 	const buildingLevels =
-		building && tags.level === undefined && tags.repeat_on === undefined
+		(building || part) &&
+		tags.level === undefined &&
+		tags.repeat_on === undefined
 			? featureLevels(tags)
 			: null;
 	const outline: Outline = {

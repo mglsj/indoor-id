@@ -8,7 +8,12 @@ import type { Tags } from "#lib/osm/tags.ts";
 import { jitterCorners } from "./recheck.ts";
 import { type IssueRule, validate } from "./validate.ts";
 
-const W3: readonly IssueRule[] = ["wall-twice", "jitter", "door-on-side"];
+const W3: readonly IssueRule[] = [
+	"wall-twice",
+	"jitter",
+	"door-on-side",
+	"highway-ring",
+];
 
 /** A position `east` and `north` metres from (0, 0). */
 const at = (east: number, north: number) =>
@@ -312,6 +317,55 @@ describe("door on a side without being its node", () => {
 			}),
 		];
 		expect(rulesOf(nearWall, "n15")).toEqual([]);
+	});
+});
+
+describe("a path ring along a room's outline (forum t/138694)", () => {
+	const SQUARE: [number, number][] = [
+		[0, 0],
+		[5, 0],
+		[5, 5],
+		[0, 5],
+	];
+	const room = ring("w1", 1, SQUARE, { indoor: "room", level: "0" });
+	const nodes = room
+		.filter((e) => e.type === "node")
+		.map((e) => e.id as NodeId);
+
+	it("flags steps drawn round a room's outline, and deletes them on request", () => {
+		const steps = way("w2", [...nodes, nodes[0] as NodeId], {
+			highway: "steps",
+			level: "0",
+		});
+		const { graph, issues } = issuesOf([...room, steps], "w2");
+		expect(issues).toMatchObject([
+			{
+				rule: "highway-ring",
+				message: msg("issue_highway_ring", { highway: "steps" }),
+			},
+		]);
+		const after = issues[0]?.fix?.action(graph);
+		expect(after?.entity("w2")).toBeUndefined();
+		// The room keeps its nodes.
+		expect(after?.entity("w1")).toBeDefined();
+		expect(after?.entity("n1")).toBeDefined();
+	});
+
+	it("finds the ring whichever node it starts at", () => {
+		const [a, b, c, d] = nodes as [NodeId, NodeId, NodeId, NodeId];
+		const footway = way("w2", [c, d, a, b, c], { highway: "footway" });
+		expect(rulesOf([...room, footway], "w2")).toEqual(["highway-ring"]);
+	});
+
+	it("leaves alone a path through the room, a footway area and an open way", () => {
+		const [a, b, c] = nodes as [NodeId, NodeId, NodeId];
+		const across = way("w2", [a, c], { highway: "footway" });
+		const area = way("w3", [...nodes, a], { highway: "footway", area: "yes" });
+		const open = way("w4", [a, b, c], { highway: "steps" });
+		const entities = [...room, across, area, open];
+		for (const id of ["w2", "w3", "w4"] as const) {
+			expect(rulesOf(entities, id)).toEqual([]);
+		}
 	});
 });
 

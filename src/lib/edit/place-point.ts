@@ -2,7 +2,8 @@
  * The point tool (P5.3.4): what a click makes depends on where it snaps, as in
  * osm-simple3d-editor's point tool. On a side of a room, corridor, area, wall or level outline
  * it makes a door (`indoor=door` + `door=yes`) in every way with that side; on a building's
- * outline, an entrance (`entrance=yes` + `door=yes` + `indoor=door`) in the building's
+ * outline, an entrance (`entrance=yes` + `door=yes`; SIT tags entrances with `entrance=*`
+ * instead of `indoor=door`) in the building's
  * ways and the indoor ways sharing that side; on an untagged corner of those ways, that corner
  * becomes the door or entrance. On an indoor fence (P6) it makes a gate (`barrier=gate`), which
  * the user can make a turnstile. Each takes the shown level, as osm-simple3d-editor's do. Anywhere else it makes a point on the shown level, whose type
@@ -47,16 +48,11 @@ function roleOn(ways: readonly Way[]): Role {
 function roleTags(role: Role, level: number): Tags {
 	switch (role) {
 		// As osm-simple3d-editor places them: every door and gate carries its level, which
-		// it needs to draw them on the floor plan; an entrance is the ground floor's door too.
+		// it needs to draw them on the floor plan.
 		case "door":
 			return { indoor: "door", door: "yes", level: String(level) };
 		case "entrance":
-			return {
-				entrance: "yes",
-				door: "yes",
-				indoor: "door",
-				level: String(level),
-			};
+			return { entrance: "yes", door: "yes", level: String(level) };
 		case "gate":
 			return { barrier: "gate", level: String(level) };
 		default:

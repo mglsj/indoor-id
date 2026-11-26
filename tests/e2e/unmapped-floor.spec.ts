@@ -81,6 +81,6 @@ test("a feature type chosen for the floor maps it with that type's tags", async 
 	await panel.getByRole("option", { name: "Indoor Stairwell" }).click();
 	await expect(page.getByTestId("edit-count")).toHaveText("1");
 	await expect(await tagsBox(page)).toHaveValue(
-		"indoor=room\nlevel=0\nstairs=yes",
+		"indoor=room\nlevel=0\nroom=stairs\nstairs=yes",
 	);
 });

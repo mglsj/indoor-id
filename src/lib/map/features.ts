@@ -227,7 +227,10 @@ function drawingProperties(
 		const arrow = arrowOf(tags);
 		if (arrow) props["@arrow"] = arrow;
 	}
-	const width = kind === "door" && type === "Point" ? doorWidth(tags) : null;
+	const width =
+		(kind === "door" || kind === "window") && type === "Point"
+			? doorWidth(tags)
+			: null;
 	if (width !== null && geometry.type === "Point") {
 		const lat = geometry.coordinates[1] ?? 0;
 		props["@door-r17"] = pixelsAtZ17(width / 2, lat).toFixed(3);

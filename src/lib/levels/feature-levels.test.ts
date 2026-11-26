@@ -72,6 +72,10 @@ describe("featureLevels", () => {
 			).toBe("-2--1");
 		});
 
+		it("reads a basement part with only building:levels:underground (t/137537)", () => {
+			expect(levelsOf({ "building:levels:underground": "1" })).toBe("-1");
+		});
+
 		it("ignores a value that is not a number", () => {
 			expect(levelsOf({ "building:levels": "many" })).toBeNull();
 		});

@@ -131,10 +131,16 @@ function levelOutsideBuilding(
 	if (!levels || entity.type === "relation") return [];
 	const centre = centreOf(graph, entity);
 	if (!centre) return [];
-	const building = outlines
-		.at(centre)
-		.find((o) => o.building && o.buildingLevels && o.id !== entity.id);
+	const around = outlines.at(centre).filter((o) => o.id !== entity.id);
+	const building = around.find((o) => o.building && o.buildingLevels);
 	if (!building?.buildingLevels || overlap(levels, building.buildingLevels))
+		return [];
+	// A building part here having these levels (a basement part) says they exist.
+	if (
+		around.some(
+			(o) => o.part && o.buildingLevels && overlap(levels, o.buildingLevels),
+		)
+	)
 		return [];
 	return [
 		issue(

@@ -32,8 +32,67 @@ describe("generated presets", () => {
 			"line",
 			"Steps",
 		],
+		// The 2026-11-26 conventions audit (SIT and the Indoor OSM Workshop 2026).
+		[
+			{ indoor: "room", room: "stairs", stairs: "yes", level: "0;1" },
+			"area",
+			"Indoor Stairwell",
+		],
+		[{ indoor: "room", room: "stairs" }, "area", "Staircase"],
+		[
+			{ indoor: "area", room: "stairs", stairs: "yes" },
+			"area",
+			"Open Staircase",
+		],
+		[
+			{ indoor: "room", elevator: "yes", highway: "elevator" },
+			"area",
+			"Indoor Elevator Shaft",
+		],
+		[{ "area:highway": "steps", level: "0;1" }, "area", "Stairs Outline"],
+		[{ barrier: "step", level: "0" }, "vertex", "Step"],
+		[{ window: "yes", level: "1" }, "vertex", "Window"],
+		[{ indoor: "column", level: "0" }, "point", "Indoor Column"],
+		[{ indoor: "column", level: "0" }, "area", "Indoor Column"],
+		[{ indoor: "room", room: "classroom" }, "point", "Room"],
 	] as const)("names %j (%s) %j", (tags, geometry, name) => {
 		expect(index.match(tags, geometry).name).toBe(name);
+	});
+
+	it("writes both forms of a staircase and SIT's elevator shaft (2026-11-26 audit)", () => {
+		expect(index.preset("indoor/stairs")?.addTags).toEqual({
+			indoor: "room",
+			room: "stairs",
+			stairs: "yes",
+		});
+		expect(index.preset("indoor/stairs_open")?.addTags).toEqual({
+			indoor: "area",
+			room: "stairs",
+			stairs: "yes",
+		});
+		expect(index.preset("indoor/elevator")?.addTags).toEqual({
+			indoor: "room",
+			elevator: "yes",
+			highway: "elevator",
+		});
+	});
+
+	it("offers colour, material and the level's displayed name on doors and walls", () => {
+		const more = (id: string) => index.preset(id)?.moreFields ?? [];
+		for (const id of ["door", "indoor/door", "entrance"]) {
+			expect(more(id)).toEqual(
+				expect.arrayContaining(["level_ref", "colour", "material"]),
+			);
+		}
+		expect(more("entrance")).toEqual(
+			expect.arrayContaining(["width", "height"]),
+		);
+		expect(more("indoor/wall")).toEqual(
+			expect.arrayContaining(["width", "colour", "material"]),
+		);
+		for (const id of ["indoor/room", "indoor/area", "indoor/corridor"]) {
+			expect(more(id)).toContain("level_ref");
+		}
 	});
 
 	it("has the indoor fields, with labels", () => {

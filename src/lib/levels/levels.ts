@@ -35,6 +35,24 @@ export function parseLevels(value: string): Levels | null {
 	return normalizeLevels(ranges);
 }
 
+/**
+ * Whether a readable value lists its levels in order: no inverted range (`5-3`), each item
+ * above the one before, none repeated or overlapping (`1;2;1`, `0-2;1`). The Indoor OSM
+ * Workshop 2026 asks parsers to read such values anyway and validators to warn about them.
+ */
+export function isInOrder(value: string): boolean {
+	let previous = Number.NEGATIVE_INFINITY;
+	for (const item of value.split(";")) {
+		const match = ITEM.exec(item.trim());
+		if (!match) return true;
+		const a = Number(match[1]);
+		const b = match[2] === undefined ? a : Number(match[2]);
+		if (a > b || a <= previous) return false;
+		previous = b;
+	}
+	return true;
+}
+
 /** Sorts ranges and merges the ones that overlap. Touching single levels stay separate. */
 export function normalizeLevels(ranges: Iterable<LevelRange>): Levels {
 	const sorted = [...ranges].sort((a, b) => a.min - b.min || a.max - b.max);

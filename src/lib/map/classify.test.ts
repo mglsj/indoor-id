@@ -54,6 +54,14 @@ describe("classify", () => {
 		[{ indoor: "room", room: "corridor" }, "Polygon", "room"],
 		[{ indoor: "yes", room: "office" }, "Polygon", "room"],
 		[{ building: "no", amenity: "parking" }, "Polygon", "area"],
+		// The 2026-11-26 conventions audit (SIT, Indoor OSM Workshop 2026).
+		[{ window: "yes", level: "1" }, "Point", "window"],
+		[{ window: "no", level: "1" }, "Point", "poi"],
+		[{ window: "yes", door: "hinged" }, "Point", "door"],
+		[{ man_made: "column", level: "0" }, "Point", "column"],
+		[{ man_made: "column" }, "Point", "poi"],
+		[{ "area:highway": "steps", level: "0;1" }, "Polygon", "vertical"],
+		[{ indoor: "area", room: "stairs", stairs: "yes" }, "Polygon", "vertical"],
 	] as const)("%j as %s is a %s", (tags, geometry, kind) => {
 		expect(classify(tags, geometry)).toBe(kind);
 	});

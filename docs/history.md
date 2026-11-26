@@ -1980,6 +1980,42 @@ From research addendum C (forum t/148767 posts 170–215, osm-simple3d-editor `0
 - Not done: the background run of the upload check every 10 edits (`9ed266f`): the check is
   cheap at upload time, and the validator already shows what it can fix.
 
+### W4: Conventions from the 2026-11-26 audit — S–M — done
+
+From [conventions-2026-11-26.md](conventions-2026-11-26.md): SIT as edited after the Indoor OSM
+Workshop in Berlin (July 2026), the workshop's notes, the forum to 2026-11-25 and
+osm-simple3d-editor `a547bee` → `55dde63`. Done ✅ 2026-11-26, one PR:
+
+- **What IndoorID writes.** A new entrance is `entrance=yes` + `door=yes` + `level`, no longer
+  with `indoor=door` (SIT: entrances are tagged `entrance=*` instead of `indoor=door`; interior
+  doors keep `indoor=door` + `door=*`). The Repeat dialog offers `repeat_on` only for points,
+  or for a way that already has it (SIT lists `repeat_on` for nodes). A staircase is
+  `indoor=room` + `room=stairs` + `stairs=yes` (iD's `indoor/stairs` with `addTags`), a new
+  "Open Staircase" `indoor=area` + the same two, and `indoor=room` + `room=stairs` alone is
+  named Staircase (`indoor/stairs_room`, not searchable). An elevator shaft is `indoor=room` +
+  `elevator=yes` + `highway=elevator` (SIT's form, which routers read, and iD's).
+- **Presets** (`presets/overlay.json`): a new `extend` section adds `geometry`, `fields` and
+  `moreFields` to the schema's presets and replaces their `addTags` (`scripts/build-presets.ts`
+  refuses an unknown id). `level_ref`, `colour` and `material` on doors and entrances (plus
+  `width`, `height` on entrances), `width`, `colour`, `material` on walls, `level_ref` on rooms,
+  areas and corridors; `indoor/room` also on points (Tag:indoor=room `onNode=yes`, 2026-09).
+  New presets: Stairs Outline (`area:highway=steps`, SIT's optional outline of a flight), Step
+  (`barrier=step`, allowed indoors by the workshop), Window (`window=*`, fields `window`,
+  `level`, `repeat_on`, `width`, `height`) and Indoor Column (`indoor=column` on points,
+  vertices and areas: iD has no column preset). The building-mode type lists offer them.
+- **Map.** `window=*` nodes are a `window` kind, drawn like doors (as wide as `width`) in glass
+  blue; `man_made=column` with a level is a column (workshop: columns not part of the hull);
+  `area:highway=steps` is vertical, as stairs are.
+- **Validator.** `unordered-level`: a `level` or `repeat_on` with an inverted range or levels
+  out of order or repeated (`5-3`, `1;2;1`; `isInOrder` in `levels.ts`), fixed on click with
+  the normalised value (the workshop: parsers read them, validators warn). `repeat-on-way`:
+  `repeat_on` on a way that isn't stairs or an elevator, no fix. `highway-ring`
+  (`recheck.ts`): a closed `highway=steps|footway|corridor|path` way (no `area=yes`) on
+  exactly the nodes of a room, area or corridor (forum t/138694), fixed by deleting the ring.
+  `level-outside-building` accepts levels a building part at the feature has, and a part with
+  only `building:levels:underground` has those levels (`featureLevels`): underground parts may
+  reach beyond the outline (forum t/137537).
+
 ### P6.1: Recheck items from the 2026-11-24 research — S — done
 
 The four P6 items research addendum C added (osm-simple3d-editor `02c2bfd` → `a547bee`, forum
