@@ -21,7 +21,8 @@ bun run bench        # times the core on 10,000 synthetic rooms (scripts/bench-c
 ```
 
 Before pushing, run `lint`, `check`, `test:unit` and `test:e2e`. CI (`.github/workflows/ci.yml`)
-runs the same commands.
+runs the same commands, except the e2e tests tagged `@pdf` (PDF import, too slow for its
+runners), so run those locally when touching PDF import.
 
 ## Stack and layout
 

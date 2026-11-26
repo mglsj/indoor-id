@@ -25,6 +25,12 @@ import {
 const FILES = path.join(import.meta.dirname, "files");
 
 /**
+ * Tests that import a PDF. They render it in SwiftShader and time out at random on busy CI
+ * runners, so CI leaves them out (`--grep-invert @pdf`); `bun run test:e2e` still runs them.
+ */
+const PDF = { tag: "@pdf" };
+
+/**
  * Wide enough that plans and their control points stay clear of the floor plans pane, which
  * covers the right of the map (A.2). Only where it is needed: a bigger map is slower to draw
  * under SwiftShader, and CI's PDF tests are slow already.
@@ -139,45 +145,51 @@ test("imports an SVG plan as paths, without running its scripts, kept after a re
 	await expectPlanDrawn(page, [0, 255, 0], 4 / 3);
 });
 
-test("imports the chosen page of a PDF at the chosen resolution", async ({
-	page,
-}) => {
-	await importPlan(page, "plan.pdf");
+test(
+	"imports the chosen page of a PDF at the chosen resolution",
+	PDF,
+	async ({ page }) => {
+		await importPlan(page, "plan.pdf");
 
-	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
-	const pages = dialog.getByRole("checkbox");
-	await expect(pages).toHaveCount(2);
-	// The first page is chosen to start with.
-	await expect(dialog.getByRole("checkbox", { name: "Page 1" })).toBeChecked();
-	await expect(dialog.getByLabel("Resolution (DPI)")).toHaveValue("150");
-	await dialog.getByRole("radio", { name: "Image" }).click();
-	await dialog.getByRole("checkbox", { name: "Page 1" }).click();
-	await dialog.getByRole("checkbox", { name: "Page 2" }).click();
-	await dialog.getByRole("button", { name: "Import" }).click();
+		const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+		const pages = dialog.getByRole("checkbox");
+		await expect(pages).toHaveCount(2);
+		// The first page is chosen to start with.
+		await expect(
+			dialog.getByRole("checkbox", { name: "Page 1" }),
+		).toBeChecked();
+		await expect(dialog.getByLabel("Resolution (DPI)")).toHaveValue("150");
+		await dialog.getByRole("radio", { name: "Image" }).click();
+		await dialog.getByRole("checkbox", { name: "Page 1" }).click();
+		await dialog.getByRole("checkbox", { name: "Page 2" }).click();
+		await dialog.getByRole("button", { name: "Import" }).click();
 
-	// 4 × 3 inches at 150 DPI. Rendering in software takes a while when the machine is busy.
-	await expect(planRows(page)).toContainText(["600 × 450 px"], {
-		timeout: 20_000,
-	});
-	await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(
-		"plan, page 2",
-	);
-	await expectPlanDrawn(page, [0, 0, 255], 4 / 3);
-});
+		// 4 × 3 inches at 150 DPI. Rendering in software takes a while when the machine is busy.
+		await expect(planRows(page)).toContainText(["600 × 450 px"], {
+			timeout: 20_000,
+		});
+		await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(
+			"plan, page 2",
+		);
+		await expectPlanDrawn(page, [0, 0, 255], 4 / 3);
+	},
+);
 
-test("imports a PDF page from its paths, measured in points", async ({
-	page,
-}) => {
-	await importPlan(page, "plan.pdf");
-	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
-	await dialog.getByRole("radio", { name: "Vector" }).click();
-	await dialog.getByRole("button", { name: "Import" }).click();
-	await expect(dialog).toBeHidden({ timeout: 20_000 });
-	// 4 × 3 inches: 288 × 216 points, no pixels.
-	await expect(planRows(page).first()).toContainText("288 × 216");
-	await expect(planRows(page).first()).not.toContainText("px");
-	await expectPlanDrawn(page, [255, 0, 0], 4 / 3);
-});
+test(
+	"imports a PDF page from its paths, measured in points",
+	PDF,
+	async ({ page }) => {
+		await importPlan(page, "plan.pdf");
+		const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+		await dialog.getByRole("radio", { name: "Vector" }).click();
+		await dialog.getByRole("button", { name: "Import" }).click();
+		await expect(dialog).toBeHidden({ timeout: 20_000 });
+		// 4 × 3 inches: 288 × 216 points, no pixels.
+		await expect(planRows(page).first()).toContainText("288 × 216");
+		await expect(planRows(page).first()).not.toContainText("px");
+		await expectPlanDrawn(page, [255, 0, 0], 4 / 3);
+	},
+);
 
 /** The darkest channel value in a box of the screen: low where text is drawn. */
 async function darkest(
@@ -216,33 +228,37 @@ async function darkest(
 	);
 }
 
-test("draws a PDF's text as labels where the PDF has it", async ({ page }) => {
-	await importPlan(page, "layers.pdf");
-	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
-	await dialog.getByRole("radio", { name: "Vector" }).click();
-	await dialog.getByRole("button", { name: "Import" }).click();
-	await expect(dialog).toBeHidden({ timeout: 20_000 });
+test(
+	"draws a PDF's text as labels where the PDF has it",
+	PDF,
+	async ({ page }) => {
+		await importPlan(page, "layers.pdf");
+		const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+		await dialog.getByRole("radio", { name: "Vector" }).click();
+		await dialog.getByRole("button", { name: "Import" }).click();
+		await expect(dialog).toBeHidden({ timeout: 20_000 });
 
-	// 288 × 216 pt; "Hall" in 24 pt Helvetica, 41 pt long from (100, 100) up from the bottom
-	// left: its middle 23 pt left of the page's and level with it.
-	const { cx, cy, scale } = await initialLayout(page, 216);
-	const label = {
-		x: cx - (23 + 25) * scale,
-		y: cy - 15 * scale,
-		width: 50 * scale,
-		height: 30 * scale,
-	};
-	// Dark text (#333 at the plan's opacity, 0.5) where the label is; the page bare beside it.
-	// The label waits for its glyphs and a software-rendered frame: slow on a busy machine.
-	await expect
-		.poll(() => darkest(page, label), { timeout: 15_000 })
-		.toBeLessThan(170);
-	expect(await darkest(page, { ...label, x: cx + 20 * scale })).toBeGreaterThan(
-		200,
-	);
-});
+		// 288 × 216 pt; "Hall" in 24 pt Helvetica, 41 pt long from (100, 100) up from the bottom
+		// left: its middle 23 pt left of the page's and level with it.
+		const { cx, cy, scale } = await initialLayout(page, 216);
+		const label = {
+			x: cx - (23 + 25) * scale,
+			y: cy - 15 * scale,
+			width: 50 * scale,
+			height: 30 * scale,
+		};
+		// Dark text (#333 at the plan's opacity, 0.5) where the label is; the page bare beside it.
+		// The label waits for its glyphs and a software-rendered frame: slow on a busy machine.
+		await expect
+			.poll(() => darkest(page, label), { timeout: 15_000 })
+			.toBeLessThan(170);
+		expect(
+			await darkest(page, { ...label, x: cx + 20 * scale }),
+		).toBeGreaterThan(200);
+	},
+);
 
-test("hides a PDF's CAD layers, its text with them", async ({ page }) => {
+test("hides a PDF's CAD layers, its text with them", PDF, async ({ page }) => {
 	// Five redraws of a vector PDF in SwiftShader: on a busy CI runner they outlast 30 s
 	// (the test timed out after "Show all" in 3 of 10 runs, retries included).
 	test.slow();
@@ -281,34 +297,36 @@ test("hides a PDF's CAD layers, its text with them", async ({ page }) => {
 		.toBeLessThan(170);
 });
 
-test("imports several PDF pages as plans, all on the level shown", async ({
-	page,
-}) => {
-	await importPlan(page, "plan.pdf");
-	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
-	await dialog.getByRole("checkbox", { name: "Page 2" }).click();
-	await dialog.getByRole("button", { name: "Import 2 pages" }).click();
-	// Rendering two pages in software takes a while when the machine is busy.
-	await expect(dialog).toBeHidden({ timeout: 20_000 });
+test(
+	"imports several PDF pages as plans, all on the level shown",
+	PDF,
+	async ({ page }) => {
+		await importPlan(page, "plan.pdf");
+		const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+		await dialog.getByRole("checkbox", { name: "Page 2" }).click();
+		await dialog.getByRole("button", { name: "Import 2 pages" }).click();
+		// Rendering two pages in software takes a while when the machine is busy.
+		await expect(dialog).toBeHidden({ timeout: 20_000 });
 
-	// Top first: page 2, imported last and in Edit, then page 1; both on level 0.
-	await expect(planRows(page)).toHaveCount(2);
-	await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(
-		"plan, page 2",
-	);
-	const level = page.getByRole("textbox", { name: "Level", exact: true });
-	await expect(level).toHaveValue("0");
-	await expect(planRows(page).nth(1)).toContainText("plan, page 1");
-	await expect(planRows(page).nth(1)).toContainText("Level 0");
-	// Both shown, in the same spot: page 2 (blue) drawn over page 1 (red).
-	const { cx, cy } = await initialLayout(page, 300);
-	await expectPixel(
-		page,
-		cx,
-		cy,
-		blend([0, 0, 255], 0.5, blend([255, 0, 0], 0.5, BACKGROUND)),
-	);
-});
+		// Top first: page 2, imported last and in Edit, then page 1; both on level 0.
+		await expect(planRows(page)).toHaveCount(2);
+		await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(
+			"plan, page 2",
+		);
+		const level = page.getByRole("textbox", { name: "Level", exact: true });
+		await expect(level).toHaveValue("0");
+		await expect(planRows(page).nth(1)).toContainText("plan, page 1");
+		await expect(planRows(page).nth(1)).toContainText("Level 0");
+		// Both shown, in the same spot: page 2 (blue) drawn over page 1 (red).
+		const { cx, cy } = await initialLayout(page, 300);
+		await expectPixel(
+			page,
+			cx,
+			cy,
+			blend([0, 0, 255], 0.5, blend([255, 0, 0], 0.5, BACKGROUND)),
+		);
+	},
+);
 
 /** How many files plans were imported from are stored in IndexedDB. */
 function storedFiles(page: Page): Promise<number> {
@@ -331,49 +349,51 @@ function storedFiles(page: Page): Promise<number> {
 	);
 }
 
-test("exports plans in an archive with their PDF once, read back drawn again", async ({
-	page,
-}) => {
-	await importPlan(page, "plan.pdf");
-	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
-	await dialog.getByRole("checkbox", { name: "Page 2" }).click();
-	await dialog.getByRole("button", { name: "Import 2 pages" }).click();
-	await expect(dialog).toBeHidden({ timeout: 20_000 });
-	await expect.poll(() => storedFiles(page)).toBe(1);
+test(
+	"exports plans in an archive with their PDF once, read back drawn again",
+	PDF,
+	async ({ page }) => {
+		await importPlan(page, "plan.pdf");
+		const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+		await dialog.getByRole("checkbox", { name: "Page 2" }).click();
+		await dialog.getByRole("button", { name: "Import 2 pages" }).click();
+		await expect(dialog).toBeHidden({ timeout: 20_000 });
+		await expect.poll(() => storedFiles(page)).toBe(1);
 
-	const [download] = await Promise.all([
-		page.waitForEvent("download"),
-		page.getByRole("button", { name: "Export floor plans" }).click(),
-	]);
-	expect(download.suggestedFilename()).toBe("indoorid-floorplans.zip");
-	const bytes = readFileSync(await download.path());
-	const archive = unzipSync(bytes);
-	expect(Object.keys(archive).sort()).toEqual(["files/1.pdf", "plans.json"]);
-	const { version, plans } = JSON.parse(
-		strFromU8(archive["plans.json"] ?? new Uint8Array()),
-	);
-	expect(version).toBe(2);
-	expect(plans.map((p: { source: unknown }) => p.source)).toEqual([
-		// Auto: the test PDF's pages are paths.
-		{ kind: "pdf", file: "files/1.pdf", page: 1, dpi: 150, mode: "vector" },
-		{ kind: "pdf", file: "files/1.pdf", page: 2, dpi: 150, mode: "vector" },
-	]);
+		const [download] = await Promise.all([
+			page.waitForEvent("download"),
+			page.getByRole("button", { name: "Export floor plans" }).click(),
+		]);
+		expect(download.suggestedFilename()).toBe("indoorid-floorplans.zip");
+		const bytes = readFileSync(await download.path());
+		const archive = unzipSync(bytes);
+		expect(Object.keys(archive).sort()).toEqual(["files/1.pdf", "plans.json"]);
+		const { version, plans } = JSON.parse(
+			strFromU8(archive["plans.json"] ?? new Uint8Array()),
+		);
+		expect(version).toBe(2);
+		expect(plans.map((p: { source: unknown }) => p.source)).toEqual([
+			// Auto: the test PDF's pages are paths.
+			{ kind: "pdf", file: "files/1.pdf", page: 1, dpi: 150, mode: "vector" },
+			{ kind: "pdf", file: "files/1.pdf", page: 2, dpi: 150, mode: "vector" },
+		]);
 
-	// Imported back: both pages drawn again from the PDF, stored once more (a copy of its own).
-	await page.getByLabel("Import a floor plan").setInputFiles({
-		name: download.suggestedFilename(),
-		mimeType: "application/zip",
-		buffer: bytes,
-	});
-	await expect(planRows(page)).toHaveCount(4, { timeout: 20_000 });
-	// Drawn again from their paths, as they were.
-	await expect(planRows(page).first()).toContainText("288 × 216");
-	await expect(planRows(page).first()).not.toContainText("px");
-	await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(
-		"plan, page 2",
-	);
-	await expect.poll(() => storedFiles(page)).toBe(2);
-});
+		// Imported back: both pages drawn again from the PDF, stored once more (a copy of its own).
+		await page.getByLabel("Import a floor plan").setInputFiles({
+			name: download.suggestedFilename(),
+			mimeType: "application/zip",
+			buffer: bytes,
+		});
+		await expect(planRows(page)).toHaveCount(4, { timeout: 20_000 });
+		// Drawn again from their paths, as they were.
+		await expect(planRows(page).first()).toContainText("288 × 216");
+		await expect(planRows(page).first()).not.toContainText("px");
+		await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(
+			"plan, page 2",
+		);
+		await expect.poll(() => storedFiles(page)).toBe(2);
+	},
+);
 
 /** A mall 0.0008° (~600 px at zoom 19) wide around (LON, LAT), tagged as the one in Rennes. */
 function mall() {
@@ -543,39 +563,41 @@ test("aligns a plan with control points snapped to OSM nodes", async ({
 	});
 });
 
-test("snaps a control point to a vector plan's own corner", async ({
-	page,
-}) => {
-	const A: [number, number] = [-180, -130];
-	await serveOsm(page, nodesAt(A, [180, 130]));
-	await importPlan(page, "layers.pdf");
-	const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
-	await dialog.getByRole("radio", { name: "Vector" }).click();
-	await dialog.getByRole("button", { name: "Import" }).click();
-	await expect(dialog).toBeHidden({ timeout: 20_000 });
-	await expect(page.getByTestId("load-status")).toBeHidden();
-	// 288 × 216 pt; the frame (Walls) a 4 pt line whose top-left corner is at (20, 20).
-	const { cx, cy, mx, scale } = await initialLayout(page, 216);
+test(
+	"snaps a control point to a vector plan's own corner",
+	PDF,
+	async ({ page }) => {
+		const A: [number, number] = [-180, -130];
+		await serveOsm(page, nodesAt(A, [180, 130]));
+		await importPlan(page, "layers.pdf");
+		const dialog = page.getByRole("dialog", { name: "Import PDF pages" });
+		await dialog.getByRole("radio", { name: "Vector" }).click();
+		await dialog.getByRole("button", { name: "Import" }).click();
+		await expect(dialog).toBeHidden({ timeout: 20_000 });
+		await expect(page.getByTestId("load-status")).toBeHidden();
+		// 288 × 216 pt; the frame (Walls) a 4 pt line whose top-left corner is at (20, 20).
+		const { cx, cy, mx, scale } = await initialLayout(page, 216);
 
-	await page.getByRole("radio", { name: "Control points" }).click();
-	// Both clicks 5 px right of and above what they mean: the frame's corner, then node A.
-	await page.mouse.click(
-		cx + (20 - 144) * scale + 5,
-		cy + (20 - 108) * scale - 5,
-	);
-	await page.mouse.click(mx + A[0] + 5, cy + A[1] - 5);
-	await expect(
-		page.getByRole("list", { name: "Control points" }).getByRole("listitem"),
-	).toHaveCount(1);
-	// The corner moved onto A exactly: the frame's left edge runs down through it (unsnapped,
-	// it would run 5 px to the left, off a line some 7 px wide).
-	await expectPixel(
-		page,
-		mx + A[0],
-		cy + A[1] + 40,
-		blend([0, 0, 0], 0.5, BACKGROUND),
-	);
-});
+		await page.getByRole("radio", { name: "Control points" }).click();
+		// Both clicks 5 px right of and above what they mean: the frame's corner, then node A.
+		await page.mouse.click(
+			cx + (20 - 144) * scale + 5,
+			cy + (20 - 108) * scale - 5,
+		);
+		await page.mouse.click(mx + A[0] + 5, cy + A[1] - 5);
+		await expect(
+			page.getByRole("list", { name: "Control points" }).getByRole("listitem"),
+		).toHaveCount(1);
+		// The corner moved onto A exactly: the frame's left edge runs down through it (unsnapped,
+		// it would run 5 px to the left, off a line some 7 px wide).
+		await expectPixel(
+			page,
+			mx + A[0],
+			cy + A[1] + 40,
+			blend([0, 0, 0], 0.5, BACKGROUND),
+		);
+	},
+);
 
 test("control points don't snap to nodes on another level", async ({
 	page,
