@@ -60,14 +60,21 @@ function issue(
 	{
 		fix,
 		key,
+		at,
 		severity = "warning",
-	}: { fix?: Issue["fix"]; key?: string; severity?: Issue["severity"] } = {},
+	}: {
+		fix?: Issue["fix"];
+		key?: string;
+		at?: NodeId;
+		severity?: Issue["severity"];
+	} = {},
 ): Issue {
 	return {
 		id: `${rule}:${entity.id}${key ? `:${key}` : ""}`,
 		rule,
 		severity,
 		entityId: entity.id,
+		...(at && { at }),
 		message,
 		...(fix && { fix }),
 	};
@@ -239,6 +246,7 @@ function almostJoined(
 		issues.push(
 			issue("almost-joined", entity, msg("issue_almost_joined"), {
 				key: id,
+				at: id,
 				...(fix && { fix }),
 			}),
 		);

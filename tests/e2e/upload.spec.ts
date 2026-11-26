@@ -1,5 +1,20 @@
 import type { Page, Route } from "@playwright/test";
-import { expect, selectRoom, tagsBox, test } from "./fixtures.ts";
+import {
+	camera,
+	clickMap,
+	expect,
+	INDOOR,
+	inspector,
+	LAT,
+	LON,
+	mapDrawn,
+	room,
+	selectRoom,
+	serveOsm,
+	tagsBox,
+	test,
+	WORLD,
+} from "./fixtures.ts";
 
 const API = "https://api.openstreetmap.org";
 const WEBSITE = "https://www.openstreetmap.org";
@@ -292,4 +307,60 @@ test("asks before leaving the page with edits not uploaded", async ({
 	void page.reload().catch(() => undefined);
 	expect(await asked).toBe("beforeunload");
 	await expect(page.getByTestId("edit-count")).toHaveText("1");
+});
+
+test("lists the changes, showing one on the map from the dialog", async ({
+	page,
+}) => {
+	await editRoomNumber(page);
+	await page.getByRole("button", { name: "Done" }).click();
+	const before = await camera(page);
+
+	await page.getByRole("button", { name: /Save/ }).click();
+	const dialog = page.getByRole("dialog", { name: "Upload your edits" });
+	const change = dialog
+		.getByTestId("changes")
+		.getByRole("button", { name: /Room B12/ });
+	await expect(change).toContainText("Modified");
+	await change.hover();
+	await change.click();
+	// The dialog stays open; the map fits the room in the part it leaves visible.
+	await expect(dialog).toBeVisible();
+	await expect
+		.poll(async () => (await camera(page)).zoom)
+		.not.toBe(before.zoom);
+});
+
+test("points out the corner an issue is at, and selects its feature", async ({
+	page,
+}) => {
+	// Two rooms meeting at a side on different levels; moving one to level 0 leaves their
+	// corners on the same spots without being joined.
+	const r = 0.0001;
+	await serveOsm(page, [
+		...room(100, LON, LAT, "0", r),
+		...room(200, LON + 2 * r, LAT, "1", r),
+	]);
+	await page.goto(`/#19/${LAT}/${LON}/1${INDOOR}`);
+	await camera(page);
+	await mapDrawn(page);
+	const pixels = (2 * r * WORLD) / 360;
+	await clickMap(page, pixels, 0);
+	const tags = await tagsBox(page);
+	await tags.fill("indoor=room\nlevel=0");
+	await tags.blur();
+	await expect(page.getByTestId("edit-count")).toHaveText("1");
+	await page.getByRole("button", { name: "Done" }).click();
+
+	await page.getByRole("button", { name: /Save/ }).click();
+	const dialog = page.getByRole("dialog", { name: "Upload your edits" });
+	const issue = dialog
+		.getByRole("list", { name: "Issues in your edits" })
+		.getByRole("button")
+		.first();
+	await expect(issue).toContainText("Room");
+	await issue.hover();
+	await issue.click();
+	await expect(dialog).toBeHidden();
+	await expect(inspector(page).root).toContainText("w200");
 });

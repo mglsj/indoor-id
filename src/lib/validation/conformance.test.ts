@@ -363,6 +363,7 @@ describe("conformance: duplicate nodes", () => {
 			"duplicate-node",
 		]);
 		expect(issues[0]?.message).toEqual(msg("issue_duplicate_node"));
+		expect(issues.map((i) => i.at).sort()).toEqual(["n2", "n3"]);
 		const graph = Graph.fromEntities(entities);
 		const after = issues[0]?.fix?.action(graph);
 		expect(after?.entity("n2")).toBeUndefined();

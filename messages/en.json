@@ -769,5 +769,21 @@
 	"account_sign_out": "Sign out",
 	"account_sign_out_title": "Sign out of OpenStreetMap?",
 	"account_sign_out_description": "IndoorID forgets your login in this browser. Edits you haven't uploaded stay here; sign in again to upload them.",
-	"account_sign_out_cancel": "Stay signed in"
+	"account_sign_out_cancel": "Stay signed in",
+	"save_changes": "Changes",
+	"save_change_created": "Created",
+	"save_change_modified": "Modified",
+	"save_change_deleted": "Deleted",
+	"save_show_change": "Show {item} on the map ({kind})",
+	"save_select_issue": "Select {item} to fix: {issue}",
+	"save_more_changes": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "and {count} more change",
+				"countPlural=*": "and {count} more changes"
+			}
+		}
+	]
 }

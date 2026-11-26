@@ -885,6 +885,7 @@
 								...overlayFeatures(editor.graph, {
 									selected: editor.selection.ids,
 									hover: editor.selection.hover,
+									hoverAt: editor.selection.hoverAt,
 									zoom: camera?.zoom ?? 0,
 									nodesInView: () => {
 										const extent = visibleExtent();
@@ -1369,8 +1370,11 @@
 		zoomToAll([id]);
 	}
 
-	/** Fits features in the part of the map the side panel leaves visible (iD's Z for the selection). */
-	function zoomToAll(ids: readonly EntityId[]) {
+	/**
+	 * Fits features in the part of the map the side panel leaves visible (iD's Z for the
+	 * selection), and `covered` pixels on the right leave visible (the save dialog's).
+	 */
+	function zoomToAll(ids: readonly EntityId[], covered = 0) {
 		const extent = extentOf(
 			ids.flatMap((id) => {
 				const e = entityExtent(editor.graph, id);
@@ -1392,12 +1396,53 @@
 				padding: {
 					top: 60,
 					bottom: 60,
-					right: 60,
+					right: covered + 60,
 					left: (sidePanel?.offsetWidth ?? 0) + 60,
 				},
 				maxZoom: 20,
 			},
 		);
+	}
+
+	/**
+	 * The level to show a feature on when the shown one doesn't hold it, else null: its lowest
+	 * level, or for a vertex its first way's (the save dialog's changes and issues).
+	 */
+	function otherLevelOf(id: EntityId): number | null {
+		const entity = editor.graph.entity(id);
+		if (!entity) return null;
+		const owner =
+			entity.type === "node" && featureLevels(entity.tags) === null
+				? (editor.graph.parentWays(entity.id)[0] ?? entity)
+				: entity;
+		const levels = featureLevels(owner.tags, () =>
+			editor.graph.parentRelations(owner.id).map((r) => r.tags),
+		);
+		return levels && levels.length > 0 && !isOnLevel(levels, level)
+			? Math.min(...levels.map((l) => l.min))
+			: null;
+	}
+
+	/** The level shown before a save dialog row showed another, to go back to after. */
+	let levelBeforeRow: number | null = null;
+
+	/** Shows the level of the feature a save dialog row is hovered for, and back (null). */
+	function previewLevelOf(id: EntityId | null) {
+		if (id === null) {
+			if (levelBeforeRow !== null) level = levelBeforeRow;
+			levelBeforeRow = null;
+			return;
+		}
+		const other = otherLevelOf(id);
+		if (other === null) return;
+		levelBeforeRow ??= level;
+		level = other;
+	}
+
+	/** Stays on the level of the feature a save dialog row was clicked for. */
+	function showLevelOf(id: EntityId) {
+		levelBeforeRow = null;
+		level = otherLevelOf(id) ?? level;
 	}
 
 	/** Selects a feature, zooming to it when none of it is in view (a relation's member, as iD). */
@@ -2059,6 +2104,18 @@
 			floorPlans={floorPlansUsed}
 			onuploaded={uploaded}
 			{websiteUrl}
+			onhover={previewLevelOf}
+			onshow={(id, covered) => {
+				showLevelOf(id);
+				zoomToAll([id], covered);
+			}}
+			onpick={(id, at) => {
+				showLevelOf(id);
+				editor.select(id);
+				zoomTo(id);
+				// The issue's corner stays pointed out until the pointer moves over the map.
+				if (at) editor.selection.setHover(id, at);
+			}}
 			onclose={() => (saving = false)}
 		/>
 	{/if}

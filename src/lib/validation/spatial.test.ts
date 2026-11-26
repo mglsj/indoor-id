@@ -151,6 +151,8 @@ describe("almost joined", () => {
 			"almost-joined:w2:n20",
 			"almost-joined:w2:n23",
 		]);
+		// The save dialog points out the corner itself.
+		expect(found.map((i) => i.at)).toEqual(["n20", "n23"]);
 		const joined = found[0]?.fix?.action(graph);
 		const side = joined?.entity("w1");
 		expect(side?.type === "way" && side.nodes).toEqual([

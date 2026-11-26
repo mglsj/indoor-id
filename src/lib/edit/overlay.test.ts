@@ -75,6 +75,20 @@ describe("overlayFeatures", () => {
 		]);
 	});
 
+	it("marks a selected vertex, and a hovered untagged one on its own", () => {
+		const marks = (o: Partial<OverlayOptions>) =>
+			overlayFeatures(graph(), options(o)).features.flatMap((f) =>
+				f.properties["@role"] === "vertex" && f.properties["@mark"]
+					? [[f.properties["@id"], f.properties["@mark"]]]
+					: [],
+			);
+		expect(marks({ selected: ["n5"] })).toEqual([["n5", "selected"]]);
+		expect(marks({ hover: "n5" })).toEqual([["n5", "hover"]]);
+		expect(roles(graph(), { hover: "n5" }).vertex).toEqual(["n5"]);
+		// An issue's corner, among its way's vertices.
+		expect(marks({ hover: "w2", hoverAt: "n6" })).toEqual([["n6", "hover"]]);
+	});
+
 	it("shows the junctions in view from zoom 18 only", () => {
 		const nodesInView = () =>
 			[{ id: "n1" }, { id: "n2" }, { id: "n3" }] as const;

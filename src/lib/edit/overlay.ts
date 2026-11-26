@@ -28,6 +28,8 @@ export interface VertexProperties {
 	readonly "@id": NodeId;
 	/** Used by several ways: moving it moves them all. */
 	readonly "@shared"?: "yes";
+	/** The node itself is selected or hovered (an untagged vertex has no feature to outline). */
+	readonly "@mark"?: "selected" | "hover";
 }
 
 /** The middle of a side from `@a` to `@b` (of `@way` and any way sharing it). */
@@ -102,6 +104,8 @@ export type OverlayFeature = Feature<
 export interface OverlayOptions {
 	readonly selected: readonly EntityId[];
 	readonly hover: EntityId | null;
+	/** A node of the hovered feature to mark: where an issue is. */
+	readonly hoverAt?: NodeId | null;
 	/** The map's zoom: midpoints need room, junctions show from zoom 18. */
 	readonly zoom: number;
 	/** The drawn nodes in view on the shown level, for the junctions (asked from zoom 18). */
@@ -117,7 +121,7 @@ const TILE_SIZE = 512;
 
 export function overlayFeatures(
 	graph: Graph,
-	{ selected, hover, zoom, nodesInView }: OverlayOptions,
+	{ selected, hover, hoverAt, zoom, nodesInView }: OverlayOptions,
 ): FeatureCollection<OverlayFeature["geometry"], OverlayProperties> {
 	const features: OverlayFeature[] = [];
 	const vertices = new Set<NodeId>();
@@ -137,8 +141,15 @@ export function overlayFeatures(
 				break;
 			case "node":
 				// A selected vertex shows its ways' vertices around it, as iD.
-				if (!isSelected) break;
-				for (const way of graph.parentWays(entity.id)) addVertices(way);
+				if (isSelected) {
+					for (const way of graph.parentWays(entity.id)) addVertices(way);
+				} else if (
+					// A hovered untagged vertex (named by an issue) has no feature to outline.
+					!hasInterestingTags(entity.tags) &&
+					graph.parentWays(entity.id).length > 0
+				) {
+					vertices.add(entity.id);
+				}
 				break;
 			case "relation":
 				for (const member of entity.members) {
@@ -198,15 +209,27 @@ export function overlayFeatures(
 			if (shared(id)) vertices.add(id);
 		}
 	}
+	const selectedIds = new Set(selected);
+	if (hoverAt && graph.entity(hoverAt)) vertices.add(hoverAt);
+	const markOf = (id: NodeId) =>
+		selectedIds.has(id)
+			? "selected"
+			: hover === id || hoverAt === id
+				? "hover"
+				: null;
 	for (const id of vertices) {
 		const node = graph.entity(id);
 		if (node?.type !== "node") continue;
+		const mark = markOf(id);
 		features.push({
 			type: "Feature",
 			geometry: { type: "Point", coordinates: position(node.loc) },
-			properties: shared(id)
-				? { "@role": "vertex", "@id": id, "@shared": "yes" }
-				: { "@role": "vertex", "@id": id },
+			properties: {
+				"@role": "vertex",
+				"@id": id,
+				...(shared(id) ? { "@shared": "yes" as const } : {}),
+				...(mark ? { "@mark": mark } : {}),
+			},
 		});
 	}
 	return { type: "FeatureCollection", features };

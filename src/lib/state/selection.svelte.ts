@@ -3,13 +3,15 @@
  * highlights them; the
  * Inspector edits the selection when it holds a single feature.
  */
-import type { EntityId } from "#lib/osm/entity.ts";
+import type { EntityId, NodeId } from "#lib/osm/entity.ts";
 
 export class Selection {
 	/** The selected features, in the order they were selected, each once. */
 	ids = $state.raw<readonly EntityId[]>([]);
 	/** The feature under the pointer, selected or not. */
 	hover = $state<EntityId | null>(null);
+	/** A node of the hovered feature to point out: where an issue is (the save dialog's). */
+	hoverAt = $state<NodeId | null>(null);
 	/** The line or area being drawn, until it is finished or dropped. */
 	drawing = $state<EntityId | null>(null);
 	/** The one feature selected, or null when none or several are. */
@@ -32,8 +34,9 @@ export class Selection {
 		return this.ids.includes(id);
 	}
 
-	setHover(id: EntityId | null): void {
+	setHover(id: EntityId | null, at: NodeId | null = null): void {
 		this.hover = id;
+		this.hoverAt = id === null ? null : at;
 	}
 
 	setDrawing(id: EntityId | null): void {
