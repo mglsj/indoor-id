@@ -21,6 +21,9 @@ export const INDOOR_COLORS = {
 	doorStroke: "#003f05",
 	passage: "#eeeeee",
 	passageStroke: "#aaaaaa",
+	/** A window in a wall (SIT: `window=*` nodes): pale glass blue. */
+	window: "#bfe3f7",
+	windowStroke: "#1f6f99",
 	line: "#9e9e9e",
 	point: "#757575",
 	pointStroke: "#ffffff",

@@ -10,6 +10,7 @@ import { featureLevels, unionOfLevels } from "#lib/levels/feature-levels.ts";
 import { explicitLevels } from "#lib/levels/level-names.ts";
 import {
 	formatLevels,
+	isInOrder,
 	isOnLevel,
 	type Levels,
 	listLevels,
@@ -41,6 +42,9 @@ export type IssueRule =
 	| "unreadable-level"
 	| "implausible-level-range"
 	| "vertical-repeat-on"
+	| "unordered-level"
+	| "highway-ring"
+	| "repeat-on-way"
 	| "door-not-on-wall"
 	| "room-not-indoor"
 	| "building-part-indoor"
@@ -196,6 +200,24 @@ function levelIssues(entity: Entity): Issue[] {
 				),
 			);
 		}
+		if (parsed && !isInOrder(value)) {
+			const expected = formatLevels(parsed);
+			issues.push(
+				issue(
+					"unordered-level",
+					entity,
+					msg("issue_unordered_level", { key, value, expected }),
+					{
+						label: msg("fix_set_key_value", { key, value: expected }),
+						action: changeTags(entity.id, {
+							...entity.tags,
+							[key]: expected,
+						}),
+					},
+					key,
+				),
+			);
+		}
 		if (parsed) continue;
 		issues.push(
 			issue(
@@ -233,6 +255,15 @@ function levelIssues(entity: Entity): Issue[] {
 				action: changeTags(entity.id, tags),
 			}),
 		);
+	}
+	// SIT lists repeat_on for nodes only (doors, windows); a room repeated on other levels is
+	// a copy per level or one feature with a level list. Stairs have their own rule above.
+	if (
+		entity.type !== "node" &&
+		entity.tags.repeat_on !== undefined &&
+		!isVertical(entity.tags)
+	) {
+		issues.push(issue("repeat-on-way", entity, msg("issue_repeat_on_way")));
 	}
 	return issues;
 }

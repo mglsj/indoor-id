@@ -75,6 +75,23 @@ describe("level outside the building", () => {
 		expect(rulesOf(entities, "w2")).not.toContain("level-outside-building");
 	});
 
+	it("accepts a basement that a building part has, even beyond the outline (t/137537)", () => {
+		// The outline is the footprint on the ground; the underground part sticks out of it
+		// (Simple 3D Buildings and building:part, edited 2025-11-07).
+		const entities = [
+			...building,
+			...square("w3", 10, 10, 30, {
+				"building:part": "yes",
+				"building:levels:underground": "1",
+				layer: "-1",
+			}),
+			...square("w2", 12, 12, 5, { indoor: "room", level: "-1" }),
+			...square("w4", 32, 32, 5, { indoor: "room", level: "-1" }),
+		];
+		expect(rulesOf(entities, "w2")).not.toContain("level-outside-building");
+		expect(rulesOf(entities, "w4")).not.toContain("level-outside-building");
+	});
+
 	it("ignores a building that says nothing of its levels", () => {
 		const entities = [
 			...square("w1", 0, 0, 20, { building: "yes" }),

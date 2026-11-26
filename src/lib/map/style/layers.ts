@@ -548,7 +548,7 @@ export function indoorLayers(
 			filter: onLevel([
 				"all",
 				isPoint,
-				["in", kind, ["literal", ["door", "passage"]]],
+				["in", kind, ["literal", ["door", "passage", "window"]]],
 			]),
 			paint: {
 				// As wide as the door when its width is known, never smaller than other doors.
@@ -561,12 +561,22 @@ export function indoorLayers(
 					22,
 					["max", 8, doorRadius(32)],
 				],
-				"circle-color": ["match", kind, "door", C.door, C.passage],
+				"circle-color": [
+					"match",
+					kind,
+					"door",
+					C.door,
+					"window",
+					C.window,
+					C.passage,
+				],
 				"circle-stroke-color": [
 					"match",
 					kind,
 					"door",
 					C.doorStroke,
+					"window",
+					C.windowStroke,
 					C.passageStroke,
 				],
 				"circle-stroke-width": 1,
@@ -604,7 +614,7 @@ export function indoorLayers(
 			filter: onLevel([
 				"all",
 				isPoint,
-				["!", ["in", kind, ["literal", ["door", "passage"]]]],
+				["!", ["in", kind, ["literal", ["door", "passage", "window"]]]],
 				["!", ["has", "@icon"]],
 				["!", ["has", "@label"]],
 			]),

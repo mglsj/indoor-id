@@ -2,7 +2,9 @@
  * The point tool (P5.3.4): what a click makes depends on where it snaps, as in
  * osm-simple3d-editor's point tool. On a side of a room, corridor, area, wall or level outline
  * it makes a door (`indoor=door` + `door=yes`) in every way with that side; on a building's
- * outline, an entrance (`entrance=yes` + `door=yes` + `indoor=door`) in the building's
+ * outline, an entrance (`entrance=yes` + `door=yes` + `indoor=door`: SIT tags entrances with
+ * `entrance=*` instead of `indoor=door`, but `indoor=door` is kept for viewers that only find
+ * doors by it, as osm-simple3d-editor's map-mode entrances do) in the building's
  * ways and the indoor ways sharing that side; on an untagged corner of those ways, that corner
  * becomes the door or entrance. On an indoor fence (P6) it makes a gate (`barrier=gate`), which
  * the user can make a turnstile. Each takes the shown level, as osm-simple3d-editor's do. Anywhere else it makes a point on the shown level, whose type

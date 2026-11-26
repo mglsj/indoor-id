@@ -49,6 +49,7 @@ is credited as a source; its code is at commit `cd1e955` (`git show cd1e955:<pat
 | P5.4b  | Rebase before upload, conflicts            | Done         |
 | W2     | Wiki conformance, November research        | Done         |
 | W3     | Checks from the 2026-11-24 recheck         | Done         |
+| W4     | Conventions from the 2026-11-26 audit      | Done         |
 | P6     | Parity and polish                          | Done         |
 | A      | Accessibility and layout (Nov. audit)      | Done         |
 | R6     | Fixes from the 2026-11-25 code audit       | R6.4 open    |
@@ -186,6 +187,16 @@ on purpose, and nothing in IndoorID writes such joins).
 Done ✅ (2026-11-24); see "W3" in [docs/history.md](docs/history.md). Left for later: finding a
 wall line drawn over a wall area without sharing a node with it, and running the pre-upload
 check in the background every few edits (osm-simple3d-editor `9ed266f`).
+
+### W4: Conventions from the 2026-11-26 audit — S–M — done
+
+From [docs/conventions-2026-11-26.md](docs/conventions-2026-11-26.md) (SIT as edited after the
+Indoor OSM Workshop 2026, the forum, osm-simple3d-editor to `55dde63`), all in one PR (asked by
+the user). Done ✅ (2026-11-26); see "W4" in [docs/history.md](docs/history.md). Left for later:
+showing the level above while drawing a flight (JOSM's level filter, report item 16), the point
+tool choosing a window on a wall (windows are a type in the list for now), and the "watch" list
+in the report's section 3 (movable walls, door `direction`, `multilevel_feature`, fractional
+levels, `man_made=tactile_paving`, `units_enclosure`).
 
 ### P6: Parity and polish — M
 
@@ -384,6 +395,11 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
   editing and viewing: P5.4b, W2, P6 and the 0.1 alpha release.
 - 2026-11-12: building mode (B) before P5.4b, W2 and P6, with the defaults in its section.
 - 2026-11-24: W3 takes in the checks from research addendum C (asked by the user).
+- 2026-11-26: W4 adopts the 2026-11-26 conventions audit in one PR. Staircases are written in
+  both forms at once: `indoor=room` (or `indoor=area` when open) + `room=stairs` + `stairs=yes`
+  (asked by the user: SIT documents `stairs=yes`, the workshop suggested `room=stairs`).
+  Entrances keep `indoor=door` beside `entrance=*` and `door=*`, for viewers that only find
+  doors by it (asked by the user), though SIT now says `entrance=*` instead.
 - 2026-11-24/25: phase A from the accessibility and ease-of-use audit, with the layout and
   scope in its section (editor desktop only, good practice rather than formal conformance, no
   new features).

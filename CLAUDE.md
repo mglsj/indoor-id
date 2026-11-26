@@ -92,9 +92,11 @@ runners), so run those locally when touching PDF import.
   Reach (P6.5): `?source=josm` swaps the `OsmApi` for `api/josm.ts` (`JosmSource`, read-only,
   JOSM Remote Control's `/export` parsed by `osm/osm-xml.ts`); `static/indoorid.user.js` is the
   "Open in IndoorID" userscript, its link helpers tested from `reach/userscript.test.ts`.
-  Presets come from `@openstreetmap/id-tagging-schema` plus `presets/overlay.json`, built by
-  `scripts/build-presets.ts` on install into the gitignored `presets/generated/`; run
-  `bun run presets` after changing the overlay or the schema version.
+  Presets come from `@openstreetmap/id-tagging-schema` plus `presets/overlay.json` (its own
+  `presets` and `fields`, and `extend`: fields, more fields and geometry added to the schema's
+  presets, `addTags` replaced), built by `scripts/build-presets.ts` on install into the
+  gitignored `presets/generated/`; run `bun run presets` after changing the overlay or the
+  schema version.
 - Floor plans (P4, R2): `floorplans/` (`content.ts`: a plan's size in plan units (PDF points, SVG
   units, photo pixels) and its content, kept in `FloorPlans.contents`, out of the reactive plans;
   transforms map plan units; a plan's `source` names the file it came from, stored once by

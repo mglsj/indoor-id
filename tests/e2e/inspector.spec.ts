@@ -64,7 +64,8 @@ test("changing the type keeps the other tags", async ({ page }) => {
 
 	await expect(featureType(editor, "Indoor Stairwell")).toBeVisible();
 	await expect(await tagsBox(page)).toHaveValue(
-		"indoor=room\nlevel=0\nref=S1\nstairs=yes",
+		// Both staircase forms (W4): stairs=yes (SIT) and room=stairs (workshop 2026).
+		"indoor=room\nlevel=0\nref=S1\nroom=stairs\nstairs=yes",
 	);
 });
 

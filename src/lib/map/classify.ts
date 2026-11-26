@@ -22,6 +22,8 @@ export type FeatureKind =
 	| "door"
 	/** Opening without a door: `door=no`. */
 	| "passage"
+	/** Window in a wall or outline: a `window=*` node (SIT). */
+	| "window"
 	/** Walkable line: corridors, footways, steps. */
 	| "path"
 	| "poi"
@@ -47,12 +49,17 @@ export function classify(tags: Tags, geometry: GeometryType): FeatureKind {
 		return tags.door === "no" ? "passage" : "door";
 	}
 	if (!surface && isOpeningBarrier(tags) && isIndoorTagged(tags)) return "door";
+	if (!surface && tags.window !== undefined && tags.window !== "no") {
+		return "window";
+	}
 	if (!surface && isIndoorFence(tags)) return "railing";
 	if (surface && isVertical(tags)) return "vertical";
 	if (tags.indoor === "wall") return "wall";
 	if (
 		tags.indoor === "column" ||
 		tags.man_made === "pillar" ||
+		// Indoor OSM Workshop 2026: `man_made=column` for columns not part of the hull.
+		(tags.man_made === "column" && isIndoorTagged(tags)) ||
 		tags["building:part"] === "column"
 	) {
 		return "column";
@@ -184,7 +191,7 @@ const ICON_KEYS = [
  * an icon on every room or door would only clutter it.
  */
 const STRUCTURE_PRESETS =
-	/^(indoor(\/(room|area|corridor|level|wall|door))?$|(door|entrance|building|building_part|highway\/(corridor|footway|pedestrian_area))(\/|$))/;
+	/^(indoor(\/(room|area|corridor|level|wall|door|column))?$|(door|entrance|window|building|building_part|highway\/(corridor|footway|pedestrian_area))(\/|$))/;
 
 /**
  * The icon of a feature, or null: its preset's icon (Maki or Temaki) when bundled, else the

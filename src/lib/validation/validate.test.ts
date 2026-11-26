@@ -218,18 +218,63 @@ describe("validate: levels", () => {
 		expect(rules).not.toContain("vertical-repeat-on");
 	});
 
-	it("accepts repeat_on for features repeated on several levels", () => {
-		expect(
-			issuesOf(
-				roomWith({
-					indoor: "room",
-					amenity: "toilets",
-					level: "0",
-					repeat_on: "1;2",
-				}),
-				"w1",
-			),
-		).toEqual([]);
+	it("accepts repeat_on on a point repeated on several levels (SIT: nodes only)", () => {
+		const graph = Graph.fromEntities([
+			node("n1", { amenity: "vending_machine", level: "0", repeat_on: "1;2" }),
+		]);
+		expect(validate(graph, ["n1"], [])).toEqual([]);
+	});
+
+	it("warns about repeat_on on a room: SIT lists it for nodes only (workshop 2026)", () => {
+		const issues = issuesOf(
+			roomWith({
+				indoor: "room",
+				amenity: "toilets",
+				level: "0",
+				repeat_on: "1;2",
+			}),
+			"w1",
+		);
+		expect(issues).toMatchObject([{ rule: "repeat-on-way" }]);
+		expect(issues[0]?.fix).toBeUndefined();
+	});
+
+	it("flags level values out of order or repeated, and writes them in order on request", () => {
+		// Indoor OSM Workshop 2026: `5-3` and `1;2;1` are read like `3-5` and `1;2`, but
+		// validators warn about them.
+		const cases: [string, string][] = [
+			["5-3", "3-5"],
+			["1;2;1", "1;2"],
+			["2;0;1", "0;1;2"],
+			["-1--2", "-2--1"],
+		];
+		for (const [value, expected] of cases) {
+			const entities = roomWith({ indoor: "room", level: value });
+			const unordered = issuesOf(entities, "w1").filter(
+				(i) => i.rule === "unordered-level",
+			);
+			expect(unordered).toMatchObject([
+				{
+					rule: "unordered-level",
+					message: msg("issue_unordered_level", {
+						key: "level",
+						value,
+						expected,
+					}),
+				},
+			]);
+			expect(fixed(entities, "w1")).toEqual({
+				indoor: "room",
+				level: expected,
+			});
+		}
+	});
+
+	it("leaves level values already in order alone, spaces included", () => {
+		for (const value of ["0", "-1;0", "0;1", "0-2", "0.5", "-2--1", "0; 1"]) {
+			const rules = issuesOf(roomWith({ indoor: "room", level: value }), "w1");
+			expect(rules.map((i) => i.rule)).not.toContain("unordered-level");
+		}
 	});
 });
 
@@ -239,7 +284,9 @@ describe("validate: issue ids", () => {
 			roomWith({ indoor: "room", level: "G", repeat_on: "G" }),
 			"w1",
 		);
-		const ids = issues.map((i) => i.id);
+		const ids = issues
+			.filter((i) => i.rule === "unreadable-level")
+			.map((i) => i.id);
 		expect(ids).toHaveLength(2);
 		expect(new Set(ids).size).toBe(2);
 	});
@@ -408,7 +455,7 @@ describe("validate: openings on several levels", () => {
 			{ entrance: "yes", level: "-1", repeat_on: "0;1" },
 		],
 		[
-			{ window: "yes", level: "2;0" },
+			{ window: "yes", level: "0;2" },
 			{ window: "yes", level: "0", repeat_on: "2" },
 		],
 		[
@@ -490,8 +537,9 @@ describe("validate: missing level", () => {
 	});
 
 	it("accepts a level from repeat_on, min_level or a parent multipolygon", () => {
+		// The level is read from repeat_on; SIT only asks for repeat_on on points.
 		expect(rulesOf(roomWith({ indoor: "room", repeat_on: "0" }), "w1")).toEqual(
-			[],
+			["repeat-on-way"],
 		);
 		expect(
 			rulesOf(

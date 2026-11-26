@@ -65,7 +65,7 @@
 		onclose();
 	}
 
-	const METHODS: { value: RepeatMethod; label: string; hint: string }[] = [
+	const ALL_METHODS: { value: RepeatMethod; label: string; hint: string }[] = [
 		{
 			value: "copies",
 			label: t(msg("repeat_copies")),
@@ -82,6 +82,14 @@
 			hint: t(msg("repeat_level_hint")),
 		},
 	];
+	// SIT lists repeat_on for nodes only (doors, windows): a way is offered it only when it
+	// already has it, so it can be switched to another method.
+	const METHODS = ALL_METHODS.filter(
+		(m) =>
+			m.value !== "repeat_on" ||
+			id.startsWith("n") ||
+			now.method === "repeat_on",
+	);
 </script>
 
 <Dialog.Root

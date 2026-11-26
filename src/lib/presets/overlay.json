@@ -31,7 +31,117 @@
 				"automatic_door",
 				"access_simple"
 			],
-			"moreFields": ["wheelchair", "height", "handle", "name"]
+			"moreFields": [
+				"wheelchair",
+				"height",
+				"handle",
+				"name",
+				"level_ref",
+				"colour",
+				"material"
+			]
+		},
+		{
+			"id": "indoor/stairs_room",
+			"name": "Staircase",
+			"terms": ["stairs", "stairwell", "staircase"],
+			"icon": "iD-highway-steps",
+			"geometry": ["area"],
+			"tags": {
+				"indoor": "room",
+				"room": "stairs"
+			},
+			"addTags": {
+				"indoor": "room",
+				"room": "stairs",
+				"stairs": "yes"
+			},
+			"matchScore": 0.7,
+			"searchable": false,
+			"fields": ["ref", "level_semi", "conveying_escalator"],
+			"moreFields": ["name", "level_ref"]
+		},
+		{
+			"id": "indoor/stairs_open",
+			"name": "Open Staircase",
+			"terms": [
+				"stairs",
+				"staircase",
+				"stairwell",
+				"open stairs",
+				"atrium stairs"
+			],
+			"icon": "iD-highway-steps",
+			"geometry": ["area"],
+			"tags": {
+				"indoor": "area",
+				"stairs": "yes"
+			},
+			"addTags": {
+				"indoor": "area",
+				"room": "stairs",
+				"stairs": "yes"
+			},
+			"matchScore": 0.8,
+			"fields": ["ref", "level_semi", "conveying_escalator"],
+			"moreFields": ["name", "level_ref"]
+		},
+		{
+			"id": "indoor/steps_outline",
+			"name": "Stairs Outline",
+			"terms": [
+				"stairs",
+				"steps",
+				"flight",
+				"stairs area",
+				"area:highway=steps"
+			],
+			"icon": "iD-highway-steps",
+			"geometry": ["area"],
+			"tags": {
+				"area:highway": "steps"
+			},
+			"matchScore": 1,
+			"fields": ["level_semi", "width", "name"],
+			"moreFields": []
+		},
+		{
+			"id": "barrier/step",
+			"name": "Step",
+			"terms": ["step", "steps", "threshold", "kerb"],
+			"icon": "iD-highway-steps",
+			"geometry": ["vertex", "point", "line"],
+			"tags": {
+				"barrier": "step"
+			},
+			"fields": ["level", "step_count", "width", "wheelchair"],
+			"moreFields": ["incline", "height"]
+		},
+		{
+			"id": "window",
+			"name": "Window",
+			"terms": ["window", "pane", "glazing", "hatch"],
+			"icon": "temaki-window",
+			"geometry": ["vertex", "point"],
+			"tags": {
+				"window": "*"
+			},
+			"matchScore": 0.9,
+			"fields": ["window", "level", "repeat_on", "width", "height"],
+			"moreFields": ["level_ref", "colour", "material"]
+		},
+		{
+			"id": "indoor/column",
+			"name": "Indoor Column",
+			"terms": ["column", "pillar", "post", "support"],
+			"icon": "roentgen-pillar",
+			"geometry": ["vertex", "point", "area"],
+			"tags": {
+				"indoor": "column"
+			},
+			"matchScore": 0.8,
+			"fields": ["level", "ref", "height"],
+			"moreFields": ["colour", "material"]
 		}
 	],
 	"fields": {
@@ -72,6 +182,62 @@
 			"type": "combo",
 			"label": "Door Handle",
 			"options": ["lever", "knob", "pull", "push", "no"]
+		},
+		"window": {
+			"key": "window",
+			"type": "combo",
+			"label": "Window",
+			"options": [
+				"yes",
+				"fixed",
+				"tilt_turn",
+				"sliding",
+				"casement",
+				"skylight",
+				"no"
+			]
+		},
+		"repeat_on": {
+			"key": "repeat_on",
+			"type": "text",
+			"label": "Also on Levels (repeat_on)"
+		}
+	},
+	"extend": {
+		"indoor/stairs": {
+			"addTags": {
+				"indoor": "room",
+				"room": "stairs",
+				"stairs": "yes"
+			},
+			"moreFields": ["name", "level_ref"]
+		},
+		"indoor/elevator": {
+			"addTags": {
+				"indoor": "room",
+				"elevator": "yes",
+				"highway": "elevator"
+			},
+			"moreFields": ["name", "level_ref"]
+		},
+		"indoor/room": {
+			"geometry": ["point"],
+			"moreFields": ["level_ref"]
+		},
+		"indoor/area": {
+			"moreFields": ["level_ref"]
+		},
+		"indoor/corridor": {
+			"moreFields": ["level_ref"]
+		},
+		"indoor/wall": {
+			"moreFields": ["width", "colour", "material"]
+		},
+		"indoor/door": {
+			"moreFields": ["level_ref", "colour", "material"]
+		},
+		"entrance": {
+			"moreFields": ["width", "height", "level_ref", "colour", "material"]
 		}
 	}
 }

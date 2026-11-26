@@ -26,7 +26,10 @@ export function featureLevels(
 	if (tags.min_level !== undefined && tags.max_level !== undefined) {
 		return parseLevels(`${tags.min_level}-${tags.max_level}`);
 	}
-	if (tags["building:levels"] !== undefined) {
+	if (
+		tags["building:levels"] !== undefined ||
+		tags["building:levels:underground"] !== undefined
+	) {
 		return buildingLevels(tags);
 	}
 	// Parent relations are only looked up when needed: a function is called last.
@@ -49,7 +52,8 @@ export function isFromBuildingLevels(tags: Tags): boolean {
 		tags.level === undefined &&
 		tags.repeat_on === undefined &&
 		(tags.min_level === undefined || tags.max_level === undefined) &&
-		tags["building:levels"] !== undefined
+		(tags["building:levels"] !== undefined ||
+			tags["building:levels:underground"] !== undefined)
 	);
 }
 
@@ -73,9 +77,13 @@ function union(values: readonly (string | undefined)[]): Levels | null {
 	return readable ? normalizeLevels(ranges) : null;
 }
 
-/** Levels counted by `building:levels=*`: above ground from 0, underground from -1 down. */
+/**
+ * Levels counted by `building:levels=*`: above ground from 0, underground from -1 down. A part
+ * with only `building:levels:underground` (a basement part) is underground only.
+ */
 function buildingLevels(tags: Tags): Levels | null {
-	const aboveGround = count(tags["building:levels"]);
+	const aboveGround =
+		tags["building:levels"] === undefined ? 0 : count(tags["building:levels"]);
 	if (aboveGround === null) return null;
 	const total = aboveGround + (count(tags["roof:levels"]) ?? 0);
 	const underground = count(tags["building:levels:underground"]) ?? 0;

@@ -32,6 +32,52 @@ export function recheckIssues(
 		...wallTwice(graph, entity),
 		...jitter(graph, entity),
 		...doorOnSide(graph, entity, outlines),
+		...highwayRing(graph, entity),
+	];
+}
+
+/** Walkable lines that never run round a room's outline (an area of them has `area=yes`). */
+const RING_HIGHWAYS = new Set(["steps", "footway", "corridor", "path"]);
+const SPACES = new Set(["room", "area", "corridor"]);
+
+/**
+ * A closed path way on exactly the nodes of an indoor space's outline: a `highway=steps` or
+ * footway ring along a room's walls is "grossly wrong" (Tordanik, forum t/138694), a copy of the
+ * outline rather than a way through the space. The fix deletes the ring when no relation holds
+ * it; its nodes stay in the room.
+ */
+function highwayRing(graph: Graph, entity: Entity): Issue[] {
+	if (entity.type !== "way" || !isClosed(entity)) return [];
+	const { highway } = entity.tags;
+	if (!highway || !RING_HIGHWAYS.has(highway) || entity.tags.area === "yes") {
+		return [];
+	}
+	const nodes = new Set(entity.nodes);
+	const [first] = entity.nodes;
+	if (first === undefined || nodes.size < 3) return [];
+	const space = graph
+		.parentWays(first)
+		.find(
+			(w) =>
+				w.id !== entity.id &&
+				isClosed(w) &&
+				w.tags.indoor !== undefined &&
+				SPACES.has(w.tags.indoor) &&
+				new Set(w.nodes).size === nodes.size &&
+				w.nodes.every((n) => nodes.has(n)),
+		);
+	if (!space) return [];
+	const held = graph.parentRelations(entity.id).length > 0;
+	return [
+		issue("highway-ring", entity, msg("issue_highway_ring", { highway }), {
+			key: space.id,
+			...(!held && {
+				fix: {
+					label: msg("fix_delete_feature"),
+					action: deleteEntities([entity.id]),
+				},
+			}),
+		}),
 	];
 }
 

@@ -85,6 +85,8 @@ describe("placePoint", () => {
 	});
 
 	it("makes an entrance on the building's outline, on the shown level", () => {
+		// SIT (2026) tags entrances with entrance=* instead of indoor=door; indoor=door is kept
+		// for viewers that only find doors by it (decided with the user, W4).
 		const g = graph();
 		const placed = placePoint(g, [0.5, 0], side("n1", "n2", [0.5, 0]), 0);
 		expect(placed?.kind).toBe("entrance");

@@ -27,6 +27,8 @@ export function isVertical(tags: Tags): boolean {
 		tags.elevator === "yes" ||
 		tags.highway === "elevator" ||
 		tags.highway === "steps" ||
+		// SIT: the outline of a flight, drawn as well as its `highway=steps` line.
+		tags["area:highway"] === "steps" ||
 		tags.conveying !== undefined ||
 		(tags.room !== undefined && VERTICAL_ROOMS.has(tags.room)) ||
 		tags.buildingpart === "verticalpassage"
