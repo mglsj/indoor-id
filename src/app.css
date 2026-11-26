@@ -228,6 +228,34 @@ body {
 	color: var(--pressed-foreground);
 }
 
+/*
+ * A pressed button keeps the outline's border (A.1), filled inside it: buttons clip their
+ * background to the padding box, so a border in the fill's colour let the surface under the
+ * button show between the two at the rounded corners, and the fill drawn to the edge left a
+ * fringe of that surface around it, both plain on a light fill over a dark toolbar.
+ * `group/button` marks shadcn's Button: bits-ui triggers replace its `data-slot`.
+ */
+.group\/button[aria-pressed="true"] {
+	border-color: var(--border);
+}
+
+.dark .group\/button[aria-pressed="true"] {
+	border-color: var(--input);
+}
+
+/*
+ * A disabled tool in a row of tools dims its content, not the whole button: at half opacity
+ * its border let the toolbar show through, a darker piece in the row's outline.
+ */
+[data-slot="button-group"]
+	> .group\/button:is(:disabled, [aria-disabled="true"]) {
+	opacity: 1;
+
+	& > * {
+		opacity: 0.5;
+	}
+}
+
 /* Reduced motion (A.6): no transitions or zoom-ins; the camera follows it in MapLibre. A
    spinner keeps turning: it says that something is loading. Unlayered, so it wins over the
    utilities without !important. */
