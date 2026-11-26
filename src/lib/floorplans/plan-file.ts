@@ -89,6 +89,8 @@ export interface ArchivedGuide {
 	readonly color?: string;
 	/** Hidden by the user. */
 	readonly hidden?: boolean;
+	/** Placed in map mode: an outdoor guide, shown on every level and never indoors. */
+	readonly outdoor?: boolean;
 }
 
 export interface PlanArchive {
@@ -224,7 +226,7 @@ function guidesOf(value: unknown): ArchivedGuide[] {
 	if (!Array.isArray(value)) return [];
 	return value.flatMap((guide): ArchivedGuide[] => {
 		if (!isRecord(guide)) return [];
-		const { origin, angle, level, building, color, hidden } = guide;
+		const { origin, angle, level, building, color, hidden, outdoor } = guide;
 		if (
 			!Array.isArray(origin) ||
 			origin.length !== 2 ||
@@ -244,6 +246,7 @@ function guidesOf(value: unknown): ArchivedGuide[] {
 					? { color }
 					: {}),
 				...(hidden === true ? { hidden } : {}),
+				...(outdoor === true ? { outdoor } : {}),
 			},
 		];
 	});

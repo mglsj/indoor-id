@@ -264,7 +264,7 @@ test("outside any building, Edit indoor here opens the indoor data no building h
 	await expect(page.getByTestId("building-scope")).toBeHidden();
 });
 
-test("the map offers iD's tools; CAD tools, floor plans and levels are building mode's", async ({
+test("the map offers iD's tools, guides and floor plans; CAD tools and levels are building mode's", async ({
 	page,
 }) => {
 	await open(page, `/#19/${LAT}/${LON}/0`);
@@ -273,8 +273,8 @@ test("the map offers iD's tools; CAD tools, floor plans and levels are building 
 	const usable = draw.locator(
 		'button:not([aria-disabled="true"]):not([disabled])',
 	);
-	await expect(usable).toHaveCount(3);
-	await expect(page.getByRole("button", { name: "Floor plans" })).toBeHidden();
+	await expect(usable).toHaveCount(5);
+	await expect(page.getByRole("button", { name: "Floor plans" })).toBeVisible();
 	await expect(page.getByTestId("level")).toBeHidden();
 	// Keys of tools not offered do nothing.
 	await page.keyboard.press("4");

@@ -297,6 +297,12 @@ describe("plan files, version 2: an archive of plans and the files they come fro
 				building: "w4242",
 			},
 			{ origin: [-1.6952, 48.1367] as const, angle: -12.5, level: -1 },
+			{
+				origin: [-1.6951, 48.1366] as const,
+				angle: 90,
+				level: 0,
+				outdoor: true,
+			},
 		];
 		expect(readPlanArchive(writePlanArchive({ ...archive, guides }))).toEqual({
 			...archive,

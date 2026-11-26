@@ -52,6 +52,29 @@ describe("Guides", () => {
 		);
 	});
 
+	it("keeps outdoor guides (map mode) apart from a level's, on every level", async () => {
+		const kept = store();
+		const guides = new Guides(kept);
+		const inside = guides.add({ origin: [1, 2], angle: 0 }, 0);
+		const outside = guides.add(
+			{ origin: [3, 4], angle: 90 },
+			0,
+			undefined,
+			undefined,
+			"outdoor",
+		);
+		expect(guides.on(0)).toEqual([inside]);
+		expect(guides.on(0, "outdoor")).toEqual([outside]);
+		expect(guides.on(2, "outdoor")).toEqual([outside]);
+		expect(guides.countOn(0, "outdoor")).toBe(1);
+		expect(guides.levels()).toEqual([{ level: 0, count: 1 }]);
+		await settle();
+		expect(kept.saved.get(outside.id)).toMatchObject({ outdoor: true });
+
+		guides.clear(0, "outdoor");
+		expect(guides.all).toEqual([inside]);
+	});
+
 	it("hides guides without forgetting them", () => {
 		const guides = new Guides();
 		guides.add({ origin: [1, 2], angle: 30 }, 0);

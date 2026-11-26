@@ -18,6 +18,8 @@
 	/** The shown level's construction guides (C.5): how many, shown or not, and their pane. */
 	export interface GuideControls {
 		readonly count: number;
+		/** Counted from the outdoor set (map mode), not the shown level's. */
+		readonly outdoor?: boolean;
 		readonly shown: boolean;
 		onshow(shown: boolean): void;
 		/** Opens the guides pane, which lists them. */
@@ -345,7 +347,11 @@
 						{t(msg("guides_section"))}
 					</h3>
 					<p class="text-xs text-muted-foreground" data-testid="guides-count">
-						{t(msg("guides_count", { count: String(guides.count) }))}
+						{t(
+							msg(guides.outdoor ? "guides_count_outdoor" : "guides_count", {
+								count: String(guides.count),
+							}),
+						)}
 					</p>
 					<div class="flex items-center gap-2">
 						<Checkbox

@@ -481,6 +481,46 @@ test("guides line up with each other: parallel at a typed distance, or square th
 	await expect(items.nth(2)).toContainText("127° from east");
 });
 
+test("guides placed on the map are outdoor ones, kept apart from a building's", async ({
+	page,
+}) => {
+	await serveOsm(page, []);
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await camera(page);
+	const { x, y } = await mapCenter(page);
+	await page.keyboard.press("m");
+	await page.getByTestId("measure-mode").click();
+	await page.getByRole("menuitemradio", { name: "Guide" }).click();
+	await expect(page.getByRole("menu")).toBeHidden();
+	await page.mouse.click(x - 100, y);
+	await page.mouse.click(x + 100, y + 20);
+	await page.keyboard.press("Escape");
+	await expect.poll(() => storedGuides(page)).toBe(1);
+
+	const count = async (text: string) => {
+		await page.getByRole("button", { name: "Snapping…" }).click();
+		await expect(page.getByTestId("guides-count")).toHaveText(text);
+	};
+	await count("Outdoor guides: 1");
+	await page.getByRole("button", { name: "Manage guides…" }).click();
+	const pane = page.getByTestId("guides-pane");
+	await expect(pane).toContainText("Outdoor guides");
+	await expect(
+		pane.getByTestId("guides-list").getByRole("listitem"),
+	).toHaveCount(1);
+
+	// Inside, the level's guides: the outdoor one isn't among them.
+	await page.goto(`/#19/${LAT}/${LON}/0${INDOOR}`);
+	await page.reload();
+	await camera(page);
+	await count("Guides on this level: 0");
+
+	await page.goto(`/#19/${LAT}/${LON}/0`);
+	await page.reload();
+	await camera(page);
+	await count("Outdoor guides: 1");
+});
+
 test("a middle-button drag pans the map while a tool is on, drawing nothing", async ({
 	page,
 }) => {

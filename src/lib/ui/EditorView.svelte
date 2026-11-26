@@ -143,7 +143,7 @@
 		type View as PlanView,
 	} from "#lib/state/floorplans.svelte.ts";
 	import { type BuildingFrame, Frames } from "#lib/state/frames.svelte.ts";
-	import { Guides } from "#lib/state/guides.svelte.ts";
+	import { type GuideSet, Guides } from "#lib/state/guides.svelte.ts";
 	import { IdleIssues } from "#lib/state/idle-issues.svelte.ts";
 	import {
 		INFERENCE_OPTIONS,
@@ -399,6 +399,10 @@
 	/** Construction guides placed with the measure tool (C.5), kept with the floor plans. */
 	const construction = new Guides(planStore);
 	void construction.load();
+	/** The guides worked with: map mode's outdoor set, or building mode's per level. */
+	const guideSet = $derived<GuideSet>(
+		editor.scope.active ? "indoor" : "outdoor",
+	);
 	/** The guide pointed at in the guides pane, drawn bold. */
 	let highlightedGuide = $state<string | null>(null);
 	/** The measure tool while it is on, for the toolbar's Measure / Guide switch. */
@@ -433,6 +437,7 @@
 			looks.guideColor === DEFAULT_APPEARANCE.guideColor
 				? undefined
 				: looks.guideColor,
+			guideSet,
 		);
 		if (!guidesPaneShown && openPane !== "guides") {
 			guidesPaneShown = true;
@@ -890,7 +895,8 @@
 			selectionColor: () => looks.selectionColor,
 			feedback: () => feedback,
 			nudging: () => editor.selection.ids.length > 0,
-			guides: () => (planMode || !offered.guides ? [] : construction.on(level)),
+			guides: () =>
+				planMode || !offered.guides ? [] : construction.on(level, guideSet),
 			highlightedGuide: () => highlightedGuide,
 			gridStyle: () => gridStyle(looks),
 			gridLines: () => {
@@ -1096,7 +1102,7 @@
 				return offered.typed;
 			},
 			// Directions along or square to the guides shown (C.5).
-			guides: () => (offered.guides ? construction.on(level) : []),
+			guides: () => (offered.guides ? construction.on(level, guideSet) : []),
 			ondrawn: drawingEnded,
 			ondrawing: (id) => editor.selection.setDrawing(id),
 			tracing: {
@@ -1289,7 +1295,8 @@
 				lock: constraints.lock,
 				grid: gridSnap(),
 				from: snaps("parallels") ? constraints.from : undefined,
-				guides: points && offered.guides ? construction.on(level) : [],
+				guides:
+					points && offered.guides ? construction.on(level, guideSet) : [],
 				crossings: snaps("intersections"),
 			},
 			projectLoc,
@@ -1475,7 +1482,7 @@
 
 	/** The guides pane, beside the background's; not in floor plan mode, where guides aren't drawn. */
 	const guidePanes: MapPane[] = $derived([
-		// Floor plans are traced inside a building (B.3), in the right column (A.2).
+		// Floor plans to trace, on the map and inside a building (B.3), in the right column (A.2).
 		...(offered.floorPlans || plansOpen
 			? [
 					{
@@ -1496,7 +1503,7 @@
 						label: t(msg("guides_section")),
 						title: t(msg("guides_pane_toggle")),
 						icon: RulerDimensionLine,
-						badge: construction.countOn(level),
+						badge: construction.countOn(level, guideSet),
 						content: guidesPane,
 					},
 				]),
@@ -1668,6 +1675,7 @@
 	<GuidesPane
 		guides={construction}
 		{level}
+		set={guideSet}
 		toolKey="M"
 		onplace={placeGuides}
 		onlevel={(shown) => (level = shown)}
@@ -1829,7 +1837,8 @@
 					{offered}
 					guides={offered.guides
 						? {
-								count: construction.countOn(level),
+								count: construction.countOn(level, guideSet),
+								outdoor: guideSet === "outdoor",
 								shown: construction.shown,
 								onshow: (shown) => (construction.shown = shown),
 								onmanage: () => (openPane = "guides"),

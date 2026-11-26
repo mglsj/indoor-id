@@ -141,6 +141,8 @@ export interface StoredGuide {
 	readonly color?: string;
 	/** Hidden by the user. */
 	readonly hidden?: boolean;
+	/** Placed in map mode: an outdoor guide, shown on every level and never indoors. */
+	readonly outdoor?: boolean;
 }
 
 /** Construction guides kept next to the floor plans (C.5). */

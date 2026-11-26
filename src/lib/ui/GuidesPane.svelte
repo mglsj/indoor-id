@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
 	 * The construction guides (C.5), in a pane on the right of the map as the background's:
-	 * the shown level's guides, each to recolour, hide, delete or find on the map (pointing at
+	 * the shown level's guides (in map mode, the outdoor ones, a set of their own), each to recolour, hide, delete or find on the map (pointing at
 	 * one draws it bold), all of them hidden at once or the level's cleared, and the other
 	 * levels that have guides.
 	 */
@@ -16,12 +16,14 @@
 	import type { ConstructionGuide } from "#lib/edit/precision/construction.ts";
 	import { msg, t } from "#lib/i18n/messages.ts";
 	import { INDOOR_COLORS } from "#lib/map/style/colors.ts";
-	import type { Guides } from "#lib/state/guides.svelte.ts";
+	import type { GuideSet, Guides } from "#lib/state/guides.svelte.ts";
 
 	interface Props {
 		guides: Guides;
 		/** The shown level. */
 		level: number;
+		/** The guides listed: the shown level's indoors, or the outdoor ones (map mode). */
+		set?: GuideSet;
 		/** The tool's shortcut, as shown ("M"). */
 		toolKey: string;
 		/** Turns the measure and guide tool on, placing guides. */
@@ -38,6 +40,7 @@
 	let {
 		guides,
 		level,
+		set = "indoor",
 		toolKey,
 		onplace,
 		onlevel,
@@ -46,8 +49,10 @@
 		onclose,
 	}: Props = $props();
 
-	const listed = $derived(guides.listOn(level));
-	const others = $derived(guides.levels().filter((l) => l.level !== level));
+	const listed = $derived(guides.listOn(level, set));
+	const others = $derived(
+		set === "outdoor" ? [] : guides.levels().filter((l) => l.level !== level),
+	);
 
 	/** A guide's direction, as a line has: 0° to 180° from east, counterclockwise. */
 	function direction(angle: number): string {
@@ -95,11 +100,15 @@
 
 		<section class="flex flex-col gap-2" aria-labelledby="guides-this-level">
 			<h3 id="guides-this-level" class="text-sm font-medium">
-				{t(msg("guides_this_level"))}
+				{t(msg(set === "outdoor" ? "guides_outdoor" : "guides_this_level"))}
 			</h3>
 			{#if listed.length === 0}
 				<p class="text-sm text-muted-foreground">
-					{t(msg("guides_none", { key: toolKey }))}
+					{t(
+						msg(set === "outdoor" ? "guides_none_outdoor" : "guides_none", {
+							key: toolKey,
+						}),
+					)}
 				</p>
 			{:else}
 				<ul class="flex flex-col gap-0.5" data-testid="guides-list">
@@ -176,10 +185,10 @@
 					class="self-start"
 					onclick={() => {
 						onhighlight(null);
-						guides.clear(level);
+						guides.clear(level, set);
 					}}
 				>
-					{t(msg("guides_clear"))}
+					{t(msg(set === "outdoor" ? "guides_clear_outdoor" : "guides_clear"))}
 				</Button>
 			{/if}
 		</section>
