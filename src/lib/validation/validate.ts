@@ -23,6 +23,7 @@ import type {
 	EntityId,
 	Loc,
 	Node,
+	NodeId,
 	Relation,
 	Way,
 } from "#lib/osm/entity.ts";
@@ -96,6 +97,8 @@ export interface Issue {
 	readonly rule: IssueRule;
 	readonly severity: "warning" | "error";
 	readonly entityId: EntityId;
+	/** The node of the feature's way the issue is at, pointed out on the map (save dialog). */
+	readonly at?: NodeId;
 	readonly message: Message;
 	readonly fix?: Fix;
 	/** A fix that takes the level shown on the map (`missing-level`). */

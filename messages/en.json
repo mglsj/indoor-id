@@ -758,5 +758,21 @@
 	"members_role_of": "Role of {item}",
 	"plan_point_moves": "Moves the plan",
 	"relations_new": "New relation…",
-	"time_just_now": "just now"
+	"time_just_now": "just now",
+	"save_changes": "Changes",
+	"save_change_created": "Created",
+	"save_change_modified": "Modified",
+	"save_change_deleted": "Deleted",
+	"save_show_change": "Show {item} on the map ({kind})",
+	"save_select_issue": "Select {item} to fix: {issue}",
+	"save_more_changes": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "and {count} more change",
+				"countPlural=*": "and {count} more changes"
+			}
+		}
+	]
 }

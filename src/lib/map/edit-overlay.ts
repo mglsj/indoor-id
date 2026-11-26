@@ -7,7 +7,11 @@ import type { FeatureCollection, LineString, Point, Polygon } from "geojson";
 import type { OverlayProperties } from "#lib/edit/overlay.ts";
 import type { Loc, NodeId, WayId } from "#lib/osm/entity.ts";
 import { slotId, slotsReady } from "./layer-slots.ts";
-import type { GeoJSONSource, Map as MapLibreMap } from "./maplibre.ts";
+import type {
+	ExpressionSpecification,
+	GeoJSONSource,
+	Map as MapLibreMap,
+} from "./maplibre.ts";
 import { INDOOR_COLORS as C } from "./style/colors.ts";
 
 const SOURCE = "edit-overlay";
@@ -60,6 +64,22 @@ export class EditOverlay {
 		this.#map.setPaintProperty(FLOOR_LINE_LAYER, "line-color", color);
 		this.#map.setPaintProperty(MEMBER_LAYER, "line-color", color);
 		this.#map.setPaintProperty(MIDPOINT_LAYER, "circle-color", color);
+		this.#map.setPaintProperty(
+			VERTEX_LAYER,
+			"circle-stroke-color",
+			this.#vertexStroke(),
+		);
+	}
+
+	#vertexStroke(): ExpressionSpecification {
+		return [
+			"case",
+			["has", "@mark"],
+			this.#selection,
+			["has", "@shared"],
+			C.text,
+			C.point,
+		];
 	}
 
 	setData(data: OverlayData): void {
@@ -214,11 +234,26 @@ export class EditOverlay {
 				source: SOURCE,
 				filter: role("vertex"),
 				paint: {
-					// Junctions a little larger: moving one moves several ways.
-					"circle-radius": ["case", ["has", "@shared"], 4.5, 4],
+					// Junctions a little larger: moving one moves several ways. A vertex selected or
+					// hovered itself (from the save dialog's issues) is ringed in the selection colour.
+					"circle-radius": [
+						"case",
+						["has", "@mark"],
+						6,
+						["has", "@shared"],
+						4.5,
+						4,
+					],
 					"circle-color": C.pointStroke,
-					"circle-stroke-color": ["case", ["has", "@shared"], C.text, C.point],
-					"circle-stroke-width": ["case", ["has", "@shared"], 2, 1.5],
+					"circle-stroke-color": this.#vertexStroke(),
+					"circle-stroke-width": [
+						"case",
+						["has", "@mark"],
+						3,
+						["has", "@shared"],
+						2,
+						1.5,
+					],
 				},
 			},
 			edit,

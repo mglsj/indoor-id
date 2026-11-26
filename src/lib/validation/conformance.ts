@@ -50,13 +50,14 @@ function issue(
 	rule: IssueRule,
 	entity: Entity,
 	message: Issue["message"],
-	{ fix, key }: { fix?: Issue["fix"]; key?: string } = {},
+	{ fix, key, at }: { fix?: Issue["fix"]; key?: string; at?: NodeId } = {},
 ): Issue {
 	return {
 		id: `${rule}:${entity.id}${key ? `:${key}` : ""}`,
 		rule,
 		severity: "warning",
 		entityId: entity.id,
+		...(at && { at }),
 		message,
 		...(fix && { fix }),
 	};
@@ -139,7 +140,7 @@ function flightIssues(
 					"escalator-end",
 					entity,
 					msg("issue_escalator_end", { level: String(level) }),
-					{ key: end.id },
+					{ key: end.id, at: end.id },
 				),
 			);
 		}
@@ -421,6 +422,7 @@ function duplicateNodes(
 			issues.push(
 				issue("duplicate-node", entity, msg("issue_duplicate_node"), {
 					key: id,
+					at: id,
 					...(!refused && {
 						fix: {
 							label: msg("fix_merge_nodes"),

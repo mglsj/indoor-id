@@ -156,4 +156,54 @@ describe("SaveDialog", () => {
 		expect(upload).not.toHaveBeenCalled();
 		expect(page.getByRole("alert").elements()).toHaveLength(0);
 	});
+
+	it("lists the changed features and highlights the one hovered", async () => {
+		const editor = await editedBench(vi.fn<SyncApi["upload"]>());
+		const onshow = vi.fn();
+		renderWithEditor(editor, SaveDialog, {
+			...props(session(true)),
+			onshow,
+		});
+		const row = page
+			.getByTestId("changes")
+			.getByRole("button", { name: /Bench/ });
+		await expect.element(row).toBeVisible();
+		expect(row.element().textContent).toContain("Modified");
+		await row.hover();
+		expect(editor.selection.hover).toBe("n1");
+		await row.click();
+		expect(onshow).toHaveBeenCalledWith("n1", expect.any(Number));
+		await page.getByRole("textbox", { name: "Comment" }).hover();
+		expect(editor.selection.hover).toBe(null);
+	});
+
+	it("selects the feature an issue names, highlighting it on hover", async () => {
+		const editor = await editedBench(vi.fn<SyncApi["upload"]>());
+		editor.history.merge([
+			node("n2", {}, [2.35, 48.85]),
+			node("n3", {}, [2.351, 48.85]),
+			way("w1", ["n2", "n3"]),
+			relation("r1", [{ ref: "w1", role: "outer" }], {
+				type: "multipolygon",
+				building: "yes",
+			}),
+		]);
+		editor.history.perform(
+			changeTags("r1", { type: "multipolygon", building: "school" }),
+			msg("undo_change_tags"),
+		);
+		const onpick = vi.fn();
+		renderWithEditor(editor, SaveDialog, {
+			...props(session(true)),
+			onpick,
+		});
+		const issue = page
+			.getByRole("list", { name: "Issues in your edits" })
+			.getByRole("button")
+			.first();
+		await issue.hover();
+		expect(editor.selection.hover).toBe("r1");
+		await issue.click();
+		expect(onpick).toHaveBeenCalledWith("r1", undefined);
+	});
 });
