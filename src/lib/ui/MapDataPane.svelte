@@ -62,11 +62,16 @@
 	const COLORS: {
 		key: "gridColor" | "guideColor" | "selectionColor" | "drawingColor";
 		label: Message;
+		hint?: Message;
 	}[] = [
 		{ key: "selectionColor", label: msg("appearance_selection") },
 		{ key: "drawingColor", label: msg("appearance_drawing") },
 		{ key: "gridColor", label: msg("appearance_grid") },
-		{ key: "guideColor", label: msg("appearance_guide") },
+		{
+			key: "guideColor",
+			label: msg("appearance_guide"),
+			hint: msg("appearance_guide_hint"),
+		},
 	];
 
 	const OPACITIES: {
@@ -146,7 +151,7 @@
 
 		<Field.Set>
 			<Field.Legend variant="label">{t(msg("appearance_colors"))}</Field.Legend>
-			{#each COLORS as { key, label } (key)}
+			{#each COLORS as { key, label, hint } (key)}
 				<Field.Field orientation="horizontal">
 					<input
 						id="appearance-{key}"
@@ -156,9 +161,18 @@
 						oninput={(event) =>
 							appearance.set({ [key]: event.currentTarget.value })}
 					>
-					<Field.Label for="appearance-{key}" class="font-normal"
-						>{t(label)}</Field.Label
-					>
+					{#if hint}
+						<Field.Content>
+							<Field.Label for="appearance-{key}" class="font-normal"
+								>{t(label)}</Field.Label
+							>
+							<Field.Description>{t(hint)}</Field.Description>
+						</Field.Content>
+					{:else}
+						<Field.Label for="appearance-{key}" class="font-normal"
+							>{t(label)}</Field.Label
+						>
+					{/if}
 				</Field.Field>
 			{/each}
 			{#each OPACITIES as { key, label } (key)}

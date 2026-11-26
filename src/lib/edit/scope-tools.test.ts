@@ -4,7 +4,7 @@ import { toolsFor } from "./scope-tools.ts";
 describe("toolsFor (B.3)", () => {
 	it("offers iD's tools on the map: point, line, area, outside operations, plain snaps", () => {
 		const map = toolsFor("map");
-		expect([...map.draw]).toEqual(["point", "line", "area"]);
+		expect([...map.draw]).toEqual(["point", "line", "area", "measure"]);
 		for (const id of [
 			"delete",
 			"square",
@@ -24,9 +24,9 @@ describe("toolsFor (B.3)", () => {
 			expect(map.operation(id)).toBe(false);
 		expect(map.snap("points")).toBe(true);
 		expect(map.snap("angles")).toBe(true);
+		expect(map.snap("planVertices")).toBe(true);
 		for (const option of [
 			"grid",
-			"planVertices",
 			"extensions",
 			"parallels",
 			"tracking",
@@ -36,9 +36,9 @@ describe("toolsFor (B.3)", () => {
 		expect(map).toMatchObject({
 			grid: false,
 			frame: false,
-			guides: false,
+			guides: true,
 			typed: false,
-			floorPlans: false,
+			floorPlans: true,
 			levels: false,
 		});
 	});

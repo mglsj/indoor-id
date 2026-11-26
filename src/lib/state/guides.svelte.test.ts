@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GuideStore, StoredGuide } from "#lib/persist/plan-store.ts";
-import { Guides } from "./guides.svelte.ts";
+import { Guides, pickGuideColor } from "./guides.svelte.ts";
 
 function store(): GuideStore & { saved: Map<string, StoredGuide> } {
 	const saved = new Map<string, StoredGuide>();
@@ -50,6 +50,52 @@ describe("Guides", () => {
 		expect(guides.add({ origin: [1, 2], angle: 0 }, 0)).not.toHaveProperty(
 			"color",
 		);
+	});
+
+	it("keeps outdoor guides (map mode) apart from a level's, on every level", async () => {
+		const kept = store();
+		const guides = new Guides(kept);
+		const inside = guides.add({ origin: [1, 2], angle: 0 }, 0);
+		const outside = guides.add(
+			{ origin: [3, 4], angle: 90 },
+			0,
+			undefined,
+			undefined,
+			"outdoor",
+		);
+		expect(guides.on(0)).toEqual([inside]);
+		expect(guides.on(0, "outdoor")).toEqual([outside]);
+		expect(guides.on(2, "outdoor")).toEqual([outside]);
+		expect(guides.countOn(0, "outdoor")).toBe(1);
+		expect(guides.levels()).toEqual([{ level: 0, count: 1 }]);
+		await settle();
+		expect(kept.saved.get(outside.id)).toMatchObject({ outdoor: true });
+
+		guides.clear(0, "outdoor");
+		expect(guides.all).toEqual([inside]);
+	});
+
+	it("picks a new guide's colour from the palette, one no guide has while there is one", () => {
+		const palette = ["#aa0000", "#00aa00", "#0000aa"];
+		const guides = new Guides();
+		guides.add({ origin: [0, 0], angle: 0 }, 0, undefined, "#AA0000");
+		// The default colour counts as the first one's.
+		guides.add({ origin: [0, 0], angle: 0 }, 0);
+		const fallback = "#00aa00";
+		expect(pickGuideColor(palette, guides.all, fallback, () => 0)).toBe(
+			"#0000aa",
+		);
+		expect(pickGuideColor(palette, guides.all, fallback, () => 0.99)).toBe(
+			"#0000aa",
+		);
+		expect(pickGuideColor(palette, [], fallback, () => 0.5)).toBe("#00aa00");
+		// All taken: any but the last guide's (the default here).
+		guides.add({ origin: [0, 0], angle: 0 }, 0, undefined, "#0000aa");
+		guides.add({ origin: [0, 0], angle: 0 }, 0, undefined, "#00aa00");
+		for (const r of [0, 0.5, 0.99])
+			expect(pickGuideColor(palette, guides.all, fallback, () => r)).not.toBe(
+				"#00aa00",
+			);
 	});
 
 	it("hides guides without forgetting them", () => {

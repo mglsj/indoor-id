@@ -1,8 +1,9 @@
 /**
  * What each scope of building mode offers (B.3): on the map, iD's tools for buildings, parts and
  * entrances (point, line, area, the operations that make sense outside, node and side snapping,
- * angle snapping and the length readout); inside a building, everything, CAD precision (C)
- * included. Keys of tools not offered do nothing. Pure.
+ * angle snapping and the length readout), with construction guides (outdoor ones, a set of their
+ * own), the measure tool placing them and floor plans to trace; inside a building, everything,
+ * CAD precision (C) included. Keys of tools not offered do nothing. Pure.
  */
 import type { SnapOption } from "#lib/state/precision.svelte.ts";
 import type { Operation } from "./operations.ts";
@@ -30,7 +31,7 @@ export interface ScopeTools {
 	readonly frame: boolean;
 	readonly guides: boolean;
 	readonly typed: boolean;
-	/** Floor plans are traced inside a building. */
+	/** Floor plans to trace, on the map (a site plan) and inside a building. */
 	readonly floorPlans: boolean;
 	/** The level switcher: levels are a building's. */
 	readonly levels: boolean;
@@ -56,22 +57,23 @@ const INDOOR_OPERATIONS: ReadonlySet<Operation["id"]> = new Set([
 	"square-frame",
 ]);
 
-/** Snaps map mode keeps: corners, sides and their middles, angles. */
+/** Snaps map mode keeps: corners, sides and their middles, angles, floor plan corners. */
 const MAP_SNAPS: ReadonlySet<SnapOption> = new Set([
 	"points",
 	"midpoints",
 	"angles",
+	"planVertices",
 ]);
 
 const MAP_TOOLS: ScopeTools = {
-	draw: new Set<DrawTool>(["point", "line", "area"]),
+	draw: new Set<DrawTool>(["point", "line", "area", "measure"]),
 	operation: (id) => !INDOOR_OPERATIONS.has(id),
 	snap: (option) => MAP_SNAPS.has(option),
 	grid: false,
 	frame: false,
-	guides: false,
+	guides: true,
 	typed: false,
-	floorPlans: false,
+	floorPlans: true,
 	levels: false,
 };
 

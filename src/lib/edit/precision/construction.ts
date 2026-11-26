@@ -18,6 +18,8 @@ export interface ConstructionGuide extends DirectionLine {
 	readonly color?: string;
 	/** Hidden by the user: kept, but neither drawn nor snapped to. */
 	readonly hidden?: boolean;
+	/** Placed in map mode: an outdoor guide, shown on every level and never indoors. */
+	readonly outdoor?: boolean;
 }
 
 /** The line parallel to side `a`–`b`, `offset` metres from it on the side of `toward`. */
