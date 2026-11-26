@@ -310,6 +310,7 @@
 	"appearance_drawing": "Line being drawn",
 	"appearance_grid": "Grid",
 	"appearance_guide": "New guides",
+	"appearance_guide_hint": "Left as it is, each new guide gets a colour of its own. Pick one to give every new guide that colour.",
 	"appearance_grid_minor": "Grid lines",
 	"appearance_grid_major": "Major grid lines",
 	"appearance_reset": "Reset the colours",

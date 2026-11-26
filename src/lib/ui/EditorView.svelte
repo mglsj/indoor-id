@@ -115,6 +115,7 @@
 		type LngLatLike,
 		type Map as MapLibreMap,
 	} from "#lib/map/maplibre.ts";
+	import { GUIDE_PALETTE, INDOOR_COLORS } from "#lib/map/style/colors.ts";
 	import {
 		visibleExtent as extentOfView,
 		projectLoc as project_,
@@ -143,7 +144,11 @@
 		type View as PlanView,
 	} from "#lib/state/floorplans.svelte.ts";
 	import { type BuildingFrame, Frames } from "#lib/state/frames.svelte.ts";
-	import { type GuideSet, Guides } from "#lib/state/guides.svelte.ts";
+	import {
+		type GuideSet,
+		Guides,
+		pickGuideColor,
+	} from "#lib/state/guides.svelte.ts";
 	import { IdleIssues } from "#lib/state/idle-issues.svelte.ts";
 	import {
 		INFERENCE_OPTIONS,
@@ -433,9 +438,14 @@
 			level,
 			frames.at(editor.features.containersAt(line.origin), line.origin, level)
 				?.id,
-			// The Map data pane's colour, kept on the guide only when it isn't the default.
+			// The Map data pane's colour when one was picked there; else one of the palette at
+			// random, apart from the colours the set's guides have.
 			looks.guideColor === DEFAULT_APPEARANCE.guideColor
-				? undefined
+				? pickGuideColor(
+						GUIDE_PALETTE,
+						construction.listOn(level, guideSet),
+						INDOOR_COLORS.guide,
+					)
 				: looks.guideColor,
 			guideSet,
 		);

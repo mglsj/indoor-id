@@ -37,6 +37,22 @@ export const INDOOR_COLORS = {
 	textHalo: "rgba(255, 255, 255, 0.8)",
 } as const;
 
+/**
+ * Colours a new construction guide (C.5) is given one of, at random, so guides placed one after
+ * another tell apart: strong hues that read on the light map, the guides' magenta first, none
+ * of them the selection's blue, the drawing's teal or the grid's slate.
+ */
+export const GUIDE_PALETTE: readonly string[] = [
+	INDOOR_COLORS.guide,
+	"#ea580c",
+	"#16a34a",
+	"#7c3aed",
+	"#dc2626",
+	"#ca8a04",
+	"#db2777",
+	"#0891b2",
+];
+
 export type IndoorColors = {
 	readonly [K in keyof typeof INDOOR_COLORS]: string;
 };

@@ -15,6 +15,32 @@ export type GuideFields = Omit<ConstructionGuide, "id">;
 /** Which guides are worked with: building mode's, per level, or map mode's, on no level. */
 export type GuideSet = "indoor" | "outdoor";
 
+/**
+ * A colour for a new guide, picked at random from `palette`: one no guide in `taken` has yet
+ * while there is one, else any but the last guide's.
+ */
+export function pickGuideColor(
+	palette: readonly string[],
+	taken: readonly ConstructionGuide[],
+	fallback: string,
+	random: () => number = Math.random,
+): string {
+	const used = new Set(taken.map((g) => (g.color ?? fallback).toLowerCase()));
+	const last = taken.at(-1);
+	const free = palette.filter((c) => !used.has(c.toLowerCase()));
+	const choices =
+		free.length > 0
+			? free
+			: palette.filter(
+					(c) => c.toLowerCase() !== (last?.color ?? fallback).toLowerCase(),
+				);
+	const from = choices.length > 0 ? choices : palette;
+	return (
+		from[Math.min(from.length - 1, Math.floor(random() * from.length))] ??
+		fallback
+	);
+}
+
 /** Whether a guide is in a set, and on the level when indoors (outdoor guides have none). */
 function isIn(guide: ConstructionGuide, level: number, set: GuideSet): boolean {
 	return set === "outdoor"
