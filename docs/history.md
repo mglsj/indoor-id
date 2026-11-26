@@ -1986,9 +1986,10 @@ From [conventions-2026-11-26.md](conventions-2026-11-26.md): SIT as edited after
 Workshop in Berlin (July 2026), the workshop's notes, the forum to 2026-11-25 and
 osm-simple3d-editor `a547bee` → `55dde63`. Done ✅ 2026-11-26, one PR:
 
-- **What IndoorID writes.** A new entrance is `entrance=yes` + `door=yes` + `level`, no longer
-  with `indoor=door` (SIT: entrances are tagged `entrance=*` instead of `indoor=door`; interior
-  doors keep `indoor=door` + `door=*`). The Repeat dialog offers `repeat_on` only for points,
+- **What IndoorID writes.** A new entrance stays `entrance=yes` + `door=yes` + `indoor=door` +
+  `level`: SIT now tags entrances with `entrance=*` instead of `indoor=door`, but the user kept
+  `indoor=door` for viewers that only find doors by it (osm-simple3d-editor's map-mode
+  entrances write it too). The Repeat dialog offers `repeat_on` only for points,
   or for a way that already has it (SIT lists `repeat_on` for nodes). A staircase is
   `indoor=room` + `room=stairs` + `stairs=yes` (iD's `indoor/stairs` with `addTags`), a new
   "Open Staircase" `indoor=area` + the same two, and `indoor=room` + `room=stairs` alone is

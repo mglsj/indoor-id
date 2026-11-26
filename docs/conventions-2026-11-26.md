@@ -1,6 +1,6 @@
 # Indoor conventions IndoorID could adopt (audit, 2026-11-26)
 
-> **2026-11-26, adopted as phase W4** (one PR). Decision taken with the user: staircases are written in both forms, `indoor=room` (or `indoor=area` when open) + `room=stairs` + `stairs=yes`.
+> **2026-11-26, adopted as phase W4** (one PR). Decisions taken with the user: staircases are written in both forms, `indoor=room` (or `indoor=area` when open) + `room=stairs` + `stairs=yes`; entrances keep `indoor=door` beside `entrance=*` (item 1 not adopted), for viewers that only find doors by it.
 
 Short answer: the biggest source of new conventions this year is not the forum but the **Indoor OSM Workshop in Berlin (11–12 July 2026)**, whose decisions were written into Simple Indoor Tagging (SIT) by Tordanik and CommanderStorm between 26 June and 27 July. Earlier research (`research/osm-simple3d-editor.md`, `tagging-gaps/report.md`) never read that page. It changes four things IndoorID writes today:
 

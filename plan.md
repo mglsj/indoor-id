@@ -398,6 +398,8 @@ stacked floors need 3D.3's heights; 3D.1 shows the current level only and needs 
 - 2026-11-26: W4 adopts the 2026-11-26 conventions audit in one PR. Staircases are written in
   both forms at once: `indoor=room` (or `indoor=area` when open) + `room=stairs` + `stairs=yes`
   (asked by the user: SIT documents `stairs=yes`, the workshop suggested `room=stairs`).
+  Entrances keep `indoor=door` beside `entrance=*` and `door=*`, for viewers that only find
+  doors by it (asked by the user), though SIT now says `entrance=*` instead.
 - 2026-11-24/25: phase A from the accessibility and ease-of-use audit, with the layout and
   scope in its section (editor desktop only, good practice rather than formal conformance, no
   new features).
